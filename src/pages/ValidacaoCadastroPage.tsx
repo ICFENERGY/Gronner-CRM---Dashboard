@@ -42,8 +42,8 @@ export function ValidacaoCadastroPage() {
     })
   }, [propostas, values, busca])
 
-  if (loading) return <p className="p-10 text-center text-slate-400">Carregando propostas…</p>
-  if (error) return <p className="p-10 text-center text-red-400">{error}</p>
+  if (loading) return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando propostas…</p>
+  if (error) return <p className="p-10 text-center text-red-600 dark:text-red-400">{error}</p>
 
   const valorPropostaKwh = filtradas.reduce((s, p) => s + (p.kwP ?? 0), 0)
   const valorPropostaRs = filtradas.reduce((s, p) => s + (p.preco ?? 0), 0)
@@ -67,7 +67,7 @@ export function ValidacaoCadastroPage() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por cliente…"
-          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 focus:border-icf-green focus:outline-none"
+          className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none"
         />
       </div>
 

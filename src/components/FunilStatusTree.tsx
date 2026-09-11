@@ -40,35 +40,35 @@ export function FunilStatusTree({ title, items }: { title: string; items: Item[]
   })
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <h3 className="mb-3 text-sm font-medium text-slate-300">{title}</h3>
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <h3 className="mb-3 text-sm font-medium text-[var(--text-secondary)]">{title}</h3>
       <div className="overflow-auto" style={{ maxHeight: 340 }}>
         {linhas.length === 0 ? (
-          <p className="py-10 text-center text-xs text-slate-500">Sem dados para os filtros selecionados.</p>
+          <p className="py-10 text-center text-xs text-[var(--text-muted)]">Sem dados para os filtros selecionados.</p>
         ) : (
           linhas.map(([funil, etapas]) => {
             const total = [...etapas.values()].reduce((s, v) => s + v, 0)
             const isOpen = aberto === funil
             return (
-              <div key={funil} className="border-t border-slate-800 first:border-t-0">
+              <div key={funil} className="border-t border-[var(--border)] first:border-t-0">
                 <button
                   onClick={() => setAberto(isOpen ? null : funil)}
-                  className="flex w-full items-center justify-between py-2 text-left text-sm hover:bg-slate-800/30"
+                  className="flex w-full items-center justify-between py-2 text-left text-sm hover:bg-[var(--surface-hover)]"
                 >
-                  <span className="text-slate-200">{funil}</span>
-                  <span className="flex items-center gap-2 text-slate-400">
+                  <span className="text-[var(--text-primary)]">{funil}</span>
+                  <span className="flex items-center gap-2 text-[var(--text-secondary)]">
                     {number.format(total)}
-                    <span className="text-slate-600">{isOpen ? '−' : '+'}</span>
+                    <span className="text-[var(--text-muted)]">{isOpen ? '−' : '+'}</span>
                   </span>
                 </button>
                 {isOpen && (
-                  <ul className="mb-2 ml-3 space-y-1 border-l border-slate-800 pl-3">
+                  <ul className="mb-2 ml-3 space-y-1 border-l border-[var(--border)] pl-3">
                     {[...etapas.entries()]
                       .sort((a, b) => b[1] - a[1])
                       .map(([etapa, qtd]) => (
                         <li key={etapa} className="flex justify-between text-xs">
-                          <span className="text-slate-400">{etapa}</span>
-                          <span className="text-slate-300">{qtd}</span>
+                          <span className="text-[var(--text-secondary)]">{etapa}</span>
+                          <span className="text-[var(--text-secondary)]">{qtd}</span>
                         </li>
                       ))}
                   </ul>

@@ -5,16 +5,16 @@ const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: '
 
 export function SalesTrendChart({ data }: { data: MesResumo[] }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <h3 className="mb-4 text-sm font-medium text-slate-300">Vendas por mês</h3>
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <h3 className="mb-4 text-sm font-medium text-[var(--text-secondary)]">Vendas por mês</h3>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-          <XAxis dataKey="mes" stroke="#64748b" fontSize={12} />
-          <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => currency.format(v)} width={90} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis dataKey="mes" stroke="var(--text-muted)" fontSize={12} />
+          <YAxis stroke="var(--text-muted)" fontSize={12} tickFormatter={(v) => currency.format(v)} width={90} />
           <Tooltip
-            contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}
-            labelStyle={{ color: '#e2e8f0' }}
+            contentStyle={{ background: 'var(--surface-solid)', border: '1px solid var(--border)', borderRadius: 8 }}
+            labelStyle={{ color: 'var(--text-primary)' }}
             formatter={(value: number) => currency.format(value)}
           />
           <Line type="monotone" dataKey="valorTotal" stroke="#22C55E" strokeWidth={2} dot={false} />

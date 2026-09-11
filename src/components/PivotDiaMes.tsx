@@ -27,12 +27,12 @@ export function PivotDiaMes({ title, items }: { title: string; items: ItemComDat
   const diasOrdenados = [...matriz.keys()].sort((a, b) => a - b)
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <h3 className="mb-3 text-sm font-medium text-slate-300">{title}</h3>
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <h3 className="mb-3 text-sm font-medium text-[var(--text-secondary)]">{title}</h3>
       <div className="overflow-auto" style={{ maxHeight: 340 }}>
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-slate-900">
-            <tr className="text-left text-slate-500">
+          <thead className="sticky top-0 bg-[var(--surface-solid)]">
+            <tr className="text-left text-[var(--text-muted)]">
               <th className="pb-2 pr-2 font-normal">Dia</th>
               {mesesPresentes.map((m) => (
                 <th key={m} className="pb-2 pr-2 text-right font-normal">
@@ -44,17 +44,17 @@ export function PivotDiaMes({ title, items }: { title: string; items: ItemComDat
           </thead>
           <tbody>
             {diasOrdenados.map((dia) => (
-              <tr key={dia} className="border-t border-slate-800">
-                <td className="py-1 pr-2 text-slate-400">{dia}</td>
+              <tr key={dia} className="border-t border-[var(--border)]">
+                <td className="py-1 pr-2 text-[var(--text-secondary)]">{dia}</td>
                 {mesesPresentes.map((m) => (
-                  <td key={m} className="py-1 pr-2 text-right text-slate-300">
+                  <td key={m} className="py-1 pr-2 text-right text-[var(--text-secondary)]">
                     {matriz.get(dia)?.get(m) ?? ''}
                   </td>
                 ))}
-                <td className="py-1 text-right font-medium text-slate-200">{totalPorDia.get(dia)}</td>
+                <td className="py-1 text-right font-medium text-[var(--text-primary)]">{totalPorDia.get(dia)}</td>
               </tr>
             ))}
-            <tr className="border-t border-slate-700 font-medium text-slate-200">
+            <tr className="border-t border-[var(--border-strong)] font-medium text-[var(--text-primary)]">
               <td className="py-1 pr-2">Total</td>
               {mesesPresentes.map((m) => (
                 <td key={m} className="py-1 pr-2 text-right">

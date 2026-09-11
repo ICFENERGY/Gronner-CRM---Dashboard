@@ -13,10 +13,10 @@ export function DonutChart({ title, data, maxSlices = 10 }: { title: string; dat
   const chartData = outros > 0 ? [...top, { name: 'Outros', value: outros }] : top
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <h3 className="mb-2 text-sm font-medium text-slate-300">{title}</h3>
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">{title}</h3>
       {chartData.length === 0 ? (
-        <p className="py-10 text-center text-xs text-slate-500">Sem dados para os filtros selecionados.</p>
+        <p className="py-10 text-center text-xs text-[var(--text-muted)]">Sem dados para os filtros selecionados.</p>
       ) : (
         <ResponsiveContainer width="100%" height={260}>
           <PieChart>
@@ -26,15 +26,15 @@ export function DonutChart({ title, data, maxSlices = 10 }: { title: string; dat
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}
-              labelStyle={{ color: '#e2e8f0' }}
+              contentStyle={{ background: 'var(--surface-solid)', border: '1px solid var(--border)', borderRadius: 8 }}
+              labelStyle={{ color: 'var(--text-primary)' }}
               formatter={(value: number) => number.format(value)}
             />
             <Legend
               layout="vertical"
               align="right"
               verticalAlign="middle"
-              wrapperStyle={{ fontSize: 11, color: '#94a3b8', maxWidth: '45%' }}
+              wrapperStyle={{ fontSize: 11, color: 'var(--text-secondary)', maxWidth: '45%' }}
             />
           </PieChart>
         </ResponsiveContainer>

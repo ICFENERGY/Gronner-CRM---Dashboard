@@ -41,8 +41,8 @@ export function IndicadorTarefasPage() {
     })
   }, [tarefas, values, busca, somenteAtrasadas])
 
-  if (loadingTarefas || loadingPropostas) return <p className="p-10 text-center text-slate-400">Carregando tarefas…</p>
-  if (errorTarefas || errorPropostas) return <p className="p-10 text-center text-red-400">{errorTarefas || errorPropostas}</p>
+  if (loadingTarefas || loadingPropostas) return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando tarefas…</p>
+  if (errorTarefas || errorPropostas) return <p className="p-10 text-center text-red-600 dark:text-red-400">{errorTarefas || errorPropostas}</p>
 
   const projetoIdsFiltrados = new Set(filtradas.map((t) => t.projetoId).filter(Boolean))
   const propostasAceitasRelacionadas = (propostas ?? []).filter((p) => p.aceita && projetoIdsFiltrados.has(p.projetoId))
@@ -81,14 +81,14 @@ export function IndicadorTarefasPage() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por cliente…"
-          className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 focus:border-icf-green focus:outline-none"
+          className="w-full max-w-xs rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none"
         />
         <button
           onClick={() => setSomenteAtrasadas((v) => !v)}
           className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
             somenteAtrasadas
-              ? 'border-red-700 bg-red-950/60 text-red-300'
-              : 'border-slate-700 text-slate-400 hover:border-red-800 hover:text-red-300'
+              ? 'border-red-700 bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300'
+              : 'border-[var(--border-strong)] text-[var(--text-secondary)] hover:border-red-300 dark:border-red-800 hover:text-red-700 dark:text-red-300'
           }`}
         >
           {somenteAtrasadas ? '✓ ' : ''}Somente atrasadas
@@ -123,7 +123,7 @@ export function IndicadorTarefasPage() {
                 key: 'diasAtraso',
                 label: 'Dias de atraso',
                 align: 'right',
-                render: (r) => <span className="font-medium text-red-400">{r.diasAtraso}</span>,
+                render: (r) => <span className="font-medium text-red-600 dark:text-red-400">{r.diasAtraso}</span>,
               },
             ]}
           />

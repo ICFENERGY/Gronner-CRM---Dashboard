@@ -48,8 +48,8 @@ export function VendasPage() {
     })
   }, [vendas, values, busca])
 
-  if (loading) return <p className="p-10 text-center text-slate-400">Carregando vendas…</p>
-  if (error) return <p className="p-10 text-center text-red-400">{error}</p>
+  if (loading) return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando vendas…</p>
+  if (error) return <p className="p-10 text-center text-red-600 dark:text-red-400">{error}</p>
 
   const valorTotal = filtradas.reduce((s, v) => s + v.valorTotal, 0)
   const ticketMedio = filtradas.length ? valorTotal / filtradas.length : 0
@@ -100,7 +100,7 @@ export function VendasPage() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por nome do cliente…"
-          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 focus:border-icf-green focus:outline-none"
+          className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none"
         />
       </div>
 

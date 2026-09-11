@@ -37,8 +37,8 @@ export function MonitoramentoSolarPage() {
     })
   }, [usinas, values, busca])
 
-  if (loading) return <p className="p-10 text-center text-slate-400">Carregando usinas…</p>
-  if (error) return <p className="p-10 text-center text-red-400">{error}</p>
+  if (loading) return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando usinas…</p>
+  if (error) return <p className="p-10 text-center text-red-600 dark:text-red-400">{error}</p>
 
   const potenciaTotal = filtradas.reduce((s, u) => s + (u.potenciaInstalada ?? 0), 0)
   const energiaTotal = filtradas.reduce((s, u) => s + (u.energiaGeradaKwh ?? 0), 0)
@@ -68,7 +68,7 @@ export function MonitoramentoSolarPage() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por nome da usina…"
-          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 focus:border-icf-green focus:outline-none"
+          className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none"
         />
       </div>
 
@@ -119,12 +119,12 @@ export function MonitoramentoSolarPage() {
                 <span
                   className={
                     r.status === 'OK'
-                      ? 'text-icf-greenLight'
+                      ? 'text-icf-green dark:text-icf-greenLight'
                       : r.status === 'ALERTA'
-                        ? 'text-amber-400'
+                        ? 'text-amber-600 dark:text-amber-400'
                         : r.status === 'CRITICO'
-                          ? 'text-red-400'
-                          : 'text-slate-400'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-[var(--text-secondary)]'
                   }
                 >
                   {STATUS_LABEL[r.status ?? ''] ?? r.status ?? '—'}
