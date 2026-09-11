@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
+import type { UsinaRaw } from '../api/types'
 import { BarChartGeneric } from '../components/BarChartGeneric'
 import { DataTable } from '../components/DataTable'
+import { DetailRow, Modal } from '../components/Modal'
 import { DonutChart } from '../components/DonutChart'
 import { FilterBar, type FilterDef } from '../components/FilterBar'
 import { KpiCard } from '../components/KpiCard'
@@ -15,6 +17,8 @@ export function MonitoramentoSolarPage() {
   const { data: usinas, loading, error } = useRawData('usinas', api.getUsinasRaw)
   const { values, onChange, onClear } = useFilters()
   const [busca, setBusca] = useState('')
+  const [usinaSelecionada, setUsinaSelecionada] = useState<UsinaRaw | null>(null)
+  const [cidadeSelecionada, setCidadeSelecionada] = useState<{ titulo: string; usinas: UsinaRaw[] } | null>(null)
 
   const filtros: FilterDef[] = useMemo(() => {
     if (!usinas) return []
@@ -48,13 +52,14 @@ export function MonitoramentoSolarPage() {
   const porEstado = agrupar(filtradas, (u) => u.estado ?? 'Não informado')
   const porConcessionaria = agrupar(filtradas, (u) => u.concessionaria ?? 'Não informado')
 
-  const potenciaPorCidade = new Map<string, { cidade: string; estado: string; quantidade: number; potencia: number }>()
+  const potenciaPorCidade = new Map<string, { cidade: string; estado: string; quantidade: number; potencia: number; usinas: UsinaRaw[] }>()
   for (const u of filtradas) {
     const cidade = u.cidade || 'Não informado'
     const chave = `${cidade}/${u.estado ?? ''}`
-    const cur = potenciaPorCidade.get(chave) ?? { cidade, estado: u.estado ?? '—', quantidade: 0, potencia: 0 }
+    const cur = potenciaPorCidade.get(chave) ?? { cidade, estado: u.estado ?? '—', quantidade: 0, potencia: 0, usinas: [] }
     cur.quantidade += 1
     cur.potencia += u.potenciaInstalada ?? 0
+    cur.usinas.push(u)
     potenciaPorCidade.set(chave, cur)
   }
   const topCidades = [...potenciaPorCidade.values()].sort((a, b) => b.potencia - a.potencia)
@@ -94,6 +99,7 @@ export function MonitoramentoSolarPage() {
           title="Top cidades (por potência instalada)"
           rows={topCidades}
           maxHeight={280}
+          onRowClick={(r) => setCidadeSelecionada({ titulo: `${r.cidade} / ${r.estado}`, usinas: r.usinas })}
           columns={[
             { key: 'cidade', label: 'Cidade', render: (r) => `${r.cidade} / ${r.estado}` },
             { key: 'quantidade', label: 'Usinas', align: 'right', render: (r) => number.format(r.quantidade) },
@@ -107,6 +113,7 @@ export function MonitoramentoSolarPage() {
           title="Usinas monitoradas"
           rows={filtradas.slice().sort((a, b) => (b.potenciaInstalada ?? 0) - (a.potenciaInstalada ?? 0))}
           maxHeight={400}
+          onRowClick={setUsinaSelecionada}
           columns={[
             { key: 'nome', label: 'Usina', render: (r) => r.nome },
             { key: 'cidade', label: 'Cidade/UF', render: (r) => (r.cidade ? `${r.cidade}/${r.estado}` : '—') },
@@ -134,6 +141,39 @@ export function MonitoramentoSolarPage() {
           ]}
         />
       </section>
+
+      {usinaSelecionada && (
+        <Modal title={usinaSelecionada.nome} onClose={() => setUsinaSelecionada(null)}>
+          <DetailRow label="Status" value={STATUS_LABEL[usinaSelecionada.status ?? ''] ?? usinaSelecionada.status} />
+          <DetailRow label="Potência instalada" value={`${decimal.format(usinaSelecionada.potenciaInstalada ?? 0)} kWp`} />
+          <DetailRow label="Energia gerada (acumulado)" value={`${decimal.format(usinaSelecionada.energiaGeradaKwh ?? 0)} kWh`} />
+          <DetailRow label="Cliente" value={usinaSelecionada.clienteNome} />
+          <DetailRow label="Concessionária" value={usinaSelecionada.concessionaria} />
+          <DetailRow label="Cidade/UF" value={usinaSelecionada.cidade ? `${usinaSelecionada.cidade}/${usinaSelecionada.estado}` : '—'} />
+          <DetailRow label="CEP" value={usinaSelecionada.cep} />
+          <DetailRow label="Data de instalação" value={usinaSelecionada.dataInstalacao ? new Date(usinaSelecionada.dataInstalacao).toLocaleDateString('pt-BR') : '—'} />
+          <DetailRow label="Última atualização de status" value={usinaSelecionada.statusEm ? new Date(usinaSelecionada.statusEm).toLocaleString('pt-BR') : '—'} />
+        </Modal>
+      )}
+
+      {cidadeSelecionada && (
+        <Modal title={cidadeSelecionada.titulo} onClose={() => setCidadeSelecionada(null)}>
+          <DataTable
+            title={`${cidadeSelecionada.usinas.length} usina(s)`}
+            rows={cidadeSelecionada.usinas}
+            maxHeight={400}
+            onRowClick={(u) => {
+              setCidadeSelecionada(null)
+              setUsinaSelecionada(u)
+            }}
+            columns={[
+              { key: 'nome', label: 'Usina', render: (r) => r.nome },
+              { key: 'potencia', label: 'Potência (kWp)', align: 'right', render: (r) => decimal.format(r.potenciaInstalada ?? 0) },
+              { key: 'status', label: 'Status', render: (r) => STATUS_LABEL[r.status ?? ''] ?? r.status ?? '—' },
+            ]}
+          />
+        </Modal>
+      )}
     </div>
   )
 }

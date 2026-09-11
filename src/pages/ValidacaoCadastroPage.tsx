@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
+import type { PropostaRaw } from '../api/types'
 import { BarChartGeneric } from '../components/BarChartGeneric'
+import { DataTable } from '../components/DataTable'
+import { DetailRow, Modal } from '../components/Modal'
 import { FilterBar, type FilterDef } from '../components/FilterBar'
 import { FunilStatusTree } from '../components/FunilStatusTree'
 import { KpiCard } from '../components/KpiCard'
@@ -16,6 +19,7 @@ export function ValidacaoCadastroPage() {
   const { data: propostas, loading, error } = useRawData('propostas', api.getPropostasRaw)
   const { values, onChange, onClear } = useFilters()
   const [busca, setBusca] = useState('')
+  const [propostaSelecionada, setPropostaSelecionada] = useState<PropostaRaw | null>(null)
 
   const filtros: FilterDef[] = useMemo(() => {
     if (!propostas) return []
@@ -94,10 +98,46 @@ export function ValidacaoCadastroPage() {
         />
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <MultiYearBarChart title="Cards em aberto por mês" items={naoAprovadas} />
         <BarChartGeneric title="Cards por status" data={porStatus} layout="vertical" maxBars={15} />
       </section>
+
+      <section className="grid grid-cols-1 gap-4">
+        <DataTable
+          title="Propostas (clique para ver detalhes)"
+          rows={filtradas.slice().sort((a, b) => b.dataInclusao.localeCompare(a.dataInclusao))}
+          maxHeight={400}
+          onRowClick={setPropostaSelecionada}
+          columns={[
+            { key: 'lead', label: 'Cliente', render: (r) => r.lead ?? r.projeto ?? '—' },
+            { key: 'etapaProjeto', label: 'Etapa', render: (r) => r.etapaProjeto ?? '—' },
+            { key: 'statusProjeto', label: 'Status', render: (r) => r.statusProjeto ?? '—' },
+            { key: 'vendedorNome', label: 'Vendedor', render: (r) => r.vendedorNome ?? '—' },
+            { key: 'preco', label: 'Valor (R$)', align: 'right', render: (r) => (r.preco != null ? currency.format(r.preco) : '—') },
+            { key: 'dataInclusao', label: 'Criado em', render: (r) => new Date(r.dataInclusao).toLocaleDateString('pt-BR') },
+          ]}
+        />
+      </section>
+
+      {propostaSelecionada && (
+        <Modal title={propostaSelecionada.lead ?? propostaSelecionada.projeto ?? `Proposta #${propostaSelecionada.id}`} onClose={() => setPropostaSelecionada(null)}>
+          <DetailRow label="Título" value={propostaSelecionada.titulo} />
+          <DetailRow label="Tipo de negócio" value={propostaSelecionada.projetoTipo} />
+          <DetailRow label="Etapa" value={propostaSelecionada.etapaProjeto} />
+          <DetailRow label="Status" value={propostaSelecionada.statusProjeto} />
+          <DetailRow label="Origem" value={propostaSelecionada.origem} />
+          <DetailRow label="Vendedor" value={propostaSelecionada.vendedorNome} />
+          <DetailRow label="Aceita" value={propostaSelecionada.aceita ? 'Sim' : 'Não'} />
+          <DetailRow label="Potência (kWp)" value={propostaSelecionada.kwP != null ? decimal.format(propostaSelecionada.kwP) : '—'} />
+          <DetailRow label="Consumo" value={propostaSelecionada.consumo != null ? decimal.format(propostaSelecionada.consumo) : '—'} />
+          <DetailRow label="Geração anual" value={propostaSelecionada.geracaoAnual != null ? `${decimal.format(propostaSelecionada.geracaoAnual)} kWh` : '—'} />
+          <DetailRow label="Valor" value={propostaSelecionada.preco != null ? currency.format(propostaSelecionada.preco) : '—'} />
+          <DetailRow label="Valor original" value={propostaSelecionada.precoOriginal != null ? currency.format(propostaSelecionada.precoOriginal) : '—'} />
+          <DetailRow label="Retorno do investimento" value={propostaSelecionada.anoRetornoInvestimento != null ? `${decimal.format(propostaSelecionada.anoRetornoInvestimento)} anos` : '—'} />
+          <DetailRow label="Criado em" value={new Date(propostaSelecionada.dataInclusao).toLocaleString('pt-BR')} />
+        </Modal>
+      )}
     </div>
   )
 }

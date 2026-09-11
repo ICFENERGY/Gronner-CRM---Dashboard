@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
+import type { VendaRaw } from '../api/types'
 import { BarChartGeneric } from '../components/BarChartGeneric'
 import { DataTable } from '../components/DataTable'
+import { DetailRow, Modal } from '../components/Modal'
 import { DonutChart } from '../components/DonutChart'
 import { FilterBar, type FilterDef } from '../components/FilterBar'
 import { KpiCard } from '../components/KpiCard'
@@ -15,6 +17,8 @@ export function VendasPage() {
   const { data: vendas, loading, error } = useRawData('vendas', api.getVendasRaw)
   const { values, onChange, onClear } = useFilters()
   const [busca, setBusca] = useState('')
+  const [vendaSelecionada, setVendaSelecionada] = useState<VendaRaw | null>(null)
+  const [grupoSelecionado, setGrupoSelecionado] = useState<{ titulo: string; vendas: VendaRaw[] } | null>(null)
 
   const filtros: FilterDef[] = useMemo(() => {
     if (!vendas) return []
@@ -61,13 +65,14 @@ export function VendasPage() {
   const porEstado = agrupar(filtradas, (v) => v.estado ?? 'Não informado')
   const porFornecedor = agrupar(filtradas, (v) => (v.fornecedor ? v.fornecedor.trim().toUpperCase() : 'Não informado'))
 
-  const valorPorCidade = new Map<string, { cidade: string; estado: string; quantidade: number; valorTotal: number }>()
+  const valorPorCidade = new Map<string, { cidade: string; estado: string; quantidade: number; valorTotal: number; vendas: VendaRaw[] }>()
   for (const v of filtradas) {
     const cidade = v.cidade ?? 'Não informado'
     const chave = `${cidade}/${v.estado ?? ''}`
-    const cur = valorPorCidade.get(chave) ?? { cidade, estado: v.estado ?? '—', quantidade: 0, valorTotal: 0 }
+    const cur = valorPorCidade.get(chave) ?? { cidade, estado: v.estado ?? '—', quantidade: 0, valorTotal: 0, vendas: [] }
     cur.quantidade += 1
     cur.valorTotal += v.valorTotal
+    cur.vendas.push(v)
     valorPorCidade.set(chave, cur)
   }
   const topCidades = [...valorPorCidade.values()].sort((a, b) => b.valorTotal - a.valorTotal).slice(0, 15)
@@ -81,12 +86,13 @@ export function VendasPage() {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([mes, value]) => ({ name: mes, value }))
 
-  const porDia = new Map<string, { dia: string; quantidade: number; valorTotal: number }>()
+  const porDia = new Map<string, { dia: string; quantidade: number; valorTotal: number; vendas: VendaRaw[] }>()
   for (const v of filtradas) {
     const dia = v.dataVenda?.slice(0, 10) ?? '—'
-    const cur = porDia.get(dia) ?? { dia, quantidade: 0, valorTotal: 0 }
+    const cur = porDia.get(dia) ?? { dia, quantidade: 0, valorTotal: 0, vendas: [] }
     cur.quantidade += 1
     cur.valorTotal += v.valorTotal
+    cur.vendas.push(v)
     porDia.set(dia, cur)
   }
   const diasOrdenados = [...porDia.values()].sort((a, b) => b.dia.localeCompare(a.dia))
@@ -131,6 +137,7 @@ export function VendasPage() {
           title="Top cidades"
           rows={topCidades}
           maxHeight={320}
+          onRowClick={(r) => setGrupoSelecionado({ titulo: `${r.cidade} / ${r.estado}`, vendas: r.vendas })}
           columns={[
             { key: 'cidade', label: 'Cidade', render: (r) => `${r.cidade} / ${r.estado}` },
             { key: 'quantidade', label: 'Qtd', align: 'right', render: (r) => number.format(r.quantidade) },
@@ -144,6 +151,7 @@ export function VendasPage() {
           title="Vendas diárias"
           rows={diasOrdenados}
           maxHeight={320}
+          onRowClick={(r) => setGrupoSelecionado({ titulo: new Date(r.dia).toLocaleDateString('pt-BR'), vendas: r.vendas })}
           columns={[
             { key: 'dia', label: 'Dia', render: (r) => new Date(r.dia).toLocaleDateString('pt-BR') },
             { key: 'quantidade', label: 'Qtd', align: 'right', render: (r) => number.format(r.quantidade) },
@@ -154,6 +162,7 @@ export function VendasPage() {
           title="Extrato"
           rows={filtradas.slice().sort((a, b) => (b.dataVenda ?? '').localeCompare(a.dataVenda ?? ''))}
           maxHeight={320}
+          onRowClick={setVendaSelecionada}
           columns={[
             { key: 'vendedor', label: 'Vendedor', render: (r) => r.vendedor },
             { key: 'nome', label: 'Nome', render: (r) => r.nome },
@@ -162,6 +171,43 @@ export function VendasPage() {
           ]}
         />
       </section>
+
+      {vendaSelecionada && (
+        <Modal title={vendaSelecionada.nome} onClose={() => setVendaSelecionada(null)}>
+          <DetailRow label="Vendedor" value={vendaSelecionada.vendedor} />
+          <DetailRow label="Valor total" value={currency.format(vendaSelecionada.valorTotal)} />
+          <DetailRow label="Comissão" value={currency.format(vendaSelecionada.valorComissao)} />
+          <DetailRow label="Data da venda" value={vendaSelecionada.dataVenda ? new Date(vendaSelecionada.dataVenda).toLocaleString('pt-BR') : '—'} />
+          <DetailRow label="Ciclo de venda" value={vendaSelecionada.cicloVenda != null ? `${Math.round(vendaSelecionada.cicloVenda)} dias` : '—'} />
+          <DetailRow label="Origem" value={vendaSelecionada.origemNome} />
+          <DetailRow label="Status" value={vendaSelecionada.statusNome} />
+          <DetailRow label="Cidade/UF" value={vendaSelecionada.cidade ? `${vendaSelecionada.cidade}/${vendaSelecionada.estado}` : '—'} />
+          <DetailRow label="Bairro" value={vendaSelecionada.bairro} />
+          <DetailRow label="Fornecedor do kit" value={vendaSelecionada.fornecedor} />
+          <DetailRow label="Placa" value={vendaSelecionada.placa} />
+          <DetailRow label="Inversor" value={vendaSelecionada.inversor} />
+          <DetailRow label="Lucro" value={vendaSelecionada.lucro != null ? currency.format(vendaSelecionada.lucro) : '—'} />
+        </Modal>
+      )}
+
+      {grupoSelecionado && (
+        <Modal title={grupoSelecionado.titulo} onClose={() => setGrupoSelecionado(null)}>
+          <DataTable
+            title={`${grupoSelecionado.vendas.length} venda(s)`}
+            rows={grupoSelecionado.vendas}
+            maxHeight={400}
+            onRowClick={(v) => {
+              setGrupoSelecionado(null)
+              setVendaSelecionada(v)
+            }}
+            columns={[
+              { key: 'nome', label: 'Cliente', render: (r) => r.nome },
+              { key: 'vendedor', label: 'Vendedor', render: (r) => r.vendedor },
+              { key: 'valorTotal', label: 'Valor', align: 'right', render: (r) => currency.format(r.valorTotal) },
+            ]}
+          />
+        </Modal>
+      )}
     </div>
   )
 }

@@ -13,12 +13,15 @@ export function DataTable<T>({
   rows,
   maxHeight = 320,
   footer,
+  onRowClick,
 }: {
   title: string
   columns: ColumnDef<T>[]
   rows: T[]
   maxHeight?: number
   footer?: ReactNode
+  /** Quando informado, cada linha vira clicável e abre o detalhe (ex.: um modal). */
+  onRowClick?: (row: T) => void
 }) {
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -43,7 +46,11 @@ export function DataTable<T>({
               </tr>
             ) : (
               rows.map((row, i) => (
-                <tr key={i} className="border-t border-[var(--border)]">
+                <tr
+                  key={i}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={`border-t border-[var(--border)] ${onRowClick ? 'cursor-pointer hover:bg-[var(--surface-hover)]' : ''}`}
+                >
                   {columns.map((c) => (
                     <td key={c.key} className={`py-1.5 pr-3 text-[var(--text-secondary)] ${c.align === 'right' ? 'text-right' : ''}`}>
                       {c.render(row)}

@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
+import type { TarefaRaw } from '../api/types'
 import { BarChartGeneric } from '../components/BarChartGeneric'
 import { DataTable } from '../components/DataTable'
+import { DetailRow, Modal } from '../components/Modal'
 import { DonutChart } from '../components/DonutChart'
 import { FilterBar, type FilterDef } from '../components/FilterBar'
 import { KpiCard } from '../components/KpiCard'
@@ -27,6 +29,7 @@ export function IndicadorTarefasPage() {
   }, [tarefas])
 
   const [somenteAtrasadas, setSomenteAtrasadas] = useState(false)
+  const [tarefaSelecionada, setTarefaSelecionada] = useState<TarefaRaw | null>(null)
 
   const filtradas = useMemo(() => {
     if (!tarefas) return []
@@ -113,6 +116,7 @@ export function IndicadorTarefasPage() {
             title={`⚠ Alertas — ${atrasadas.length} tarefa${atrasadas.length === 1 ? '' : 's'} atrasada${atrasadas.length === 1 ? '' : 's'}`}
             rows={atrasadas}
             maxHeight={320}
+            onRowClick={setTarefaSelecionada}
             columns={[
               { key: 'id', label: 'Código', render: (r) => r.id },
               { key: 'titulo', label: 'Tarefa', render: (r) => r.titulo ?? '—' },
@@ -158,6 +162,7 @@ export function IndicadorTarefasPage() {
           title="Visão detalhada"
           rows={filtradas.slice().sort((a, b) => b.dataInclusao.localeCompare(a.dataInclusao))}
           maxHeight={360}
+          onRowClick={setTarefaSelecionada}
           columns={[
             { key: 'id', label: 'Código', render: (r) => r.id },
             { key: 'status', label: 'Status', render: (r) => r.status ?? '—' },
@@ -168,6 +173,32 @@ export function IndicadorTarefasPage() {
           ]}
         />
       </section>
+
+      {tarefaSelecionada && (
+        <Modal title={tarefaSelecionada.titulo ?? `Tarefa #${tarefaSelecionada.id}`} onClose={() => setTarefaSelecionada(null)}>
+          <DetailRow label="Código" value={tarefaSelecionada.id} />
+          <DetailRow label="Status" value={tarefaSelecionada.status} />
+          <DetailRow label="Tipo" value={tarefaSelecionada.tipo} />
+          <DetailRow label="Prioridade" value={tarefaSelecionada.prioridade || 'Nenhuma'} />
+          <DetailRow label="Cliente" value={tarefaSelecionada.lead ?? tarefaSelecionada.projeto} />
+          <DetailRow label="Responsáveis" value={tarefaSelecionada.responsaveis.join(', ') || '—'} />
+          <DetailRow label="Criado por" value={tarefaSelecionada.criadoPorNome} />
+          <DetailRow label="Data de cadastro" value={new Date(tarefaSelecionada.dataInclusao).toLocaleString('pt-BR')} />
+          <DetailRow label="Prazo (entrega)" value={tarefaSelecionada.dataEntrega ? new Date(tarefaSelecionada.dataEntrega).toLocaleString('pt-BR') : '—'} />
+          <DetailRow label="Data de conclusão" value={tarefaSelecionada.dataConclusao ? new Date(tarefaSelecionada.dataConclusao).toLocaleString('pt-BR') : '—'} />
+          <DetailRow label="Bloqueado" value={tarefaSelecionada.bloqueado ? 'Sim' : 'Não'} />
+          <DetailRow
+            label="Atrasada"
+            value={
+              tarefaSelecionada.atrasada ? (
+                <span className="text-red-600 dark:text-red-400">Sim</span>
+              ) : (
+                'Não'
+              )
+            }
+          />
+        </Modal>
+      )}
     </div>
   )
 }

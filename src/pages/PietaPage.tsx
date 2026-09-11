@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
 import { DataTable } from '../components/DataTable'
+import { DetailRow, Modal } from '../components/Modal'
 import { DonutChart } from '../components/DonutChart'
 import { FilterBar, type FilterDef } from '../components/FilterBar'
 import { KpiCard } from '../components/KpiCard'
@@ -107,15 +108,12 @@ export function PietaPage() {
           title="Projetos (clique para ver detalhes)"
           rows={projetosFiltrados}
           maxHeight={360}
+          onRowClick={(r) => abrirProjeto(r.projectId)}
           columns={[
             {
               key: 'projectId',
               label: 'ID',
-              render: (r) => (
-                <button onClick={() => abrirProjeto(r.projectId)} className="text-icf-green dark:text-icf-greenLight hover:underline">
-                  {r.projectId}
-                </button>
-              ),
+              render: (r) => <span className="text-icf-green dark:text-icf-greenLight hover:underline">{r.projectId}</span>,
             },
             { key: 'clientName', label: 'Cliente', render: (r) => r.clientName },
             { key: 'status', label: 'Status', render: (r) => r.status },
@@ -127,59 +125,50 @@ export function PietaPage() {
       </section>
 
       {selecionado && (
-        <section className="grid grid-cols-1 gap-4">
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-[var(--text-secondary)]">Projeto #{selecionado}</h3>
-              <button onClick={() => setSelecionado(null)} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
-                Fechar ✕
-              </button>
-            </div>
-            {carregandoDetalhe && <p className="text-sm text-[var(--text-secondary)]">Carregando…</p>}
-            {erroDetalhe && <p className="text-sm text-red-600 dark:text-red-400">{erroDetalhe}</p>}
-            {detalhe && (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <p className="text-xs text-[var(--text-muted)]">Cliente</p>
-                  <p className="mb-2 text-sm text-[var(--text-primary)]">{detalhe.clientName}</p>
-                  <p className="text-xs text-[var(--text-muted)]">Contato principal</p>
-                  <p className="mb-2 text-sm text-[var(--text-primary)]">
-                    {detalhe.mainContact ? `${detalhe.mainContact.name} · ${detalhe.mainContact.phone}` : '—'}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">Dias desde a criação</p>
-                  <p className="mb-2 text-sm text-[var(--text-primary)]">{detalhe.daysSinceCreated ?? '—'}</p>
-                  <p className="text-xs text-[var(--text-muted)]">Valor total</p>
-                  <p className="mb-2 text-sm text-[var(--text-primary)]">{detalhe.totalValue != null ? currency.format(detalhe.totalValue) : '—'}</p>
-                  {detalhe.pendencies.length > 0 && (
-                    <>
-                      <p className="text-xs text-[var(--text-muted)]">Pendências</p>
-                      <ul className="list-inside list-disc text-sm text-amber-700 dark:text-amber-300">
-                        {detalhe.pendencies.map((p, i) => (
-                          <li key={i}>{p}</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-[var(--text-muted)]">Linha do tempo</p>
-                  {detalhe.statusTimeline && detalhe.statusTimeline.length > 0 ? (
-                    <ul className="space-y-1">
-                      {detalhe.statusTimeline.map((s, i) => (
-                        <li key={i} className="flex justify-between text-xs">
-                          <span className="text-[var(--text-secondary)]">{s.etapa}</span>
-                          <span className="text-[var(--text-secondary)]">{s.tempoNaEtapaDias}d</span>
-                        </li>
+        <Modal title={`Projeto #${selecionado}`} onClose={() => setSelecionado(null)}>
+          {carregandoDetalhe && <p className="text-sm text-[var(--text-secondary)]">Carregando…</p>}
+          {erroDetalhe && <p className="text-sm text-red-600 dark:text-red-400">{erroDetalhe}</p>}
+          {detalhe && (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div>
+                <DetailRow label="Cliente" value={detalhe.clientName} />
+                <DetailRow label="Status" value={detalhe.status} />
+                <DetailRow label="Potência" value={detalhe.power != null ? `${detalhe.power.toFixed(2)} kWp` : '—'} />
+                <DetailRow label="Distribuidora" value={`${detalhe.powerDistributor} (${detalhe.powerDistributorState})`} />
+                <DetailRow label="Contato principal" value={detalhe.mainContact ? `${detalhe.mainContact.name} · ${detalhe.mainContact.phone}` : '—'} />
+                <DetailRow label="Criado em" value={new Date(detalhe.createdAt).toLocaleDateString('pt-BR')} />
+                <DetailRow label="Dias desde a criação" value={detalhe.daysSinceCreated ?? '—'} />
+                <DetailRow label="Tempo total (dias)" value={detalhe.tempoTotalDias ?? '—'} />
+                <DetailRow label="Valor total" value={detalhe.totalValue != null ? currency.format(detalhe.totalValue) : '—'} />
+                {detalhe.pendencies.length > 0 && (
+                  <div className="mt-3">
+                    <p className="mb-1 text-xs text-[var(--text-muted)]">Pendências</p>
+                    <ul className="list-inside list-disc text-sm text-amber-700 dark:text-amber-300">
+                      {detalhe.pendencies.map((p, i) => (
+                        <li key={i}>{p}</li>
                       ))}
                     </ul>
-                  ) : (
-                    <p className="text-xs text-[var(--text-muted)]">Sem histórico disponível.</p>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </section>
+              <div>
+                <p className="mb-1 text-xs text-[var(--text-muted)]">Linha do tempo</p>
+                {detalhe.statusTimeline && detalhe.statusTimeline.length > 0 ? (
+                  <ul className="space-y-1">
+                    {detalhe.statusTimeline.map((s, i) => (
+                      <li key={i} className="flex justify-between text-xs">
+                        <span className="text-[var(--text-secondary)]">{s.etapa}</span>
+                        <span className="text-[var(--text-secondary)]">{s.tempoNaEtapaDias}d</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-[var(--text-muted)]">Sem histórico disponível.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   )
