@@ -202,6 +202,99 @@ export function mapUsina(p) {
   }
 }
 
+function normalizeNomeUsina(nome) {
+  return (nome ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+}
+
+/**
+ * A API ao vivo da SolarZ só retorna usinas com monitoramento premium
+ * (~52 de 126). O relatório mensal exportado do painel cobre todas as 126,
+ * com geração/desempenho Jan-Dez/26 e status de desempenho — mas é um
+ * snapshot estático. Aqui usamos o relatório como base (todas as usinas) e
+ * sobrepomos o status de monitoramento em tempo real da API quando a usina
+ * casa por nome (normalizado, sem acento).
+ */
+export function mesclarUsinasComRelatorio(usinasAoVivo, relatorio) {
+  const porNome = new Map()
+  for (const u of usinasAoVivo) {
+    const chave = normalizeNomeUsina(u.nome)
+    if (!porNome.has(chave)) porNome.set(chave, [])
+    porNome.get(chave).push(u)
+  }
+
+  const usadas = new Set()
+  const usinas = (relatorio.usinas ?? []).map((r) => {
+    const chave = normalizeNomeUsina(r.nome)
+    const candidatos = porNome.get(chave) ?? []
+    const aoVivo = candidatos.find((c) => !usadas.has(c)) ?? null
+    if (aoVivo) usadas.add(aoVivo)
+
+    return {
+      id: aoVivo?.id ?? null,
+      nome: r.nome,
+      cliente: r.cliente,
+      totalInvestido: r.totalInvestido,
+      concessionaria: r.concessionaria ?? aoVivo?.concessionaria ?? null,
+      cidade: r.cidade ?? aoVivo?.cidade ?? null,
+      estado: r.estado ?? aoVivo?.estado ?? null,
+      classe: r.classe,
+      plano: r.plano,
+      potenciaKwp: r.potenciaKwp ?? aoVivo?.potenciaInstalada ?? null,
+      mesAnoRecente: r.mesAnoRecente,
+      prognosticoKwhMes: r.prognosticoKwhMes,
+      geracaoKwhMes: r.geracaoKwhMes,
+      desempenhoMesPct: r.desempenhoMesPct,
+      desempenho30dPct: r.desempenho30dPct,
+      desempenho12mPct: r.desempenho12mPct,
+      desempenhoMedio3mPct: r.desempenhoMedio3mPct,
+      statusDesempenho: r.statusDesempenho,
+      dataInstalacao: r.dataInstalacao ?? aoVivo?.dataInstalacao ?? null,
+      mensal2026: r.mensal2026,
+      observacao: r.observacao,
+      statusMonitoramento: aoVivo?.status ?? null,
+      statusMonitoramentoEm: aoVivo?.statusEm ?? null,
+      energiaGeradaAcumuladaKwh: aoVivo?.energiaGeradaKwh ?? null,
+      latitude: aoVivo?.latitude ?? null,
+      longitude: aoVivo?.longitude ?? null,
+    }
+  })
+
+  // Usinas que a API retorna mas que por algum motivo não estão no relatório
+  // (relatório desatualizado) ainda entram, para não perder dado ao vivo.
+  for (const u of usinasAoVivo) {
+    if (!usadas.has(u)) {
+      usinas.push({
+        ...u,
+        cliente: u.clienteNome,
+        totalInvestido: null,
+        classe: null,
+        plano: null,
+        potenciaKwp: u.potenciaInstalada,
+        mesAnoRecente: null,
+        prognosticoKwhMes: null,
+        geracaoKwhMes: null,
+        desempenhoMesPct: null,
+        desempenho30dPct: null,
+        desempenho12mPct: null,
+        desempenhoMedio3mPct: null,
+        statusDesempenho: 'Sem dado',
+        mensal2026: null,
+        observacao: 'Usina identificada apenas na API ao vivo (fora do último relatório mensal).',
+        statusMonitoramento: u.status,
+        statusMonitoramentoEm: u.statusEm,
+        energiaGeradaAcumuladaKwh: u.energiaGeradaKwh,
+      })
+    }
+  }
+
+  return usinas
+}
+
 export function mapTarefa(t) {
   return {
     id: t.id,

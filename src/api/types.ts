@@ -45,19 +45,37 @@ export interface PietaProjetoDetalhe extends PietaProjetoResumo {
   totalValue: number | null
 }
 
+export interface UsinaMensal {
+  mes: string
+  geracaoKwh: number | null
+  desempenhoPct: number | null
+}
+
 export interface UsinaRaw {
-  id: number
+  id: number | null
   nome: string
-  potenciaInstalada: number | null
-  energiaGeradaKwh: number | null
-  status: string | null
-  statusEm: string | null
-  dataInstalacao: string | null
-  clienteNome: string | null
+  cliente: string | null
+  totalInvestido: number | null
   concessionaria: string | null
   cidade: string | null
   estado: string | null
-  cep: string | null
+  classe: string | null
+  plano: string | null
+  potenciaKwp: number | null
+  mesAnoRecente: string | null
+  prognosticoKwhMes: number | null
+  geracaoKwhMes: number | null
+  desempenhoMesPct: number | null
+  desempenho30dPct: number | null
+  desempenho12mPct: number | null
+  desempenhoMedio3mPct: number | null
+  statusDesempenho: string | null
+  dataInstalacao: string | null
+  mensal2026: UsinaMensal[] | null
+  observacao: string | null
+  statusMonitoramento: string | null
+  statusMonitoramentoEm: string | null
+  energiaGeradaAcumuladaKwh: number | null
   latitude: number | null
   longitude: number | null
 }

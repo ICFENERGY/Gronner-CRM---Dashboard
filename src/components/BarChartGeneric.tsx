@@ -13,6 +13,7 @@ export function BarChartGeneric({
   layout = 'horizontal',
   maxBars = 12,
   formatValue,
+  ordenarPorValor = true,
 }: {
   title: string
   data: BarDatum[]
@@ -20,8 +21,10 @@ export function BarChartGeneric({
   layout?: 'horizontal' | 'vertical'
   maxBars?: number
   formatValue?: (v: number) => string
+  /** false para séries temporais (ex.: meses), onde a ordem original importa mais que o valor. */
+  ordenarPorValor?: boolean
 }) {
-  const sorted = [...data].sort((a, b) => b.value - a.value).slice(0, maxBars)
+  const sorted = (ordenarPorValor ? [...data].sort((a, b) => b.value - a.value) : data).slice(0, maxBars)
   const isVertical = layout === 'vertical'
   const fmt = formatValue ?? number.format
 

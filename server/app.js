@@ -3,9 +3,9 @@ import cors from 'cors'
 import { gronerGet, gronerGetAll } from './gronerClient.js'
 import { cached, invalidate } from './cache.js'
 import { gronerFunis } from '../shared/gronerFunis.js'
-import { mapVenda, mapProjeto, mapProposta, mapTarefa, mapUsina, mapPietaResumo, mapPietaProjetoDetalhe } from './mappers.js'
+import { mapVenda, mapProjeto, mapProposta, mapTarefa, mapUsina, mesclarUsinasComRelatorio, mapPietaResumo, mapPietaProjetoDetalhe } from './mappers.js'
 import { stripSensitive } from './sanitize.js'
-import { dealsEnriquecido, salesEnriquecido } from './enrichment.js'
+import { dealsEnriquecido, salesEnriquecido, usinasRelatorio } from './enrichment.js'
 import { solarzListarUsinas } from './solarzClient.js'
 import { pietaResumo, pietaDetalheProjeto } from './pietaClient.js'
 
@@ -311,12 +311,18 @@ app.get('/api/raw/tarefas', async (_req, res) => {
 
 app.get('/api/raw/usinas', async (_req, res) => {
   try {
-    const usinas = await loadUsinasBrutas()
-    res.json(stripSensitive(usinas.map(mapUsina)))
+    const usinasAoVivo = await loadUsinasBrutas()
+    const mapeadas = usinasAoVivo.map(mapUsina)
+    const completas = usinasRelatorio.usinas?.length ? mesclarUsinasComRelatorio(mapeadas, usinasRelatorio) : mapeadas
+    res.json(stripSensitive(completas))
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })
   }
+})
+
+app.get('/api/raw/usinas/resumo-relatorio', (_req, res) => {
+  res.json(stripSensitive({ extraidoEm: usinasRelatorio.extraidoEm ?? null, resumo: usinasRelatorio.resumo ?? {} }))
 })
 
 // --- Pieta (plataforma PIEP — integração de projetos) ---

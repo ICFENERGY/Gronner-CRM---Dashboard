@@ -124,7 +124,13 @@ export function VendasPage() {
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BarChartGeneric title="Ano da venda" data={porAno} layout="vertical" />
-        <BarChartGeneric title="Valor vendido por mês" data={valorPorMesData} layout="vertical" formatValue={(v) => currency.format(v)} />
+        <BarChartGeneric
+          title="Valor vendido por mês"
+          data={valorPorMesData}
+          layout="vertical"
+          formatValue={(v) => currency.format(v)}
+          ordenarPorValor={false}
+        />
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -26,6 +26,15 @@ function loadJson(filename) {
 export const dealsEnriquecido = loadJson('deals-enriquecido.json')
 export const salesEnriquecido = loadJson('sales-enriquecido.json')
 
+/**
+ * Relatório mensal da SolarZ (Jan-Dez/26, desempenho e status classificado)
+ * exportado manualmente pelo painel — cobre as 126 usinas (a API ao vivo só
+ * retorna as ~52 com monitoramento premium). Usado como base para
+ * /api/raw/usinas, com o status em tempo real da API sobrepondo quando
+ * disponível (casado por nome da usina).
+ */
+export const usinasRelatorio = loadJson('usinas-relatorio.json')
+
 console.log(
-  `Enriquecimento carregado: ${Object.keys(dealsEnriquecido).length} deals, ${Object.keys(salesEnriquecido).length} sales.`,
+  `Enriquecimento carregado: ${Object.keys(dealsEnriquecido).length} deals, ${Object.keys(salesEnriquecido).length} sales, ${usinasRelatorio.usinas?.length ?? 0} usinas (relatório).`,
 )
