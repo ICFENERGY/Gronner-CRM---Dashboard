@@ -4,6 +4,7 @@ import { useRawData } from './api/useRawData'
 import { Layout, type PageKey } from './components/Layout'
 import { Dashboard } from './pages/Dashboard'
 import { IndicadorTarefasPage } from './pages/IndicadorTarefasPage'
+import { MonitoramentoSolarPage } from './pages/MonitoramentoSolarPage'
 import { ValidacaoCadastroPage } from './pages/ValidacaoCadastroPage'
 import { VendasPage } from './pages/VendasPage'
 
@@ -18,6 +19,7 @@ export default function App() {
       {page === 'vendas' && <VendasPage />}
       {page === 'cadastro' && <ValidacaoCadastroPage />}
       {page === 'tarefas' && <IndicadorTarefasPage />}
+      {page === 'monitoramento' && <MonitoramentoSolarPage />}
     </Layout>
   )
 }

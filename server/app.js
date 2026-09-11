@@ -3,9 +3,10 @@ import cors from 'cors'
 import { gronerGet, gronerGetAll } from './gronerClient.js'
 import { cached, invalidate } from './cache.js'
 import { gronerFunis } from '../shared/gronerFunis.js'
-import { mapVenda, mapProjeto, mapProposta, mapTarefa } from './mappers.js'
+import { mapVenda, mapProjeto, mapProposta, mapTarefa, mapUsina } from './mappers.js'
 import { stripSensitive } from './sanitize.js'
 import { dealsEnriquecido, salesEnriquecido } from './enrichment.js'
+import { solarzListarUsinas } from './solarzClient.js'
 
 const app = express()
 const TTL_MS = 10 * 60 * 1000
@@ -170,6 +171,10 @@ export function loadTarefasBrutas() {
   return cached('tarefas-brutas', TTL_MS, () => gronerGetAll('Tarefa', {}, { pageSize: 500, maxPages: 20 }))
 }
 
+export function loadUsinasBrutas() {
+  return cached('usinas-brutas', TTL_MS, () => solarzListarUsinas())
+}
+
 app.use(cors())
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
@@ -295,6 +300,18 @@ app.get('/api/raw/tarefas', async (_req, res) => {
   try {
     const tarefasAll = await loadTarefasBrutas()
     res.json(stripSensitive(tarefasAll.items.map(mapTarefa)))
+  } catch (err) {
+    console.error(err)
+    res.status(err.status || 500).json({ error: err.message })
+  }
+})
+
+// --- SolarZ (monitoramento de usinas instaladas) ---
+
+app.get('/api/raw/usinas', async (_req, res) => {
+  try {
+    const usinas = await loadUsinasBrutas()
+    res.json(stripSensitive(usinas.map(mapUsina)))
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })

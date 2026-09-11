@@ -1,4 +1,4 @@
-import type { ProjetoRaw, PropostaRaw, Summary, TarefaRaw, VendaRaw } from './types'
+import type { ProjetoRaw, PropostaRaw, Summary, TarefaRaw, UsinaRaw, VendaRaw } from './types'
 
 async function request<T>(path: string): Promise<T> {
   const res = await fetch(path)
@@ -15,4 +15,5 @@ export const api = {
   getProjetosRaw: () => request<ProjetoRaw[]>('/api/raw/projetos'),
   getPropostasRaw: () => request<PropostaRaw[]>('/api/raw/propostas'),
   getTarefasRaw: () => request<TarefaRaw[]>('/api/raw/tarefas'),
+  getUsinasRaw: () => request<UsinaRaw[]>('/api/raw/usinas'),
 }

@@ -1,3 +1,20 @@
+export interface UsinaRaw {
+  id: number
+  nome: string
+  potenciaInstalada: number | null
+  energiaGeradaKwh: number | null
+  status: string | null
+  statusEm: string | null
+  dataInstalacao: string | null
+  clienteNome: string | null
+  concessionaria: string | null
+  cidade: string | null
+  estado: string | null
+  cep: string | null
+  latitude: number | null
+  longitude: number | null
+}
+
 export interface EtapaContagem {
   etapa: string
   quantidade: number

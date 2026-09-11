@@ -105,6 +105,30 @@ function calcularAtrasada(t) {
   return entrega < Date.now()
 }
 
+/**
+ * A SolarZ embute o objeto completo do cliente em cada usina, incluindo CPF,
+ * e-mail e telefone. Mantemos só o nome (para casar visualmente com o
+ * cliente já conhecido do Groner) e a concessionária; o resto fica de fora.
+ */
+export function mapUsina(p) {
+  return {
+    id: p.id,
+    nome: p.name,
+    potenciaInstalada: p.installedPower ?? null,
+    energiaGeradaKwh: p.energyProducedKwh ?? null,
+    status: p.status?.status ?? null,
+    statusEm: p.status?.at ?? null,
+    dataInstalacao: p.dataInstalacao ?? null,
+    clienteNome: p.cliente?.nome ?? null,
+    concessionaria: p.cliente?.concessionaria ?? null,
+    cidade: p.endereco?.cidade ?? null,
+    estado: p.endereco?.siglaEstado ?? null,
+    cep: p.endereco?.cep ?? null,
+    latitude: p.endereco?.latitude ?? null,
+    longitude: p.endereco?.longitude ?? null,
+  }
+}
+
 export function mapTarefa(t) {
   return {
     id: t.id,

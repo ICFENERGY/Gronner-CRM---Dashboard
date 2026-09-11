@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 
-export type PageKey = 'geral' | 'vendas' | 'cadastro' | 'tarefas'
+export type PageKey = 'geral' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento'
 
 const TABS: { key: PageKey; label: string }[] = [
   { key: 'geral', label: 'Visão geral' },
   { key: 'vendas', label: 'Vendas' },
   { key: 'cadastro', label: 'Validação de cadastro' },
   { key: 'tarefas', label: 'Indicador de tarefas' },
+  { key: 'monitoramento', label: 'Monitoramento solar' },
 ]
 
 export function Layout({
