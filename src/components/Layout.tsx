@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type PageKey = 'geral' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento'
+export type PageKey = 'geral' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento' | 'pieta'
 
 const TABS: { key: PageKey; label: string }[] = [
   { key: 'geral', label: 'Visão geral' },
@@ -8,6 +8,7 @@ const TABS: { key: PageKey; label: string }[] = [
   { key: 'cadastro', label: 'Validação de cadastro' },
   { key: 'tarefas', label: 'Indicador de tarefas' },
   { key: 'monitoramento', label: 'Monitoramento solar' },
+  { key: 'pieta', label: 'Pieta (PIEP)' },
 ]
 
 export function Layout({

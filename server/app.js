@@ -3,10 +3,11 @@ import cors from 'cors'
 import { gronerGet, gronerGetAll } from './gronerClient.js'
 import { cached, invalidate } from './cache.js'
 import { gronerFunis } from '../shared/gronerFunis.js'
-import { mapVenda, mapProjeto, mapProposta, mapTarefa, mapUsina } from './mappers.js'
+import { mapVenda, mapProjeto, mapProposta, mapTarefa, mapUsina, mapPietaResumo, mapPietaProjetoDetalhe } from './mappers.js'
 import { stripSensitive } from './sanitize.js'
 import { dealsEnriquecido, salesEnriquecido } from './enrichment.js'
 import { solarzListarUsinas } from './solarzClient.js'
+import { pietaResumo, pietaDetalheProjeto } from './pietaClient.js'
 
 const app = express()
 const TTL_MS = 10 * 60 * 1000
@@ -312,6 +313,28 @@ app.get('/api/raw/usinas', async (_req, res) => {
   try {
     const usinas = await loadUsinasBrutas()
     res.json(stripSensitive(usinas.map(mapUsina)))
+  } catch (err) {
+    console.error(err)
+    res.status(err.status || 500).json({ error: err.message })
+  }
+})
+
+// --- Pieta (plataforma PIEP — integração de projetos) ---
+
+app.get('/api/raw/pieta/resumo', async (_req, res) => {
+  try {
+    const resumo = await cached('pieta-resumo', TTL_MS, pietaResumo)
+    res.json(stripSensitive(mapPietaResumo(resumo)))
+  } catch (err) {
+    console.error(err)
+    res.status(err.status || 500).json({ error: err.message })
+  }
+})
+
+app.get('/api/raw/pieta/projeto/:projectId', async (req, res) => {
+  try {
+    const detalhe = await cached(`pieta-projeto-${req.params.projectId}`, TTL_MS, () => pietaDetalheProjeto(req.params.projectId))
+    res.json(stripSensitive(mapPietaProjetoDetalhe(detalhe)))
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })

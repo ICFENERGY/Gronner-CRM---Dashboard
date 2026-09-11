@@ -5,6 +5,7 @@ import { Layout, type PageKey } from './components/Layout'
 import { Dashboard } from './pages/Dashboard'
 import { IndicadorTarefasPage } from './pages/IndicadorTarefasPage'
 import { MonitoramentoSolarPage } from './pages/MonitoramentoSolarPage'
+import { PietaPage } from './pages/PietaPage'
 import { ValidacaoCadastroPage } from './pages/ValidacaoCadastroPage'
 import { VendasPage } from './pages/VendasPage'
 
@@ -20,6 +21,7 @@ export default function App() {
       {page === 'cadastro' && <ValidacaoCadastroPage />}
       {page === 'tarefas' && <IndicadorTarefasPage />}
       {page === 'monitoramento' && <MonitoramentoSolarPage />}
+      {page === 'pieta' && <PietaPage />}
     </Layout>
   )
 }

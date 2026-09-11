@@ -1,3 +1,50 @@
+export interface PietaProjetoResumo {
+  projectId: number
+  status: string
+  clientName: string
+  power: number | null
+  powerDistributor: string
+  createdAt: string
+  lastStatusChange: string | null
+  dueDate: string | null
+  message: string | null
+}
+
+export interface PietaResumo {
+  userId: number
+  companyName: string
+  socialName: string
+  phantasyName: string
+  document: string
+  projectsQuantity: number
+  lastProject: string
+  projectsForPhase: Record<string, number>
+  projects: PietaProjetoResumo[]
+}
+
+export interface PietaStatusTimelineItem {
+  etapa: string
+  entrouEm: string
+  saiuEm: string | null
+  tempoNaEtapaDias: number
+}
+
+export interface PietaProjetoDetalhe extends PietaProjetoResumo {
+  powerDistributorState: string
+  daysSinceCreated: number | null
+  tempoTotalDias: number | null
+  medidorSubstituidoDate: string | null
+  statusTimeline: PietaStatusTimelineItem[] | null
+  mainContact: { name: string; phone: string } | null
+  pendencies: string[]
+  payment: { method: string; totalPaid: number; balanceUsed: number | null } | null
+  inversors: { brand: string; model: string; power: number; quantity: number }[]
+  solarPanels: { brand: string; model: string; power: number; quantity: number }[]
+  projectValue: number | null
+  changesTotal: number
+  totalValue: number | null
+}
+
 export interface UsinaRaw {
   id: number
   nome: string

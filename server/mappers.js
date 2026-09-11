@@ -106,6 +106,79 @@ function calcularAtrasada(t) {
 }
 
 /**
+ * Mapeia 1:1 com o schema documentado da API Pieta (PIEP) — ver
+ * API-PIEP-V3.pdf. Ainda não testado contra a API real (aguardando
+ * credenciais); os nomes de campo seguem exatamente a doc para minimizar
+ * risco de erro de digitação até a primeira chamada real.
+ */
+export function mapPietaResumo(r) {
+  return {
+    userId: r.user_id,
+    companyName: r.company_name,
+    socialName: r.social_name,
+    phantasyName: r.phantasy_name,
+    document: r.document,
+    projectsQuantity: r.projects_quantity,
+    lastProject: r.last_project,
+    projectsForPhase: r.projects_for_phase ?? {},
+    projects: (r.projects ?? []).map((p) => ({
+      projectId: p.project_id,
+      status: p.status,
+      clientName: p.client_name,
+      power: p.power != null ? Number(p.power) : null,
+      powerDistributor: p.power_distributor,
+      createdAt: p.created_at,
+      lastStatusChange: p.last_status_change,
+      dueDate: p.due_date,
+      message: p.message,
+    })),
+  }
+}
+
+export function mapPietaProjetoDetalhe(p) {
+  return {
+    projectId: p.project_id,
+    status: p.status,
+    clientName: p.client_name,
+    power: p.power != null ? Number(p.power) : null,
+    powerDistributor: p.power_distributor,
+    powerDistributorState: p.power_distributor_state,
+    createdAt: p.created_at,
+    lastStatusChange: p.last_status_change,
+    dueDate: p.due_date,
+    message: p.message,
+    daysSinceCreated: p.days_since_created ?? null,
+    tempoTotalDias: p.tempo_total_dias ?? null,
+    medidorSubstituidoDate: p.medidor_substituido_date ?? null,
+    statusTimeline: (p.status_timeline ?? []).map((s) => ({
+      etapa: s.etapa,
+      entrouEm: s.entrou_em,
+      saiuEm: s.saiu_em,
+      tempoNaEtapaDias: s.tempo_na_etapa_dias,
+    })),
+    mainContact: p.main_contact ? { name: p.main_contact.name, phone: p.main_contact.phone } : null,
+    pendencies: p.pendencies ?? [],
+    payment: p.payment
+      ? { method: p.payment.method, totalPaid: p.payment.total_paid, balanceUsed: p.payment.balance_used }
+      : null,
+    inversors: p.inversors ?? [],
+    solarPanels: p.solar_panels ?? [],
+    projectValue: p.project_value ?? null,
+    changes: (p.changes ?? []).map((c) => ({
+      price: c.price,
+      status: c.status,
+      payment: c.payment,
+      createdAt: c.created_at,
+      requestFields: c.request_fields,
+      responseStatus: c.response_status,
+      changeIntegratorDetail: c.change_integrator_detail,
+    })),
+    changesTotal: p.changes_total ?? 0,
+    totalValue: p.total_value ?? null,
+  }
+}
+
+/**
  * A SolarZ embute o objeto completo do cliente em cada usina, incluindo CPF,
  * e-mail e telefone. Mantemos só o nome (para casar visualmente com o
  * cliente já conhecido do Groner) e a concessionária; o resto fica de fora.
