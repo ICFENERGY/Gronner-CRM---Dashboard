@@ -310,11 +310,28 @@ app.get('/api/raw/tarefas', async (_req, res) => {
 // --- SolarZ (monitoramento de usinas instaladas) ---
 
 app.get('/api/raw/usinas', async (_req, res) => {
+  // Bug real (22/09/2026): a SolarZ (monitoramento ao vivo) recusando a
+  // autenticação (401 — credencial expirada/regenerada no painel deles)
+  // derrubava a aba inteira, mesmo já tendo 126 usinas de relatório
+  // cacheadas localmente (server/data/usinas-relatorio.json). Degrada: sem
+  // status ao vivo, mas com todo o resto (investimento, desempenho mensal,
+  // geração do relatório) — em vez de uma tela em branco com um erro técnico.
+  let usinasAoVivo = []
+  let avisoIntegracaoSolarZ = null
   try {
-    const usinasAoVivo = await loadUsinasBrutas()
+    usinasAoVivo = await loadUsinasBrutas()
+  } catch (err) {
+    console.error('[SolarZ] falha ao buscar status ao vivo — seguindo só com o relatório:', err.message)
+    avisoIntegracaoSolarZ =
+      err.status === 401
+        ? 'Não foi possível atualizar o status ao vivo da SolarZ: credencial de API recusada (401). É provável que o usuário/senha de API tenha sido regerado no painel da SolarZ (Configurações → Usuário de API) — gere um novo e atualize SOLARZ_USER/SOLARZ_PASSWORD. Os dados abaixo são do último relatório importado.'
+        : `Não foi possível atualizar o status ao vivo da SolarZ (${err.message}). Os dados abaixo são do último relatório importado.`
+  }
+
+  try {
     const mapeadas = usinasAoVivo.map(mapUsina)
     const completas = usinasRelatorio.usinas?.length ? mesclarUsinasComRelatorio(mapeadas, usinasRelatorio) : mapeadas
-    res.json(stripSensitive(completas))
+    res.json(stripSensitive({ usinas: completas, avisoIntegracaoSolarZ }))
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })

@@ -25,7 +25,9 @@ function pct(v: number | null) {
 }
 
 export function MonitoramentoSolarPage() {
-  const { data: usinas, loading, error } = useRawData('usinas', api.getUsinasRaw)
+  const { data: usinasResponse, loading, error } = useRawData('usinas', api.getUsinasRaw)
+  const usinas = usinasResponse?.usinas ?? null
+  const avisoIntegracaoSolarZ = usinasResponse?.avisoIntegracaoSolarZ ?? null
   const { values, onChange, onClear } = useFilters()
   const [busca, setBusca] = useState('')
   const [usinaSelecionada, setUsinaSelecionada] = useState<UsinaRaw | null>(null)
@@ -56,6 +58,12 @@ export function MonitoramentoSolarPage() {
 
   if (loading) return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando usinas…</p>
   if (error) return <p className="p-10 text-center text-red-600 dark:text-red-400">{error}</p>
+
+  const aviso = avisoIntegracaoSolarZ && (
+    <div className="mb-6 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-800 dark:text-amber-200">
+      ⚠️ {avisoIntegracaoSolarZ}
+    </div>
+  )
 
   const potenciaTotal = filtradas.reduce((s, u) => s + (u.potenciaKwp ?? 0), 0)
   const investidoTotal = filtradas.reduce((s, u) => s + (u.totalInvestido ?? 0), 0)
@@ -94,6 +102,7 @@ export function MonitoramentoSolarPage() {
 
   return (
     <div>
+      {aviso}
       <FilterBar filters={filtros} values={values} onChange={onChange} onClear={onClear} />
 
       <div className="mb-4 max-w-xs">

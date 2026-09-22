@@ -248,3 +248,9 @@ export interface TarefaRaw {
   bloqueado: boolean
   atrasada: boolean
 }
+
+export interface UsinasRawResponse {
+  usinas: UsinaRaw[]
+  /** Aviso não-bloqueante — ex.: SolarZ recusou a credencial (401) e os dados abaixo vêm só do relatório importado. */
+  avisoIntegracaoSolarZ: string | null
+}
