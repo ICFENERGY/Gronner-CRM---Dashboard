@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Tokens de cor para os temas claro/escuro. O claro é o padrão (:root);
+ * a classe .dark (alternada via useTheme) sobrescreve para o tema escuro
+ * original do painel. Componentes usam essas variáveis (bg-[var(--x)]) em
+ * vez de cores fixas do Tailwind, para não precisar duplicar classes
+ * dark: em cada elemento.
+ */
+:root {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-solid: #ffffff;
+  --surface-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --input-bg: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --track-bg: #e2e8f0;
+  --accent-text: #15803d;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #020617;
+  --surface: rgba(15, 23, 42, 0.6);
+  --surface-solid: #0f172a;
+  --surface-hover: rgba(30, 41, 59, 0.4);
+  --border: #1e293b;
+  --border-strong: #334155;
+  --input-bg: #020617;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --track-bg: #1e293b;
+  --accent-text: #22c55e;
+}
+
+body {
+  background-color: var(--bg);
+}

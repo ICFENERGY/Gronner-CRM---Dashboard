@@ -6,6 +6,8 @@ dist/
 
 # Variáveis de ambiente (NUNCA subir credenciais)
 .env
+.env.local
+.env*
 
 # Logs
 *.log
@@ -14,3 +16,6 @@ npm-debug.log*
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Deploy
+.vercel
