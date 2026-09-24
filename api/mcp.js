@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const TENANT = process.env.GRONER_TENANT ?? "";
-const BASE_URL = `https://${TENANT}/api`;
+const BASE_URL = `https://${TENANT}.api.groner.app/api`;
 
 // ─── Cliente HTTP ────────────────────────────────────────────────────────────
 
