@@ -1,15 +1,15 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 
 const TENANT = process.env.GRONER_TENANT ?? "";
 const BASE_URL = `https://${TENANT}/api`;
 
+// ─── Cliente HTTP ────────────────────────────────────────────────────────────
+
 function makeHttp(token) {
   const http = axios.create({
     baseURL: BASE_URL,
     headers: { "Content-Type": "application/json", Accept: "application/json" },
+    timeout: 25000,
   });
   http.interceptors.request.use((config) => {
     if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -23,13 +23,15 @@ async function getToken() {
   if (staticToken) return staticToken;
   const email = process.env.GRONER_EMAIL;
   const senha = process.env.GRONER_SENHA;
-  if (!email || !senha) throw new Error("Configure GRONER_TOKEN ou GRONER_EMAIL + GRONER_SENHA no .env");
+  if (!email || !senha) throw new Error("Configure GRONER_TOKEN ou GRONER_EMAIL + GRONER_SENHA");
   const res = await axios.post(`${BASE_URL}/Conta/Login`, { email, senha });
   return res.data.accessToken;
 }
 
+// ─── Ferramentas ─────────────────────────────────────────────────────────────
+
 const TOOLS = [
-  { name: "auth_get_account", description: "Retorna os dados do usuário autenticado.", inputSchema: { type: "object", properties: {} } },
+  { name: "auth_get_account", description: "Retorna os dados do usuário autenticado (conta logada).", inputSchema: { type: "object", properties: {} } },
   { name: "leads_list", description: "Lista leads com paginação e filtros opcionais.", inputSchema: { type: "object", properties: { pagina: { type: "number" }, tamanhoPagina: { type: "number" }, query: { type: "string" }, responsavelId: { type: "number" }, dataInicio: { type: "string" }, dataFim: { type: "string" }, ativo: { type: "boolean" } } } },
   { name: "leads_get", description: "Busca os detalhes completos de um lead pelo ID.", inputSchema: { type: "object", properties: { id: { type: "number" } }, required: ["id"] } },
   { name: "leads_create", description: "Cria um novo lead no Groner.", inputSchema: { type: "object", properties: { Nome: { type: "string" }, Email: { type: "string" }, Celular: { type: "string" }, Tipo: { type: "number", description: "0=PF, 1=PJ" }, Documento: { type: "string" }, CEP: { type: "string" }, Cidade: { type: "string" }, UF: { type: "string" }, Consumo: { type: "number" }, OrigemId: { type: "number" }, UsuarioId: { type: "number" }, CriarProjeto: { type: "boolean" }, Nota: { type: "string" } }, required: ["Nome"] } },
@@ -65,6 +67,8 @@ const TOOLS = [
   { name: "custom_fields_by_project", description: "Lista campos personalizados de um projeto.", inputSchema: { type: "object", properties: { projetoId: { type: "number" } }, required: ["projetoId"] } },
   { name: "custom_fields_list", description: "Lista todos os campos personalizados cadastrados.", inputSchema: { type: "object", properties: { pagina: { type: "number" }, tamanhoPagina: { type: "number" } } } },
 ];
+
+// ─── Execução das ferramentas ─────────────────────────────────────────────────
 
 async function executeTool(name, args, http) {
   switch (name) {
@@ -107,47 +111,115 @@ async function executeTool(name, args, http) {
   }
 }
 
-function createMcpServer() {
-  const server = new Server(
-    { name: "groner-mcp", version: "1.0.0" },
-    { capabilities: { tools: {} } }
-  );
+// ─── Processador JSON-RPC ─────────────────────────────────────────────────────
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+async function handleMessage(msg) {
+  const { jsonrpc, id, method, params } = msg;
 
-  server.setRequestHandler(CallToolRequestSchema, async (req) => {
-    const { name, arguments: args } = req.params;
+  // Notificações não geram resposta
+  if (id === undefined || id === null) {
+    return null;
+  }
+
+  if (method === "initialize") {
+    return {
+      jsonrpc: "2.0",
+      id,
+      result: {
+        protocolVersion: "2024-11-05",
+        capabilities: { tools: {} },
+        serverInfo: { name: "groner-mcp", version: "1.0.0" },
+      },
+    };
+  }
+
+  if (method === "tools/list") {
+    return {
+      jsonrpc: "2.0",
+      id,
+      result: { tools: TOOLS },
+    };
+  }
+
+  if (method === "tools/call") {
+    const { name, arguments: args } = params ?? {};
     try {
       const token = await getToken();
       const http = makeHttp(token);
       const result = await executeTool(name, args ?? {}, http);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      return {
+        jsonrpc: "2.0",
+        id,
+        result: {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        },
+      };
     } catch (e) {
       const msg = axios.isAxiosError(e)
         ? JSON.stringify(e.response?.data ?? e.message)
         : String(e);
-      return { content: [{ type: "text", text: `Erro: ${msg}` }], isError: true };
+      return {
+        jsonrpc: "2.0",
+        id,
+        result: {
+          content: [{ type: "text", text: `Erro: ${msg}` }],
+          isError: true,
+        },
+      };
     }
-  });
+  }
 
-  return server;
+  return {
+    jsonrpc: "2.0",
+    id,
+    error: { code: -32601, message: `Método não suportado: ${method}` },
+  };
 }
+
+// ─── Handler Vercel ───────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, mcp-session-id");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-session-id");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
-  if (!TENANT) {
-    return res.status(500).json({ error: "GRONER_TENANT não configurado" });
+  if (req.method === "GET") {
+    return res.status(200).json({ status: "ok", server: "groner-mcp", version: "1.0.0" });
   }
 
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  const server = createMcpServer();
-  await server.connect(transport);
-  await transport.handleRequest(req, res, req.body);
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (!TENANT) {
+    return res.status(500).json({ error: "GRONER_TENANT não configurado no ambiente" });
+  }
+
+  const body = req.body;
+
+  try {
+    if (Array.isArray(body)) {
+      const responses = (await Promise.all(body.map(handleMessage))).filter(Boolean);
+      return res.status(200).json(responses);
+    }
+
+    const response = await handleMessage(body);
+
+    // Notificação sem id (ex: notifications/initialized) → 202 sem corpo
+    if (response === null) {
+      return res.status(202).end();
+    }
+
+    return res.status(200).json(response);
+  } catch (e) {
+    return res.status(500).json({
+      jsonrpc: "2.0",
+      id: body?.id ?? null,
+      error: { code: -32603, message: String(e) },
+    });
+  }
 }
