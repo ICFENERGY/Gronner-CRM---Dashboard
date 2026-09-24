@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/index.ts"],
+  "exclude": ["node_modules", "dist", "src/App.tsx", "src/main.tsx", "src/components/**", "src/pages/**", "src/hooks/**", "src/lib/**", "src/styles.css", "src/api/**"]
+}
