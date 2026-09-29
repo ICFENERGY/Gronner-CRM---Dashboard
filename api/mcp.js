@@ -35,7 +35,8 @@ const TOOLS = [
   { name: "leads_list", description: "Lista leads com paginação e filtros opcionais.", inputSchema: { type: "object", properties: { pagina: { type: "number" }, tamanhoPagina: { type: "number" }, query: { type: "string" }, responsavelId: { type: "number" }, dataInicio: { type: "string" }, dataFim: { type: "string" }, ativo: { type: "boolean" } } } },
   { name: "leads_get", description: "Busca os detalhes completos de um lead pelo ID.", inputSchema: { type: "object", properties: { id: { type: "number" } }, required: ["id"] } },
   { name: "leads_create", description: "Cria um novo lead no Groner.", inputSchema: { type: "object", properties: { Nome: { type: "string" }, Email: { type: "string" }, Celular: { type: "string" }, Tipo: { type: "number", description: "0=PF, 1=PJ" }, Documento: { type: "string" }, CEP: { type: "string" }, Cidade: { type: "string" }, UF: { type: "string" }, Consumo: { type: "number" }, OrigemId: { type: "number" }, UsuarioId: { type: "number" }, CriarProjeto: { type: "boolean" }, Nota: { type: "string" } }, required: ["Nome"] } },
-  { name: "leads_update", description: "Edita uma propriedade de um lead existente.", inputSchema: { type: "object", properties: { id: { type: "number" }, propriedade: { type: "string" }, valor: {} }, required: ["id", "propriedade", "valor"] } },
+  { name: "leads_update", description: "Edita uma propriedade de um lead existente (ex.: Nome, Email, Documento, Celular).", inputSchema: { type: "object", properties: { id: { type: "number" }, propriedade: { type: "string", description: "Nome do campo, ex.: Nome, Email, Documento" }, valor: {} }, required: ["id", "propriedade", "valor"] } },
+  { name: "leads_update_bulk", description: "Edita várias propriedades de um lead de uma vez.", inputSchema: { type: "object", properties: { id: { type: "number" }, dados: { type: "object", description: "Ex.: { \"Nome\": \"João Silva\", \"Email\": \"joao@exemplo.com\" }" } }, required: ["id", "dados"] } },
   { name: "leads_history", description: "Retorna o histórico/timeline de um lead.", inputSchema: { type: "object", properties: { id: { type: "number" } }, required: ["id"] } },
   { name: "leads_check_email", description: "Verifica se um e-mail já está cadastrado.", inputSchema: { type: "object", properties: { email: { type: "string" } }, required: ["email"] } },
   { name: "leads_check_document", description: "Verifica se um CPF/CNPJ já está cadastrado.", inputSchema: { type: "object", properties: { documento: { type: "string" } }, required: ["documento"] } },
@@ -70,13 +71,28 @@ const TOOLS = [
 
 // ─── Execução das ferramentas ─────────────────────────────────────────────────
 
+// Edição de lead: PUT /Lead/{id} só com o campo quebra no Groner
+// (NullReferenceException em LeadService.cs:729), mesmo com o registro
+// completo. O endpoint certo é EditarPropriedadesEmMassa, com uma LISTA de
+// { Propriedade, Valor } — testado contra o Groner real em 29/09/2026:
+// 200 = gravou; 204 = propriedade desconhecida, ignorada sem erro.
+async function editarLead(http, id, dados) {
+  const lista = Object.entries(dados).map(([Propriedade, Valor]) => ({ Propriedade, Valor }));
+  const res = await http.put(`/Lead/EditarPropriedadesEmMassa/${id}`, lista);
+  if (res.status === 204) {
+    throw new Error(`O Groner ignorou a edição: propriedade desconhecida (${Object.keys(dados).join(", ")}). Use o nome do campo como no cadastro, ex.: Nome, Email, Documento, Celular.`);
+  }
+  return res.data;
+}
+
 async function executeTool(name, args, http) {
   switch (name) {
     case "auth_get_account": return (await http.get("/Conta/MinhaConta")).data;
     case "leads_list": return (await http.get("/Lead", { params: args })).data;
     case "leads_get": return (await http.get(`/Lead/${args.id}`)).data;
     case "leads_create": return (await http.post("/Lead", args)).data;
-    case "leads_update": return (await http.put(`/Lead/${args.id}`, { [args.propriedade]: args.valor })).data;
+    case "leads_update": return editarLead(http, args.id, { [args.propriedade]: args.valor });
+    case "leads_update_bulk": return editarLead(http, args.id, args.dados);
     case "leads_history": return (await http.get(`/Lead/${args.id}/Historico`)).data;
     case "leads_check_email": return (await http.get(`/Lead/Verificar/${encodeURIComponent(args.email)}`)).data;
     case "leads_check_document": return (await http.get(`/Lead/VerificarDocumento/${args.documento}`)).data;

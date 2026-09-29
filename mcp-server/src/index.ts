@@ -750,14 +750,13 @@ async function executeTool(name: string, args: Args): Promise<unknown> {
       const res = await http.post("/Lead", args);
       return res.data;
     }
-    case "leads_update": {
-      const res = await http.put(`/Lead/${args.id}`, {
-        [args.propriedade as string]: args.valor,
-      });
-      return res.data;
-    }
+    // PUT /Lead/{id} só com o campo quebra no Groner — ver editarLead em api/mcp.js.
+    case "leads_update":
     case "leads_update_bulk": {
-      const res = await http.put(`/Lead/EditarPropriedadesEmMassa/${args.id}`, args.dados);
+      const dados = name === "leads_update" ? { [args.propriedade as string]: args.valor } : (args.dados as Record<string, unknown>);
+      const lista = Object.entries(dados).map(([Propriedade, Valor]) => ({ Propriedade, Valor }));
+      const res = await http.put(`/Lead/EditarPropriedadesEmMassa/${args.id}`, lista);
+      if (res.status === 204) throw new Error(`O Groner ignorou a edição: propriedade desconhecida (${Object.keys(dados).join(", ")}).`);
       return res.data;
     }
     case "leads_check_email": {

@@ -132,7 +132,9 @@ export function registerLeadTools(server: McpServer): void {
       valor: z.unknown().describe("Novo valor para a propriedade"),
     },
     async ({ id, propriedade, valor }) => {
-      const res = await http.put(`/Lead/${id}`, { [propriedade]: valor });
+      // PUT /Lead/{id} só com o campo quebra no Groner — ver editarLead em api/mcp.js.
+      const res = await http.put(`/Lead/EditarPropriedadesEmMassa/${id}`, [{ Propriedade: propriedade, Valor: valor }]);
+      if (res.status === 204) throw new Error(`O Groner ignorou a edição: propriedade desconhecida (${propriedade}).`);
       return { content: [{ type: "text", text: JSON.stringify(res.data, null, 2) }] };
     }
   );
@@ -148,7 +150,10 @@ export function registerLeadTools(server: McpServer): void {
         .describe("Objeto com os campos a atualizar, ex: { Nome: 'João', Celular: '11999998888' }"),
     },
     async ({ id, dados }) => {
-      const res = await http.put(`/Lead/EditarPropriedadesEmMassa/${id}`, dados);
+      // O Groner espera uma LISTA de { Propriedade, Valor }, não um objeto.
+      const lista = Object.entries(dados).map(([Propriedade, Valor]) => ({ Propriedade, Valor }));
+      const res = await http.put(`/Lead/EditarPropriedadesEmMassa/${id}`, lista);
+      if (res.status === 204) throw new Error(`O Groner ignorou a edição: propriedade desconhecida (${Object.keys(dados).join(", ")}).`);
       return { content: [{ type: "text", text: JSON.stringify(res.data, null, 2) }] };
     }
   );
