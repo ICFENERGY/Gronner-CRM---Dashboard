@@ -38,15 +38,89 @@ export function mapVenda(v, enriquecimento) {
   }
 }
 
+const STATUS_MARCO = new Map([
+  ['FUNIL ENGENHARIA - CRIAR PROP', 1], ['CRIAR PROJETO->PROPOSTA', 1], ['CRIAR ABORDAGEM', 1],
+  ['APROVAR PROPOSTA CRIADA', 2], ['PENDENCIAS TECNICAS->PROJETOS', 3], ['APROVACAO TECNICA - VENDA', 3],
+  ['PROPOSTA CRIADA APROVADA', 4], ['AGUARDANDO ASSINATURA', 4], ['DOCUMENTOS PENDENTES', 4], ['PAGAMENTO REALIZADO', 4],
+  ['PIETA_CRIACAO DO PROJETO', 5], ['PIETA_PARECER SOLICITADO', 5], ['PENDENCIA DE HOMOLOGACAO', 6], ['PENDENCIA ICF', 6],
+  ['PENDENCIA DOCUMENTAL/TECNICA', 6], ['PARECER EMITIDO', 6], ['PEDIDO ENTREGUE', 7], ['INSTALADOR HOMOLOGADO', 9],
+  ['AGENDAR INSTALACAO', 9], ['INSTALACAO AGENDADA', 10], ['DIARIO DE OBRA / OBRA ANDAMENTO', 11], ['PENDENCIA DE OBRA', 11],
+  ['PENDENCIA DE INSTALACAO', 11], ['AGUARDANDO VISTORIA', 12], ['PENDENCIA VIST. CONCESSIONARIA', 12], ['RELOGIO TROCADO', 13],
+  ['INSTALACAO APP MONITORAMENTO', 13], ['APP MONITOR INSTALADO', 14], ['TERMO DE ACEITE', 15], ['TERMO DE ACEITE ASSINADO', 15],
+  ['DOSSIE', 16], ['FIM DOSSIE ENVIADO', 16],
+])
+
+function semAcentos(value) {
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
+}
+
+export function marcoDoStatus(status) {
+  return STATUS_MARCO.get(semAcentos(status)) ?? null
+}
+
+function dataVendaValida(value) {
+  if (!value) return null
+  const year = Number(String(value).slice(0, 4))
+  return Number.isFinite(year) && year >= 1950 ? value : null
+}
+
+const DEAL_FIELDS = ['dataVenda', 'dataAceiteProposta', 'kwp', 'geracaoMensalPrevista', 'valorPrePropostaAceita', 'cidade', 'estado', 'bairro', 'concessionaria', 'uc', 'tecnico', 'projetista', 'homologador', 'tipoTelhado', 'faseEnergetica', 'tipoEdificacao', 'dataInicioInstalacao', 'dataTerminoInstalacao', 'dataAssinaturaContrato', 'urlMonitoramento', 'modeloMonitoramento', 'dataTerminoGarantia', 'qtdPrePropostas']
+
+function fieldsFromProject(p) {
+  const sources = [p, p.deal, p.deals, p.enriquecimento, p.camposPersonalizados, p.customFields]
+  const aliases = Object.fromEntries(DEAL_FIELDS.map((field) => [field, [field]]))
+  Object.assign(aliases, {
+    kwp: ['kwp', 'kwP', 'Proposta Aceita Potência'], geracaoMensalPrevista: ['geracaoMensalPrevista', 'Proposta Aceita Geração mensal'],
+    valorPrePropostaAceita: ['valorPrePropostaAceita', 'Proposta Aceita Valor'], concessionaria: ['concessionaria', 'Concessionária'],
+    uc: ['uc', 'Código da unidade consumidora'], tecnico: ['tecnico', 'Técnico'], projetista: ['projetista', 'Projetista'], homologador: ['homologador', 'Homologador'],
+    tipoTelhado: ['tipoTelhado', 'Tipo de Telhado'], faseEnergetica: ['faseEnergetica', 'Fase energética'], tipoEdificacao: ['tipoEdificacao', 'Tipo de Edificação'],
+    dataInicioInstalacao: ['dataInicioInstalacao', 'Data de início da instalação'], dataTerminoInstalacao: ['dataTerminoInstalacao', 'Data de término da instalação'],
+    dataAssinaturaContrato: ['dataAssinaturaContrato', 'Data de Assinatura do Contrato'], urlMonitoramento: ['urlMonitoramento', 'URL do monitoramento'],
+    modeloMonitoramento: ['modeloMonitoramento', 'Modelo do monitoramento'], dataTerminoGarantia: ['dataTerminoGarantia', 'Data de término da garantia da instalação'],
+    qtdPrePropostas: ['qtdPrePropostas', 'Quantidade de propostas'], dataAceiteProposta: ['dataAceiteProposta', 'Data de aceite da proposta'], dataVenda: ['dataVenda', 'Data da venda'],
+  })
+  const flat = (source) => {
+    const values = {}
+    const visit = (node) => {
+      if (Array.isArray(node)) return node.forEach(visit)
+      if (!node || typeof node !== 'object') return
+      for (const [key, value] of Object.entries(node)) {
+        if (value == null || value === '') continue
+        if (typeof value !== 'object') values[key] = value
+        visit(value)
+      }
+      const label = node.nome ?? node.name ?? node.campoNome ?? node.fieldName
+      const answer = node.resposta ?? node.answer ?? node.valor ?? node.value
+      if (label && answer != null && typeof answer !== 'object') values[label] = answer
+    }
+    visit(source)
+    return values
+  }
+  const output = {}
+  for (const source of sources) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) continue
+    const values = flat(source)
+    for (const field of DEAL_FIELDS) {
+      if (output[field] != null) continue
+      const key = aliases[field].find((candidate) => values[candidate] != null && values[candidate] !== '')
+      if (key) output[field] = values[key]
+    }
+  }
+  return output
+}
+
 export function mapProjeto(p, enriquecimento) {
-  const extra = enriquecimento?.[String(p.id)]
+  const apiFields = fieldsFromProject(p)
+  const extra = { ...(enriquecimento?.[String(p.id)] ?? {}), ...apiFields }
+  const status = p.status?.nome ?? p.etapa ?? null
   return {
     id: p.id,
     nome: p.nome,
     tipo: p.tipo,
     tipoLead: p.tipoLead,
     funil: p.etapa,
-    etapa: p.status?.nome ?? null,
+    etapa: status,
+    marco: marcoDoStatus(status),
     corEtapa: p.corEtapa,
     origemLead: p.origemLead?.nome ?? null,
     vendedorResponsavel: p.vendedorResponsavel,
@@ -65,6 +139,29 @@ export function mapProjeto(p, enriquecimento) {
     estado: extra?.estado ?? null,
     bairro: extra?.bairro ?? null,
     concessionaria: extra?.concessionaria ?? null,
+    momento: extra?.momento ?? null,
+    donoNominal: extra?.donoNominal ?? extra?.tecnico ?? extra?.projetista ?? extra?.homologador ?? null,
+    diasSemAtualizacao: extra?.diasSemAtualizacao ?? null,
+    diasDesdeVenda: extra?.diasDesdeVenda ?? null,
+    dataEntradaStatus: extra?.dataEntradaStatus ?? p.dataUltimoStatus ?? null,
+    noFluxoEngenharia: extra?.noFluxoEngenharia ?? null,
+    dataVenda: dataVendaValida(extra?.dataVenda),
+    dataAceiteProposta: extra?.dataAceiteProposta ?? null,
+    kwp: extra?.kwp ?? null,
+    geracaoMensalPrevista: extra?.geracaoMensalPrevista ?? null,
+    uc: extra?.uc ?? null,
+    tecnico: extra?.tecnico ?? null,
+    projetista: extra?.projetista ?? null,
+    homologador: extra?.homologador ?? null,
+    tipoTelhado: extra?.tipoTelhado ?? null,
+    faseEnergetica: extra?.faseEnergetica ?? null,
+    tipoEdificacao: extra?.tipoEdificacao ?? null,
+    dataInicioInstalacao: extra?.dataInicioInstalacao ?? null,
+    dataTerminoInstalacao: extra?.dataTerminoInstalacao ?? null,
+    dataAssinaturaContrato: extra?.dataAssinaturaContrato ?? null,
+    urlMonitoramento: extra?.urlMonitoramento ?? null,
+    modeloMonitoramento: extra?.modeloMonitoramento ?? null,
+    dataTerminoGarantia: extra?.dataTerminoGarantia ?? null,
   }
 }
 

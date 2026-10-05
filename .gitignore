@@ -19,3 +19,9 @@ Thumbs.db
 
 # Deploy
 .vercel
+
+# Conversa Claude/Codex: anexos com dados de clientes (exportações do Groner)
+conversa-claude-codex/anexos/
+
+# Servidor MCP mantido localmente e fora deste repositório
+mcp-server/

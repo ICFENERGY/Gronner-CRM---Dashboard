@@ -11,10 +11,12 @@
     "preview": "vite preview",
     "start": "node server/index.js",
     "dev:mcp": "tsx mcp-server/src/index.ts",
-    "build:mcp": "tsc -p tsconfig.mcp.json"
+    "build:mcp": "tsc -p tsconfig.mcp.json",
+    "test": "node --test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@upstash/redis": "^1.39.0",
     "axios": "^1.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

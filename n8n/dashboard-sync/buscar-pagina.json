@@ -1,0 +1,304 @@
+{
+  "name": "Groner Dashboard - Buscar uma página",
+  "nodes": [
+    {
+      "id": "81eeda0f-ef6d-4589-b46c-fb6c29d8e7e7",
+      "name": "Detalhar projeto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fa5d5d2b-a0a2-44f2-86e1-d034f6c85468",
+              "leftValue": "={{ $json.detalharProjeto }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f2dc5efd-253d-4c58-a971-078f20a714e7",
+      "name": "Chamado pela rotina",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "19ad774b-533b-48c9-b46f-06ce6f844274",
+      "name": "Buscar página no Groner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "GronerZap - Groner API leitura"
+        }
+      },
+      "parameters": {
+        "url": "={{ 'https://{tenant}.api.groner.app/api/' + $json.recurso }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageNumber",
+              "value": "={{ $json.pageNumber }}"
+            },
+            {
+              "name": "pageSize",
+              "value": "={{ $json.pageSize }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "acbae043-76e7-4726-aa76-d68a34f6df4f",
+      "name": "Extrair página",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const entrada = $('Chamado pela rotina').first().json\nconst corpo = $input.first().json\nconst dados = corpo && (corpo.Content || corpo.content || corpo)\nconst registros = dados && (dados.list || dados.items || dados.data)\nif (!Array.isArray(registros)) throw new Error('Formato de página desconhecido no Groner')\nreturn [{ json: {\n  pageNumber: entrada.pageNumber,\n  totalItems: Number(dados.totalItems ?? dados.totalCount ?? dados.total),\n  registros,\n  detalharProjeto: entrada.detalharProjeto === true,\n} }]"
+      }
+    },
+    {
+      "id": "ae037256-870f-494b-a99c-56d6c393bda8",
+      "name": "Expandir projetos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const pagina = $input.first().json\nreturn pagina.registros.map((registro) => ({ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registro } }))"
+      }
+    },
+    {
+      "id": "7535dacd-f98f-4662-94f5-0aff13959492",
+      "name": "Buscar detalhe do projeto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "GronerZap - Groner API leitura"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "url": "={{ 'https://{tenant}.api.groner.app/api/Projeto/' + $json.registro.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "993596d9-1cc6-48f3-a1a2-29f987b5a7ca",
+      "name": "Buscar campos personalizados",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        -120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "GronerZap - Groner API leitura"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "url": "={{ 'https://{tenant}.api.groner.app/api/CampoPersonalizado/Projeto/' + $('Expandir projetos').item.json.registro.id + '/Agrupado' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "26c0d864-7e4b-46e4-8b0a-e58bc1c618b8",
+      "name": "Consolidar detalhes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const originais = $('Expandir projetos').all()\nconst detalhes = $('Buscar detalhe do projeto').all()\nconst campos = $input.all()\nreturn campos.map((item, indice) => ({ json: { ...originais[indice].json.registro, ...detalhes[indice].json, camposPersonalizados: item.json } }))"
+      }
+    },
+    {
+      "id": "ef668f9b-5e9c-4e6a-b706-bd4679adadea",
+      "name": "Saída da página",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const itens = $input.all().map((item) => item.json)\nif (itens.length === 1 && Array.isArray(itens[0].registros)) return itens\nconst pagina = $('Extrair página').first().json\nreturn [{ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registros: itens } }]"
+      }
+    }
+  ],
+  "connections": {
+    "Extrair página": {
+      "main": [
+        [
+          {
+            "node": "Detalhar projeto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detalhar projeto?": {
+      "main": [
+        [
+          {
+            "node": "Expandir projetos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Saída da página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expandir projetos": {
+      "main": [
+        [
+          {
+            "node": "Buscar detalhe do projeto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar detalhe do projeto": {
+      "main": [
+        [
+          {
+            "node": "Buscar campos personalizados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar campos personalizados": {
+      "main": [
+        [
+          {
+            "node": "Consolidar detalhes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar detalhes": {
+      "main": [
+        [
+          {
+            "node": "Saída da página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamado pela rotina": {
+      "main": [
+        [
+          {
+            "node": "Buscar página no Groner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar página no Groner": {
+      "main": [
+        [
+          {
+            "node": "Extrair página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  },
+  "id": "{dashboardPaginaWorkflowId}"
+}

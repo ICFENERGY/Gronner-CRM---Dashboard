@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
 import { BarChartGeneric } from '../components/BarChartGeneric'
 import { CategoriaLegend } from '../components/CategoriaLegend'
 import { DonutChart } from '../components/DonutChart'
+import { DataTable } from '../components/DataTable'
 import { FilterBar, type FilterDef } from '../components/FilterBar'
 import { FunilPipeline } from '../components/FunilPipeline'
 import { KpiCard } from '../components/KpiCard'
@@ -23,6 +24,8 @@ export function Dashboard() {
   const { data: leadsResumo } = useRawData('summary-leads', () => api.getSummary().then((s) => s.leads.total))
   const { values, onChange, onClear } = useFilters()
   const [atualizando, setAtualizando] = useState(false)
+  const [buscaProjeto, setBuscaProjeto] = useState('')
+  const [paginaProjetos, setPaginaProjetos] = useState(1)
 
   function atualizarDados() {
     setAtualizando(true)
@@ -78,6 +81,56 @@ export function Dashboard() {
       return true
     })
   }, [propostas, values])
+
+  const detalhesProjetos = useMemo(() => {
+    const melhorProposta = new Map<number, { valor: number; aceita: boolean }>()
+    for (const proposta of propostas ?? []) {
+      if (proposta.projetoId == null || proposta.preco == null) continue
+      const atual = melhorProposta.get(proposta.projetoId)
+      if (!atual || (proposta.aceita && !atual.aceita) || (proposta.aceita === atual.aceita && proposta.preco > atual.valor)) {
+        melhorProposta.set(proposta.projetoId, { valor: proposta.preco, aceita: proposta.aceita })
+      }
+    }
+    return projetosFiltrados
+      .map((projeto) => {
+        const proposta = melhorProposta.get(projeto.id)
+        if ((projeto.valorVenda ?? 0) > 0) return { ...projeto, valorProjeto: projeto.valorVenda ?? 0, origemValor: 'Venda' }
+        if ((projeto.valorPrePropostaAceita ?? 0) > 0) {
+          return { ...projeto, valorProjeto: projeto.valorPrePropostaAceita ?? 0, origemValor: 'Proposta aceita' }
+        }
+        return {
+          ...projeto,
+          valorProjeto: proposta?.valor ?? 0,
+          origemValor: proposta ? (proposta.aceita ? 'Proposta aceita' : 'Proposta') : 'Sem valor',
+        }
+      })
+      .sort((a, b) => (b.dataUltimaAtualizacao || b.dataInclusao || '').localeCompare(a.dataUltimaAtualizacao || a.dataInclusao || ''))
+  }, [projetosFiltrados, propostas])
+
+  const detalhesPesquisados = useMemo(() => {
+    const termo = buscaProjeto.trim().toLocaleLowerCase('pt-BR')
+    if (!termo) return detalhesProjetos
+    return detalhesProjetos.filter((projeto) => [
+      projeto.nome,
+      projeto.funil,
+      projeto.etapa,
+      projeto.vendedorResponsavel,
+      projeto.cidade,
+      projeto.estado,
+    ].some((valor) => valor?.toLocaleLowerCase('pt-BR').includes(termo)))
+  }, [buscaProjeto, detalhesProjetos])
+
+  const projetosPorPagina = 100
+  const totalPaginasProjetos = Math.max(1, Math.ceil(detalhesPesquisados.length / projetosPorPagina))
+  const paginaProjetosSegura = Math.min(paginaProjetos, totalPaginasProjetos)
+  const projetosDaPagina = detalhesPesquisados.slice(
+    (paginaProjetosSegura - 1) * projetosPorPagina,
+    paginaProjetosSegura * projetosPorPagina,
+  )
+
+  useEffect(() => {
+    setPaginaProjetos(1)
+  }, [buscaProjeto, values.ano, values.estado, values.vendedor])
 
   if (loadingProjetos || loadingVendas || loadingPropostas) {
     return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando dados do Groner CRM…</p>
@@ -164,6 +217,78 @@ export function Dashboard() {
 
       <section className="mb-6 grid grid-cols-1 gap-4">
         <FunilPipeline data={porFunil} />
+      </section>
+
+      <section className="mb-6">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-sm font-medium text-[var(--text-primary)]">Clientes e projetos no funil</h2>
+            <p className="text-xs text-[var(--text-muted)]">
+              {number.format(detalhesPesquisados.length)} projetos nos filtros atuais. O valor prioriza venda, proposta aceita e depois proposta.
+            </p>
+          </div>
+          <label className="text-xs text-[var(--text-muted)]">
+            Buscar cliente ou etapa
+            <input
+              value={buscaProjeto}
+              onChange={(event) => setBuscaProjeto(event.target.value)}
+              placeholder="Nome, funil, etapa, vendedor…"
+              className="mt-1 block w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-icf-green sm:w-72"
+            />
+          </label>
+        </div>
+        <DataTable
+          title="Posição atual de cada projeto"
+          maxHeight={520}
+          rows={projetosDaPagina}
+          columns={[
+            { key: 'cliente', label: 'Cliente / projeto', render: (row) => row.nome || `Projeto #${row.id}` },
+            { key: 'funil', label: 'Funil', render: (row) => row.funil || 'Sem funil' },
+            { key: 'etapa', label: 'Etapa atual', render: (row) => row.etapa || 'Sem etapa' },
+            { key: 'vendedor', label: 'Responsável', render: (row) => row.vendedorResponsavel || 'Não informado' },
+            {
+              key: 'valor',
+              label: 'Valor do projeto',
+              align: 'right',
+              render: (row) => (
+                <span title={row.origemValor}>
+                  {row.valorProjeto > 0 ? currency.format(row.valorProjeto) : 'Não informado'}
+                </span>
+              ),
+            },
+            {
+              key: 'atualizacao',
+              label: 'Última atualização',
+              render: (row) => {
+                const data = row.dataUltimaAtualizacao || row.dataInclusao
+                return data ? new Intl.DateTimeFormat('pt-BR').format(new Date(data)) : 'Não informada'
+              },
+            },
+          ]}
+          footer={
+            <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-3 text-xs text-[var(--text-muted)]">
+              <span>Página {paginaProjetosSegura} de {totalPaginasProjetos}</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={paginaProjetosSegura === 1}
+                  onClick={() => setPaginaProjetos((pagina) => Math.max(1, pagina - 1))}
+                  className="rounded border border-[var(--border)] px-3 py-1 disabled:opacity-40"
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  disabled={paginaProjetosSegura === totalPaginasProjetos}
+                  onClick={() => setPaginaProjetos((pagina) => Math.min(totalPaginasProjetos, pagina + 1))}
+                  className="rounded border border-[var(--border)] px-3 py-1 disabled:opacity-40"
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          }
+        />
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4">

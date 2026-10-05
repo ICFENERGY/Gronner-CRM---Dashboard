@@ -1,8 +1,8 @@
 import app, {
-  loadProjetosBrutos,
-  loadVendasBrutas,
-  loadPropostasBrutas,
-  loadTarefasBrutas,
+  loadProjetosDados,
+  loadVendasDados,
+  loadPropostasDados,
+  loadTarefasDados,
   loadUsinasBrutas,
 } from '../server/app.js'
 
@@ -11,7 +11,7 @@ import app, {
 let aquecido = false
 if (!aquecido) {
   aquecido = true
-  Promise.all([loadProjetosBrutos(), loadVendasBrutas(), loadPropostasBrutas(), loadTarefasBrutas(), loadUsinasBrutas()]).catch(
+  Promise.all([loadProjetosDados(), loadVendasDados(), loadPropostasDados(), loadTarefasDados(), loadUsinasBrutas()]).catch(
     (err) => console.error('Falha ao pré-aquecer cache:', err.message),
   )
 }

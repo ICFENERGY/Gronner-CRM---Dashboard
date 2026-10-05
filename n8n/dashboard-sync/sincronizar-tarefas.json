@@ -1,0 +1,358 @@
+{
+  "name": "Groner Dashboard - Sincronizar Tarefas",
+  "nodes": [
+    {
+      "id": "1ce9cb13-acba-4b68-a23a-96988a0e7709",
+      "name": "Executar manualmente",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "ab38aca8-72db-4296-809a-ccc7ba45f904",
+      "name": "Agenda 08h e 18h (aguarda ativação)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        180
+      ],
+      "disabled": true,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "5 8,18 * * *"
+            }
+          ]
+        }
+      },
+      "notes": "Horários escalonados em 5 minutos para não sobrecarregar os workers nem a API do Groner."
+    },
+    {
+      "id": "3c5a3161-d8b2-4c7e-aa47-c17404367cee",
+      "name": "Entidade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: {\"slug\":\"tarefas\",\"recurso\":\"Tarefa\"} }]"
+      }
+    },
+    {
+      "id": "dcff91de-1e96-4389-bc8c-2a1b55667d21",
+      "name": "Configuração",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const agora = new Date()\nreturn [{ json: {\n  runId: $json.slug + '-' + agora.toISOString().replace(/[-:.]/g, ''),\n  runStartedAt: agora.toISOString(),\n  slug: $json.slug,\n  recurso: $json.recurso,\n  tamanhoPagina: 500,\n  tamanhoLote: 50,\n  detalharProjeto: $json.slug === 'projetos',\n} }]"
+      }
+    },
+    {
+      "id": "c69970fe-2833-476f-8db2-40dc143a2870",
+      "name": "Consultar total",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        90
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "GronerZap - Groner API leitura"
+        }
+      },
+      "parameters": {
+        "url": "={{ 'https://{tenant}.api.groner.app/api/' + $json.recurso }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageNumber",
+              "value": "1"
+            },
+            {
+              "name": "pageSize",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "8a21071d-7186-4109-a8b3-c1303b583229",
+      "name": "Gerar páginas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Configuração').first().json\nconst corpo = $input.first().json\nconst dados = corpo && (corpo.Content || corpo.content || corpo)\nconst total = Number(dados && (dados.totalItems ?? dados.totalCount ?? dados.total))\nif (!Number.isInteger(total) || total < 0) throw new Error('Groner não informou um total válido')\nconst paginas = Math.max(1, Math.ceil(total / cfg.tamanhoPagina))\nif (paginas > 500) throw new Error('Limite de 500 páginas excedido')\nreturn Array.from({ length: paginas }, (_, i) => ({ json: {\n  runId: cfg.runId,\n  runStartedAt: cfg.runStartedAt,\n  slug: cfg.slug,\n  recurso: cfg.recurso,\n  pageNumber: i + 1,\n  pageSize: cfg.tamanhoPagina,\n  totalEsperado: total,\n} }))"
+      }
+    },
+    {
+      "id": "93331eaa-7acb-41ba-a4d2-40a5129aca3d",
+      "name": "Buscar páginas separadamente",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        90
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "{dashboardPaginaWorkflowId}",
+          "mode": "id",
+          "cachedResultName": "Groner Dashboard - Buscar uma página"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "45aeff48-6ee3-4ad7-b2d9-d0584fc51bc3",
+      "name": "Validar e preparar lotes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Configuração').first().json\nconst paginas = $input.all().map((item) => item.json)\nconst falhas = paginas.filter((p) => !Array.isArray(p.registros))\nif (falhas.length) throw new Error('Uma ou mais páginas não retornaram registros válidos')\nconst totais = new Set(paginas.map((p) => Number(p.totalItems)))\nif (totais.size !== 1) throw new Error('O total do Groner mudou durante a paginação; execute novamente')\nconst totalEsperado = Number([...totais][0])\nconst registros = paginas.flatMap((p) => p.registros)\nconst ids = new Set()\nfor (const registro of registros) {\n  const registroId = registro && (registro.id ?? registro.Id)\n  if (registroId == null) throw new Error('Registro do Groner sem id')\n  const chave = String(registroId)\n  if (ids.has(chave)) throw new Error('ID duplicado entre páginas: ' + chave)\n  ids.add(chave)\n}\nif (registros.length !== totalEsperado) {\n  throw new Error('Carga incompleta: recebidos ' + registros.length + ' de ' + totalEsperado)\n}\nconst normalizarProjeto = (item) => {\n  if (cfg.slug !== 'projetos') return item\n  const pick = (...keys) => keys.map((key) => item[key]).find((value) => value !== undefined) ?? null\n  const funil = String(pick('funil', 'Etapa') || '').trim()\n  const status = String(pick('etapa', 'Status') || '').trim()\n  const noFluxo = /^(04.|06.|07.|08.|09.|10.|11.)/.test(funil)\n    && (!(funil.startsWith('04.') && status !== 'FUNIL ENGENHARIA - CRIAR PROP') ? 'sim' : 'não')\n  return {\n    ...item,\n    id: Number(item.id ?? item.Id ?? item['Código']),\n    funil: pick('funil', 'Etapa'),\n    etapa: pick('etapa', 'Status'),\n    cidade: pick('cidade', 'Cidade'),\n    estado: pick('estado', 'Estado'),\n    concessionaria: pick('concessionaria', 'Concessionária'),\n    dataVenda: pick('dataVenda', 'Data da venda'),\n    dataAceiteProposta: pick('dataAceiteProposta', 'Data de aceite da proposta'),\n    kwp: pick('kwp', 'Proposta Aceita Potência'),\n    geracaoMensalPrevista: pick('geracaoMensalPrevista', 'Proposta Aceita Geração mensal'),\n    valorPrePropostaAceita: pick('valorPrePropostaAceita', 'Proposta Aceita Valor'),\n    tecnico: pick('tecnico', 'Técnico'),\n    projetista: pick('projetista', 'Projetista'),\n    homologador: pick('homologador', 'Homologador'),\n    vendedorResponsavel: pick('vendedorResponsavel', 'Vendedor'),\n    uc: pick('uc', 'Código da unidade consumidora'),\n    donoNominal: item.donoNominal ?? item['Dono nominal'] ?? pick('tecnico', 'Técnico') ?? pick('projetista', 'Projetista') ?? pick('homologador', 'Homologador'),\n    dataEntradaStatus: item.dataEntradaStatus ?? item['Data de entrada no status'] ?? item.dataUltimoStatus ?? null,\n    noFluxoEngenharia: item.noFluxoEngenharia ?? item['No fluxo da Engenharia'] ?? noFluxo,\n  }\n}\nregistros = registros.map(normalizarProjeto)\nregistros.sort((a, b) => Number(a.id ?? a.Id) - Number(b.id ?? b.Id))\nconst lotes = []\nfor (let i = 0; i < registros.length; i += cfg.tamanhoLote) lotes.push(registros.slice(i, i + cfg.tamanhoLote))\nif (!lotes.length) lotes.push([])\nreturn lotes.map((items, indice) => ({ json: {\n  runId: cfg.runId,\n  runStartedAt: cfg.runStartedAt,\n  entity: cfg.slug,\n  batchIndex: indice + 1,\n  batchCount: lotes.length,\n  expectedTotal: totalEsperado,\n  items,\n} }))"
+      }
+    },
+    {
+      "id": "aa0815a1-adca-4543-af74-663113722a9f",
+      "name": "Upsert no dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        90
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Groner Dashboard - Sync"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://groner-crm-dashboard-ten.vercel.app/api/sync/groner/' + $json.entity + '/batches' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "3bcbc2e7-7e7c-4e62-81c4-98550e13ce65",
+      "name": "Validar confirmações",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Configuração').first().json\nconst respostas = $input.all().map((item) => item.json)\nif (!respostas.length) throw new Error('Dashboard não confirmou nenhum lote')\nfor (const resposta of respostas) {\n  if (resposta.ok !== true || resposta.runId !== cfg.runId) {\n    throw new Error('Dashboard rejeitou ou não confirmou um lote')\n  }\n}\nconst soma = (campo) => respostas.reduce((total, r) => total + Number(r[campo] || 0), 0)\nreturn [{ json: {\n  runId: cfg.runId,\n  runStartedAt: cfg.runStartedAt,\n  entity: cfg.slug,\n  batchCount: respostas.length,\n  expectedTotal: Number(respostas[0].expectedTotal),\n  inserted: soma('inserted'),\n  updated: soma('updated'),\n  unchanged: soma('unchanged'),\n} }]"
+      }
+    },
+    {
+      "id": "04c0b0c6-2c70-41bb-a660-93140a846222",
+      "name": "Finalizar carga completa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        90
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Groner Dashboard - Sync"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://groner-crm-dashboard-ten.vercel.app/api/sync/groner/' + $json.entity + '/finalize' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "notes": "Somente este passo pode marcar como removidos registros que não apareceram na carga completa."
+    }
+  ],
+  "connections": {
+    "Executar manualmente": {
+      "main": [
+        [
+          {
+            "node": "Entidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agenda 08h e 18h (aguarda ativação)": {
+      "main": [
+        [
+          {
+            "node": "Entidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entidade": {
+      "main": [
+        [
+          {
+            "node": "Configuração",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuração": {
+      "main": [
+        [
+          {
+            "node": "Consultar total",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar total": {
+      "main": [
+        [
+          {
+            "node": "Gerar páginas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar páginas": {
+      "main": [
+        [
+          {
+            "node": "Buscar páginas separadamente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar páginas separadamente": {
+      "main": [
+        [
+          {
+            "node": "Validar e preparar lotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar e preparar lotes": {
+      "main": [
+        [
+          {
+            "node": "Upsert no dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert no dashboard": {
+      "main": [
+        [
+          {
+            "node": "Validar confirmações",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar confirmações": {
+      "main": [
+        [
+          {
+            "node": "Finalizar carga completa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  }
+}

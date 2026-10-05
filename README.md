@@ -55,7 +55,36 @@ O projeto já está linkado ao projeto Vercel `groner-crm-dashboard` (conectado 
 
 Variáveis de ambiente necessárias no projeto Vercel (Production/Preview/Development): `GRONER_TOKEN`, `GRONER_TENANT`.
 
+Para receber as cargas incrementais do N8N, configure também
+`GRONER_SYNC_TOKEN`, `UPSTASH_REDIS_REST_URL` e
+`UPSTASH_REDIS_REST_TOKEN`. O segredo de sync deve ser exclusivo deste
+dashboard e nunca deve ser exposto ao frontend.
+
 ```bash
 vercel env ls          # conferir variáveis
 vercel --prod          # deploy manual, se precisar
 ```
+
+## Sincronização pelo N8N
+
+Quando Redis e `GRONER_SYNC_TOKEN` estão configurados, o backend aceita quatro
+entidades: `projetos`, `tarefas`, `propostas` e `vendas`.
+
+- `POST /api/sync/groner/:entity/batches` — recebe até 50 registros brutos do
+  Groner, aplica a allowlist dos mappers, remove campos sensíveis e registra um
+  lote idempotente.
+- `POST /api/sync/groner/:entity/finalize` — publica a fotografia somente após
+  confirmar todos os lotes e o total esperado.
+- `GET /api/sync/groner/status` — informa a última carga publicada por entidade,
+  sem retornar registros ou segredos.
+
+Os POSTs exigem `X-Groner-Sync-Token`. Uma carga interrompida não substitui os
+dados anteriores. Se Redis ainda não estiver configurado ou não houver uma
+fotografia publicada, os endpoints de leitura continuam consultando a API do
+Groner como antes.
+
+Toda a implementação dessa integração pertence a este repositório do CRM:
+
+- `docs/ARQUITETURA-DASHBOARD-UPSERT.md` — contrato, segurança e ordem de implantação;
+- `n8n/dashboard-sync/` — gerador e definições dos cinco fluxos do N8N;
+- `test/n8nDashboardSync.test.js` — validações estruturais e de segurança dos fluxos.

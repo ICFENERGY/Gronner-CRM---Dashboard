@@ -8,6 +8,8 @@ import { stripSensitive } from './sanitize.js'
 import { dealsEnriquecido, salesEnriquecido, usinasRelatorio } from './enrichment.js'
 import { solarzListarUsinas } from './solarzClient.js'
 import { pietaResumo, pietaDetalheProjeto } from './pietaClient.js'
+import { createSyncRouter } from './syncRoutes.js'
+import { loadSyncedEntity } from './syncStore.js'
 
 const app = express()
 const TTL_MS = 10 * 60 * 1000
@@ -58,12 +60,13 @@ function buildPorFunil(projetos) {
   })
 
   for (const p of projetos) {
-    const rawNome = p.etapa || 'Sem Funil'
+    const rawNome = p.funil || p.etapa || 'Sem Funil'
     const canonicalNome = canonicalLookup.get(normalizeFunilNome(rawNome))
     const entry = porFunilMap.get(canonicalNome) ?? porFunilMap.get(OUTROS_KEY)
     entry.quantidade += 1
 
-    const etapaNome = canonicalNome ? p.status?.nome || 'Sem etapa' : `${rawNome} — ${p.status?.nome || 'Sem etapa'}`
+    const etapaAtual = p.status?.nome || p.etapa || 'Sem etapa'
+    const etapaNome = canonicalNome ? etapaAtual : `${rawNome} — ${etapaAtual}`
     if (!entry.etapas.has(etapaNome)) entry.etapas.set(etapaNome, { etapa: etapaNome, quantidade: 0 })
     entry.etapas.get(etapaNome).quantidade += 1
   }
@@ -85,7 +88,7 @@ function buildPivotFunilAno(projetos) {
   const anosSet = new Set()
 
   for (const p of projetos) {
-    const rawNome = p.etapa || 'Sem Funil'
+    const rawNome = p.funil || p.etapa || 'Sem Funil'
     const funil = canonicalLookup.get(normalizeFunilNome(rawNome)) ?? OUTROS_KEY
     const ano = p.dataInclusao ? p.dataInclusao.slice(0, 4) : 'Sem data'
     anosSet.add(ano)
@@ -126,10 +129,10 @@ function buildGeografia(projetos) {
 
   for (const p of projetos) {
     const extra = dealsEnriquecido[String(p.id)]
-    if (!extra) continue
-
-    if (extra.estado) porEstadoMap.set(extra.estado, (porEstadoMap.get(extra.estado) ?? 0) + 1)
-    if (extra.concessionaria) porConcessionariaMap.set(extra.concessionaria, (porConcessionariaMap.get(extra.concessionaria) ?? 0) + 1)
+    const estado = p.estado ?? extra?.estado
+    const concessionaria = p.concessionaria ?? extra?.concessionaria
+    if (estado) porEstadoMap.set(estado, (porEstadoMap.get(estado) ?? 0) + 1)
+    if (concessionaria) porConcessionariaMap.set(concessionaria, (porConcessionariaMap.get(concessionaria) ?? 0) + 1)
   }
 
   const porEstado = [...porEstadoMap.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
@@ -172,26 +175,86 @@ export function loadTarefasBrutas() {
   return cached('tarefas-brutas', TTL_MS, () => gronerGetAll('Tarefa', {}, { pageSize: 500, maxPages: 20 }))
 }
 
+async function preferirSincronizado(entity, fallback) {
+  try {
+    const synced = await loadSyncedEntity(entity)
+    if (synced) return synced
+  } catch (err) {
+    console.error(`[sync] falha ao ler ${entity}; usando API do Groner:`, err.message)
+  }
+  return fallback()
+}
+
+export function loadProjetosDados() {
+  return cached('projetos-dados', TTL_MS, () => preferirSincronizado('projetos', async () => {
+    const raw = await loadProjetosBrutos()
+    const items = stripSensitive(raw.items.map((item) => mapProjeto(item, dealsEnriquecido)))
+    return { items, totalItems: raw.totalItems }
+  }))
+}
+
+export function loadVendasDados() {
+  return cached('vendas-dados', TTL_MS, () => preferirSincronizado('vendas', async () => {
+    const raw = await loadVendasBrutas()
+    const items = stripSensitive(raw.items.map((item) => mapVenda(item, salesEnriquecido)))
+    return { items, totalItems: raw.totalItems }
+  }))
+}
+
+export function loadPropostasDados() {
+  return cached('propostas-dados', TTL_MS, () => preferirSincronizado('propostas', async () => {
+    const raw = await loadPropostasBrutas()
+    const items = stripSensitive(raw.items.map(mapProposta))
+    return { items, totalItems: raw.totalItems }
+  }))
+}
+
+export function loadTarefasDados() {
+  return cached('tarefas-dados', TTL_MS, () => preferirSincronizado('tarefas', async () => {
+    const raw = await loadTarefasBrutas()
+    const items = stripSensitive(raw.items.map(mapTarefa))
+    return { items, totalItems: raw.totalItems }
+  }))
+}
+
 export function loadUsinasBrutas() {
   return cached('usinas-brutas', TTL_MS, () => solarzListarUsinas())
 }
 
 app.use(cors())
+app.use(express.json({ limit: '6mb' }))
+
+const syncCacheKeys = {
+  projetos: 'projetos-dados',
+  vendas: 'vendas-dados',
+  propostas: 'propostas-dados',
+  tarefas: 'tarefas-dados',
+}
+app.use('/api/sync/groner', createSyncRouter({
+  onFinalized: (entity) => {
+    invalidate(syncCacheKeys[entity])
+    invalidate('summary')
+  },
+}))
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
 app.get('/api/summary', async (req, res) => {
   try {
     if (req.query.refresh === '1') {
-      ;['summary', 'projetos-brutos', 'vendas-brutas', 'propostas-brutas', 'tarefas-brutas'].forEach(invalidate)
+      ;[
+        'summary',
+        'projetos-brutos', 'vendas-brutas', 'propostas-brutas', 'tarefas-brutas',
+        'projetos-dados', 'vendas-dados', 'propostas-dados', 'tarefas-dados',
+      ].forEach(invalidate)
     }
 
     const summary = await cached('summary', TTL_MS, async () => {
       const [leadsPage, vendasAll, propostasAll, projetosAll] = await Promise.all([
         gronerGet('Lead', { pageNumber: 1, pageSize: 1 }),
-        loadVendasBrutas(),
-        loadPropostasBrutas(),
-        loadProjetosBrutos(),
+        loadVendasDados(),
+        loadPropostasDados(),
+        loadProjetosDados(),
       ])
 
       const vendas = vendasAll.items
@@ -249,9 +312,9 @@ app.get('/api/summary', async (req, res) => {
         },
         prepropostas: {
           total: propostasAll.totalItems ?? 0,
-          aceitas: propostasAll.summary?.quantidadeTotalPrePropostaAceita ?? 0,
-          valorTotalAceita: propostasAll.summary?.valorTotalPrePropostaAceita ?? 0,
-          valorTotalGeral: propostasAll.summary?.valorTotalPreProposta ?? 0,
+          aceitas: propostasAll.items.filter((proposta) => proposta.aceita).length,
+          valorTotalAceita: propostasAll.items.filter((proposta) => proposta.aceita).reduce((sum, proposta) => sum + (proposta.preco || 0), 0),
+          valorTotalGeral: propostasAll.items.reduce((sum, proposta) => sum + (proposta.preco || 0), 0),
         },
       }
     })
@@ -269,8 +332,8 @@ app.get('/api/summary', async (req, res) => {
 
 app.get('/api/raw/vendas', async (_req, res) => {
   try {
-    const vendasAll = await loadVendasBrutas()
-    res.json(stripSensitive(vendasAll.items.map((v) => mapVenda(v, salesEnriquecido))))
+    const vendasAll = await loadVendasDados()
+    res.json(vendasAll.items)
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })
@@ -279,8 +342,8 @@ app.get('/api/raw/vendas', async (_req, res) => {
 
 app.get('/api/raw/projetos', async (_req, res) => {
   try {
-    const projetosAll = await loadProjetosBrutos()
-    res.json(stripSensitive(projetosAll.items.map((p) => mapProjeto(p, dealsEnriquecido))))
+    const projetosAll = await loadProjetosDados()
+    res.json(projetosAll.items)
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })
@@ -289,8 +352,8 @@ app.get('/api/raw/projetos', async (_req, res) => {
 
 app.get('/api/raw/propostas', async (_req, res) => {
   try {
-    const propostasAll = await loadPropostasBrutas()
-    res.json(stripSensitive(propostasAll.items.map(mapProposta)))
+    const propostasAll = await loadPropostasDados()
+    res.json(propostasAll.items)
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })
@@ -299,8 +362,8 @@ app.get('/api/raw/propostas', async (_req, res) => {
 
 app.get('/api/raw/tarefas', async (_req, res) => {
   try {
-    const tarefasAll = await loadTarefasBrutas()
-    res.json(stripSensitive(tarefasAll.items.map(mapTarefa)))
+    const tarefasAll = await loadTarefasDados()
+    res.json(tarefasAll.items)
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })
