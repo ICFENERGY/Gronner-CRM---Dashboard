@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Sincronizar Projetos",
   "nodes": [
     {
-      "id": "8c0f034e-9486-4e96-baf1-5b8f3a466d1a",
+      "id": "670d164a-0fb7-4bb6-8f0e-ce8eb5442273",
       "name": "Executar manualmente",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "452a0fc8-04c3-4eea-9480-9d493d8bcb28",
+      "id": "945be199-b21b-48ca-9dca-59236e0058df",
       "name": "Agenda 08h e 18h (aguarda ativação)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -35,7 +35,7 @@
       "notes": "Horários escalonados em 5 minutos para não sobrecarregar os workers nem a API do Groner."
     },
     {
-      "id": "802372e9-3781-45d5-b905-16d544d0ff17",
+      "id": "c98918fa-bd9f-4a9e-b225-25df9ed8120e",
       "name": "Entidade",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -49,7 +49,7 @@
       }
     },
     {
-      "id": "d9efe1cc-6fd6-4f5f-b921-00f660843688",
+      "id": "4e3876c0-212c-4c35-b4d8-2027d806396c",
       "name": "Configuração",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -63,7 +63,7 @@
       }
     },
     {
-      "id": "4f2e5696-ad7c-4e83-88dd-a0cabbf8b350",
+      "id": "66c8b641-cee2-4177-9837-d7621a2f3af2",
       "name": "Consultar total",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -102,7 +102,7 @@
       }
     },
     {
-      "id": "892d2cc7-db8d-4478-9c4d-ef70139c0a8a",
+      "id": "a6fa9866-8ccc-4ce2-b1b0-91b24c756baf",
       "name": "Gerar páginas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -116,7 +116,7 @@
       }
     },
     {
-      "id": "1a7db767-3f16-4c81-b8c5-f1b1957897d2",
+      "id": "4e1e68c2-eb83-4fa5-853f-abaeacfacbb2",
       "name": "Buscar páginas separadamente",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -146,7 +146,7 @@
       }
     },
     {
-      "id": "4a7d8c2c-a28e-494a-96e0-d65bc54469cf",
+      "id": "0d377980-3415-4c71-9d55-14457b62e0e1",
       "name": "Validar e preparar lotes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -156,11 +156,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const cfg = $('Configuração').first().json\nconst paginas = $input.all().map((item) => item.json)\nconst falhas = paginas.filter((p) => !Array.isArray(p.registros))\nif (falhas.length) throw new Error('Uma ou mais páginas não retornaram registros válidos')\nconst totais = new Set(paginas.map((p) => Number(p.totalItems)))\nif (totais.size !== 1) throw new Error('O total do Groner mudou durante a paginação; execute novamente')\nconst totalEsperado = Number([...totais][0])\nconst registros = paginas.flatMap((p) => p.registros)\nconst ids = new Set()\nfor (const registro of registros) {\n  const registroId = registro && (registro.id ?? registro.Id)\n  if (registroId == null) throw new Error('Registro do Groner sem id')\n  const chave = String(registroId)\n  if (ids.has(chave)) throw new Error('ID duplicado entre páginas: ' + chave)\n  ids.add(chave)\n}\nif (registros.length !== totalEsperado) {\n  throw new Error('Carga incompleta: recebidos ' + registros.length + ' de ' + totalEsperado)\n}\nconst normalizarProjeto = (item) => {\n  if (cfg.slug !== 'projetos') return item\n  const pick = (...keys) => keys.map((key) => item[key]).find((value) => value !== undefined) ?? null\n  const funil = String(pick('funil', 'Etapa') || '').trim()\n  const status = String(pick('etapa', 'Status') || '').trim()\n  const statusMarco = new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDÊNCIAS TÉCNICAS->PROJETOS', 'APROVAÇÃO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIAÇÃO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGAÇÃO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALAÇÃO', 'INSTALAÇÃO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALAÇÃO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELÓGIO TROCADO', 'INSTALAÇÃO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO'])\n  const statusNormalizado = status.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s+/g, ' ').trim().toUpperCase()\n  const statusNoMapa = [...statusMarco].some((valor) => valor.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s+/g, ' ').trim().toUpperCase() === statusNormalizado)\n  const noFluxo = /^(04.|06.|07.|08.|09.|10.|11.)/.test(funil)\n    && statusNoMapa\n    && (!(funil.startsWith('04.') && statusNormalizado !== 'FUNIL ENGENHARIA - CRIAR PROP') ? 'sim' : 'não')\n  return {\n    ...item,\n    id: Number(item.id ?? item.Id ?? item['Código']),\n    funil: pick('funil', 'Etapa'),\n    etapa: pick('etapa', 'Status'),\n    cidade: pick('cidade', 'Cidade'),\n    estado: pick('estado', 'Estado'),\n    concessionaria: pick('concessionaria', 'Concessionária'),\n    dataVenda: pick('dataVenda', 'Data da venda'),\n    dataAceiteProposta: pick('dataAceiteProposta', 'Data de aceite da proposta'),\n    kwp: pick('kwp', 'Proposta Aceita Potência'),\n    geracaoMensalPrevista: pick('geracaoMensalPrevista', 'Proposta Aceita Geração mensal'),\n    valorPrePropostaAceita: pick('valorPrePropostaAceita', 'Proposta Aceita Valor'),\n    tecnico: pick('tecnico', 'Técnico'),\n    projetista: pick('projetista', 'Projetista'),\n    homologador: pick('homologador', 'Homologador'),\n    vendedorResponsavel: pick('vendedorResponsavel', 'Vendedor'),\n    uc: pick('uc', 'Código da unidade consumidora'),\n    donoNominal: item.donoNominal ?? item['Dono nominal'] ?? pick('tecnico', 'Técnico') ?? pick('projetista', 'Projetista') ?? pick('homologador', 'Homologador'),\n    dataEntradaStatus: item.dataEntradaStatus ?? item['Data de entrada no status'] ?? item.dataUltimoStatus ?? null,\n    noFluxoEngenharia: item.noFluxoEngenharia ?? item['No fluxo da Engenharia'] ?? noFluxo,\n  }\n}\nregistros = registros.map(normalizarProjeto)\nregistros.sort((a, b) => Number(a.id ?? a.Id) - Number(b.id ?? b.Id))\nconst lotes = []\nfor (let i = 0; i < registros.length; i += cfg.tamanhoLote) lotes.push(registros.slice(i, i + cfg.tamanhoLote))\nif (!lotes.length) lotes.push([])\nreturn lotes.map((items, indice) => ({ json: {\n  runId: cfg.runId,\n  runStartedAt: cfg.runStartedAt,\n  entity: cfg.slug,\n  batchIndex: indice + 1,\n  batchCount: lotes.length,\n  expectedTotal: totalEsperado,\n  items,\n} }))"
+        "jsCode": "const cfg = $('Configuração').first().json\nconst paginas = $input.all().map((item) => item.json)\nconst falhas = paginas.filter((p) => !Array.isArray(p.registros))\nif (falhas.length) throw new Error('Uma ou mais páginas não retornaram registros válidos')\nconst totais = new Set(paginas.map((p) => Number(p.totalItems)))\nif (totais.size !== 1) throw new Error('O total do Groner mudou durante a paginação; execute novamente')\nconst totalEsperado = Number([...totais][0])\nconst registros = paginas.flatMap((p) => p.registros)\nconst ids = new Set()\nfor (const registro of registros) {\n  const registroId = registro && (registro.id ?? registro.Id)\n  if (registroId == null) throw new Error('Registro do Groner sem id')\n  const chave = String(registroId)\n  if (ids.has(chave)) throw new Error('ID duplicado entre páginas: ' + chave)\n  ids.add(chave)\n}\nif (registros.length !== totalEsperado) {\n  throw new Error('Carga incompleta: recebidos ' + registros.length + ' de ' + totalEsperado)\n}\nconst normalizarProjeto = (item) => {\n  if (cfg.slug !== 'projetos') return item\n  const pick = (...keys) => keys.map((key) => item[key]).find((value) => value !== undefined) ?? null\n  const funil = String(pick('funil', 'Etapa') || '').trim()\n  const status = String(pick('etapa', 'Status') || '').trim()\n  const statusMarco = new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDÊNCIAS TÉCNICAS->PROJETOS', 'APROVAÇÃO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIAÇÃO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGAÇÃO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALAÇÃO', 'INSTALAÇÃO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALAÇÃO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELÓGIO TROCADO', 'INSTALAÇÃO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO'])\n  const statusNormalizado = status.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase()\n  const statusNoMapa = [...statusMarco].some((valor) => valor.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase() === statusNormalizado)\n  const noFluxo = /^(04\\.|06\\.|07\\.|08\\.|09\\.|10\\.|11\\.)/.test(funil)\n    && statusNoMapa\n    && (!(funil.startsWith('04.') && statusNormalizado !== 'FUNIL ENGENHARIA - CRIAR PROP') ? 'sim' : 'não')\n  return {\n    ...item,\n    id: Number(item.id ?? item.Id ?? item['Código']),\n    funil: pick('funil', 'Etapa'),\n    etapa: pick('etapa', 'Status'),\n    cidade: pick('cidade', 'Cidade'),\n    estado: pick('estado', 'Estado'),\n    concessionaria: pick('concessionaria', 'Concessionária'),\n    dataVenda: pick('dataVenda', 'Data da venda'),\n    dataAceiteProposta: pick('dataAceiteProposta', 'Data de aceite da proposta'),\n    kwp: pick('kwp', 'Proposta Aceita Potência'),\n    geracaoMensalPrevista: pick('geracaoMensalPrevista', 'Proposta Aceita Geração mensal'),\n    valorPrePropostaAceita: pick('valorPrePropostaAceita', 'Proposta Aceita Valor'),\n    tecnico: pick('tecnico', 'Técnico'),\n    projetista: pick('projetista', 'Projetista'),\n    homologador: pick('homologador', 'Homologador'),\n    vendedorResponsavel: pick('vendedorResponsavel', 'Vendedor'),\n    uc: pick('uc', 'Código da unidade consumidora'),\n    donoNominal: item.donoNominal ?? item['Dono nominal'] ?? pick('tecnico', 'Técnico') ?? pick('projetista', 'Projetista') ?? pick('homologador', 'Homologador'),\n    dataEntradaStatus: item.dataEntradaStatus ?? item['Data de entrada no status'] ?? item.dataUltimoStatus ?? null,\n    noFluxoEngenharia: item.noFluxoEngenharia ?? item['No fluxo da Engenharia'] ?? noFluxo,\n  }\n}\nregistros = registros.map(normalizarProjeto)\nregistros.sort((a, b) => Number(a.id ?? a.Id) - Number(b.id ?? b.Id))\nconst lotes = []\nfor (let i = 0; i < registros.length; i += cfg.tamanhoLote) lotes.push(registros.slice(i, i + cfg.tamanhoLote))\nif (!lotes.length) lotes.push([])\nreturn lotes.map((items, indice) => ({ json: {\n  runId: cfg.runId,\n  runStartedAt: cfg.runStartedAt,\n  entity: cfg.slug,\n  batchIndex: indice + 1,\n  batchCount: lotes.length,\n  expectedTotal: totalEsperado,\n  items,\n} }))"
       }
     },
     {
-      "id": "90a65b81-9084-4d45-b1f5-629e95a7428d",
+      "id": "197c3ae7-43dc-452a-a804-b85d126f4c43",
       "name": "Upsert no dashboard",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -190,7 +190,7 @@
       }
     },
     {
-      "id": "9b233e92-46f6-49f1-bf35-3d6840b1bacf",
+      "id": "c648b35c-2f0e-4d44-859c-92b3d0bd9a9d",
       "name": "Validar confirmações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -204,7 +204,7 @@
       }
     },
     {
-      "id": "f5aec142-9dc7-4aeb-90dc-3ab158779985",
+      "id": "5b20cfb7-4960-4894-b57c-293da215e15d",
       "name": "Finalizar carga completa",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

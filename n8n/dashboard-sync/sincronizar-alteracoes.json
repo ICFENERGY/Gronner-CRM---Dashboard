@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Sincronizar alterações (5 min)",
   "nodes": [
     {
-      "id": "873cd98c-49f0-4d7a-b3c3-01756973623c",
+      "id": "781e7cd5-9866-4e92-a665-b4550881ed24",
       "name": "Executar manualmente",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "dbaeebcd-8cb3-4263-9167-663381ea8352",
+      "id": "8164d50f-6b24-48f2-a8bd-b132eca58f6b",
       "name": "Agenda a cada 5 minutos (aguarda ativação)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -35,7 +35,7 @@
       "notes": "Ativar somente depois de validar credenciais e limites do Groner/Upstash."
     },
     {
-      "id": "2ebc5246-529e-4f81-9771-7650e5bf2124",
+      "id": "23dc45a0-fb78-44f8-871e-4f01a7b0bc0b",
       "name": "Ler cursor",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -58,7 +58,7 @@
       }
     },
     {
-      "id": "7f0b67da-ccb4-46c9-a628-400aceaebe0d",
+      "id": "515e5351-4d9a-491f-a27b-016d989d666b",
       "name": "Configuração",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -72,7 +72,7 @@
       }
     },
     {
-      "id": "992ec267-46bb-482a-88f4-cf256f1904bb",
+      "id": "ef6075d1-c3e7-4bf5-b393-0bdbb110687d",
       "name": "Buscar página alterada",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -131,7 +131,7 @@
       "notes": "Pagina só enquanto o último card da página ainda é mais novo que o cursor (normalmente 1 chamada). Nao envia dataInicio/dataFim (ignorados pelo Groner) nem ordem: a direcao esta no enum DataAtualizacao_DESC. Datas sem offset do Groner sao America/Sao_Paulo. Limite de 10 paginas; se atingido, exige carga completa."
     },
     {
-      "id": "5501f6ed-9339-48b5-b433-cac3de2f86ee",
+      "id": "75e0dfe2-facb-4018-8cda-580f98be11f1",
       "name": "Extrair alterações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -141,11 +141,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const cfg = $('Configuração').first().json\nconst paginas = $input.all().map((item) => item.json)\nconst registrosPorPagina = paginas.map((pagina) => {\n  const corpo = pagina.Content || pagina.content || pagina\n  return corpo.list || corpo.items || corpo.data\n})\nif (registrosPorPagina.some((registros) => !Array.isArray(registros))) throw new Error('Formato de alterações desconhecido no Groner')\nconst parseDataGroner = (value) => {\n  if (typeof value !== 'string') return NaN\n  const texto = value.trim()\n  return Date.parse(/^d{4}-d{2}-d{2}Td{2}:d{2}:d{2}(?:.d+)?$/.test(texto) ? texto + '-03:00' : texto)\n}\nconst inicio = Date.parse(cfg.cursorInicio)\nconst todos = registrosPorPagina.flat()\nconst alterados = todos.filter((registro) => parseDataGroner(registro.dataUltimaAtualizacao ?? registro.updatedAt ?? '') >= inicio)\nconst ultimaPagina = registrosPorPagina.at(-1) ?? []\nconst ultimaData = ultimaPagina.map((registro) => parseDataGroner(registro.dataUltimaAtualizacao ?? registro.updatedAt ?? '')).filter(Number.isFinite).sort((a, b) => b - a)[0]\nif (paginas.length === cfg.maxPaginas && ultimaData >= inicio) throw new Error('Limite de páginas incrementais atingido; carga completa obrigatória')\nreturn [{ json: { entity: cfg.entity, runId: cfg.runId, runStartedAt: cfg.runStartedAt, nextCursor: cfg.nextCursor, items: alterados } }]"
+        "jsCode": "const cfg = $('Configuração').first().json\nconst paginas = $input.all().map((item) => item.json)\nconst registrosPorPagina = paginas.map((pagina) => {\n  const corpo = pagina.Content || pagina.content || pagina\n  return corpo.list || corpo.items || corpo.data\n})\nif (registrosPorPagina.some((registros) => !Array.isArray(registros))) throw new Error('Formato de alterações desconhecido no Groner')\nconst parseDataGroner = (value) => {\n  if (typeof value !== 'string') return NaN\n  const texto = value.trim()\n  return Date.parse(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?$/.test(texto) ? texto + '-03:00' : texto)\n}\nconst inicio = Date.parse(cfg.cursorInicio)\nconst todos = registrosPorPagina.flat()\nconst alterados = todos.filter((registro) => parseDataGroner(registro.dataUltimaAtualizacao ?? registro.updatedAt ?? '') >= inicio)\nconst ultimaPagina = registrosPorPagina.at(-1) ?? []\nconst ultimaData = ultimaPagina.map((registro) => parseDataGroner(registro.dataUltimaAtualizacao ?? registro.updatedAt ?? '')).filter(Number.isFinite).sort((a, b) => b - a)[0]\nif (paginas.length === cfg.maxPaginas && ultimaData >= inicio) throw new Error('Limite de páginas incrementais atingido; carga completa obrigatória')\nreturn [{ json: { entity: cfg.entity, runId: cfg.runId, runStartedAt: cfg.runStartedAt, nextCursor: cfg.nextCursor, items: alterados } }]"
       }
     },
     {
-      "id": "37b9ebb2-4450-4c78-b0c8-22fc776209b7",
+      "id": "288a2b97-40d4-47b2-b628-527a87bb978f",
       "name": "Expandir alterações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -159,7 +159,7 @@
       }
     },
     {
-      "id": "95b77688-e270-42fc-89cb-f9f9a19e6a55",
+      "id": "827cb99a-7503-4140-8493-e3c4d5656fec",
       "name": "Buscar detalhe dos alterados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -185,7 +185,7 @@
       }
     },
     {
-      "id": "c81abe2f-52ee-4c50-9f4f-7451dcf08b45",
+      "id": "f7a81fd0-c952-4c84-ad06-96ef83d63b68",
       "name": "Buscar campos personalizados dos alterados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -211,7 +211,7 @@
       }
     },
     {
-      "id": "1c635f11-4306-492c-b491-d1a26822ae86",
+      "id": "c9628117-cf21-45fe-a942-c84e2c3fc323",
       "name": "Consolidar alterações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -225,7 +225,7 @@
       }
     },
     {
-      "id": "86dc33d2-4956-4184-90d0-94e9e93bfd24",
+      "id": "49f28dd3-4f13-451d-a978-91e2bff87793",
       "name": "Validar alterações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -239,7 +239,7 @@
       }
     },
     {
-      "id": "5b2452cc-4d85-4fbe-869c-8d2cf968824f",
+      "id": "5e77fa47-ed09-462a-8273-ecb2e34ecaaa",
       "name": "Upsert incremental",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

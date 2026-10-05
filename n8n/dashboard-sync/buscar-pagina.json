@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Buscar uma página",
   "nodes": [
     {
-      "id": "b5e4cad2-6398-4e56-bf4f-288d2a0e9033",
+      "id": "daa0d968-689e-480c-8b67-9751d77b4b7c",
       "name": "Detalhar projeto?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -20,7 +20,7 @@
           },
           "conditions": [
             {
-              "id": "ec3aad20-4734-471f-9691-e51310bec07c",
+              "id": "41bc5690-6eac-47b8-9907-2e17878cd203",
               "leftValue": "={{ $json.detalharProjeto }}",
               "rightValue": true,
               "operator": {
@@ -35,7 +35,7 @@
       }
     },
     {
-      "id": "00e0338f-828b-4338-bb54-9b3601b407e0",
+      "id": "23fbf4e2-7dff-436b-87a6-21cd1f6a240e",
       "name": "Chamado pela rotina",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -48,7 +48,7 @@
       }
     },
     {
-      "id": "c81a255d-a025-4872-833a-56d2076ca834",
+      "id": "33f617ff-5232-4294-a9a3-89f8ae637fae",
       "name": "Buscar página no Groner",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -87,7 +87,7 @@
       }
     },
     {
-      "id": "8cc6bb4a-ce9e-4516-9d8a-927a46dcf3fa",
+      "id": "d7bd6d02-8fef-4575-80a2-937c4d6707df",
       "name": "Extrair página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -97,11 +97,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const entrada = $('Chamado pela rotina').first().json\nconst corpo = $input.first().json\nconst dados = corpo && (corpo.Content || corpo.content || corpo)\nconst registros = dados && (dados.list || dados.items || dados.data)\nif (!Array.isArray(registros)) throw new Error('Formato de página desconhecido no Groner')\nreturn [{ json: {\n  pageNumber: entrada.pageNumber,\n  totalItems: Number(dados.totalItems ?? dados.totalCount ?? dados.total),\n  registros,\n  detalharProjeto: entrada.detalharProjeto === true && registros.some((registro) => {\n    const status = String(registro.status?.nome ?? registro.status ?? registro.etapa ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s+/g, ' ').trim().toUpperCase()\n    return new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDENCIAS TECNICAS->PROJETOS', 'APROVACAO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIACAO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGACAO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALACAO', 'INSTALACAO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALACAO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELOGIO TROCADO', 'INSTALACAO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO']).has(status)\n  }),\n} }]"
+        "jsCode": "const entrada = $('Chamado pela rotina').first().json\nconst corpo = $input.first().json\nconst dados = corpo && (corpo.Content || corpo.content || corpo)\nconst registros = dados && (dados.list || dados.items || dados.data)\nif (!Array.isArray(registros)) throw new Error('Formato de página desconhecido no Groner')\nreturn [{ json: {\n  pageNumber: entrada.pageNumber,\n  totalItems: Number(dados.totalItems ?? dados.totalCount ?? dados.total),\n  registros,\n  detalharProjeto: entrada.detalharProjeto === true && registros.some((registro) => {\n    const status = String(registro.status?.nome ?? registro.status ?? registro.etapa ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase()\n    return new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDENCIAS TECNICAS->PROJETOS', 'APROVACAO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIACAO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGACAO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALACAO', 'INSTALACAO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALACAO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELOGIO TROCADO', 'INSTALACAO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO']).has(status)\n  }),\n} }]"
       }
     },
     {
-      "id": "83309b71-12d4-4bd7-8f34-7315aefd6ab8",
+      "id": "0418c958-2439-4ba6-a05f-4fee90382169",
       "name": "Expandir projetos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "94b78087-9ef0-4fe2-9a26-39d7bae96232",
+      "id": "c764dd63-d450-44d8-8443-084803ef070a",
       "name": "Buscar detalhe do projeto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "bbbce409-3928-4b92-af34-4c333e8ad335",
+      "id": "743c87e5-61a0-41d6-a6b9-1ffe826c07e4",
       "name": "Buscar campos personalizados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -167,7 +167,7 @@
       }
     },
     {
-      "id": "ee443294-95af-4811-8174-8c9fa37d86be",
+      "id": "7e5b07a9-ee43-4c48-863a-3a135d96064a",
       "name": "Consolidar detalhes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -181,7 +181,7 @@
       }
     },
     {
-      "id": "5773c968-f25c-48e2-bfd6-ed26c87f19ec",
+      "id": "29da1e3e-3a5b-416c-bb64-d1c216a12fb2",
       "name": "Saída da página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

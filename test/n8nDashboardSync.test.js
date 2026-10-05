@@ -65,6 +65,20 @@ test('toda referência $("nó") nos códigos aponta para um nó existente', () =
   }
 })
 
+test('regex dos códigos do n8n não perdem a barra invertida no gerador', () => {
+  // Em template literal, "\d" vira "d": o filtro de fuso nunca casava e o incremental não achava nada.
+  const extrair = incremental.nodes.find((item) => item.name === 'Extrair alterações').parameters.jsCode
+  const fuso = new RegExp(extrair.match(/Date\.parse\(\/(\^.*?\$)\//)[1])
+  assert.equal(fuso.test('2026-10-05T16:48:16.31'), true)
+  for (const fluxo of [pagina, incremental, ...fluxos.map(({ fluxo }) => fluxo)]) {
+    for (const item of fluxo.nodes) {
+      const codigo = item.parameters?.jsCode ?? ''
+      assert.doesNotMatch(codigo, /replace\(\/s\+\//, `${fluxo.name} › ${item.name}: /s+/ sem barra troca a letra s`)
+      assert.doesNotMatch(codigo, /\/\^d\{4\}/, `${fluxo.name} › ${item.name}: \\d virou d`)
+    }
+  }
+})
+
 test('não salva execuções com dados comerciais nem versiona segredos', () => {
   const bruto = [
     fs.readFileSync(`${dir}/buscar-pagina.json`, 'utf8'),
