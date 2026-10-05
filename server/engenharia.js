@@ -91,10 +91,13 @@ function passagens(projeto) {
 export function classificarCard(projeto, { prazos, acao, hoje }) {
   const m = MK[projeto.marco]
   const { desde, estimado } = entradaNoMarco(projeto)
-  const dias = Math.max(0, diasEntre(hoje, desde) ?? 0)
+  const diasBrutos = diasEntre(hoje, desde)
+  const dias = Math.max(0, diasBrutos ?? 0)
   const L = prazos.sla[projeto.marco] ?? 7
   const margem = Math.max(1, Math.round(L * 0.3))
   const motivos = []
+  // Sem data de entrada válida, não dá para medir o tempo no marco: avisa em vez de parecer recém-chegado.
+  if (diasBrutos == null) motivos.push('Sem data de entrada no marco no Groner')
 
   let sMarco = 'ok'
   if (dias > L) { sMarco = 'atrasado'; motivos.push(`${dias} dias no marco, prazo ${L}`) } else if (dias >= L - margem) { sMarco = 'risco'; motivos.push(`${dias} de ${L} dias no marco`) }
@@ -253,14 +256,19 @@ export function montarPainel(universo, todos, hoje) {
  * Com mais de uma aceita, vale a alterada por último.
  */
 export function completarComPropostas(projetos, propostas = []) {
+  const quando = (pp) => {
+    const t = ts(pp.dataAlteracao ?? pp.dataInclusao)
+    return Number.isFinite(t) ? t : -Infinity
+  }
   const aceitas = new Map()
   for (const pp of propostas) {
     if (!pp?.aceita || pp.projetoId == null) continue
-    const atual = aceitas.get(pp.projetoId)
-    if (!atual || String(pp.dataAlteracao ?? pp.dataInclusao ?? '') > String(atual.dataAlteracao ?? atual.dataInclusao ?? '')) aceitas.set(pp.projetoId, pp)
+    const chave = String(pp.projetoId)
+    const atual = aceitas.get(chave)
+    if (!atual || quando(pp) > quando(atual)) aceitas.set(chave, pp)
   }
   return projetos.map((p) => {
-    const pp = aceitas.get(p.id)
+    const pp = aceitas.get(String(p.id))
     if (!pp) return p
     return {
       ...p,

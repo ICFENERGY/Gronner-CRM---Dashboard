@@ -48,7 +48,7 @@ export function EngenhariaPage() {
             </p>
           )}
         </div>
-        <nav className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
+        <nav aria-label="Abas da Engenharia" className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
           {ABAS.map((a) => (
             <button key={a.k} type="button" aria-pressed={aba === a.k} onClick={() => setAba(a.k)} className={`rounded-md px-3 py-1.5 text-sm font-medium ${aba === a.k ? 'bg-icf-green text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'}`}>
               {a.rotulo}
@@ -58,6 +58,11 @@ export function EngenhariaPage() {
       </div>
 
       {carregando && !dados && <p className="py-16 text-center text-sm text-[var(--text-muted)]">Carregando a Engenharia…</p>}
+      {erro && dados && (
+        <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+          A última atualização falhou ({erro}). Os dados abaixo são de {horaSP(dados.geradoEm)}; nova tentativa em 1 minuto.
+        </p>
+      )}
       {erro && !dados && <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">Não foi possível carregar: {erro}</p>}
 
       {dados && (aba === 'pauta'

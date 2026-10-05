@@ -3,7 +3,7 @@
  *   GET  /api/engenharia                       Pauta + Painel calculados ao vivo
  *   PUT  /api/engenharia/acoes/:id             salva a ação combinada do card   (código da equipe)
  *   POST /api/engenharia/acoes/:id/concluir    marca a ação como feita          (código da equipe)
- *   GET  /api/engenharia/acoes/:id/historico   últimas 20 versões da ação do card
+ *   GET  /api/engenharia/acoes/:id/historico   últimas 20 versões da ação do card  (código da equipe)
  *   PUT  /api/engenharia/prazos                prazos por marco e meta          (código de administração)
  *
  * Códigos: ENGENHARIA_EQUIPE_TOKEN e ENGENHARIA_ADMIN_TOKEN, enviados no
@@ -32,7 +32,7 @@ function exigir(variavel) {
 
 function idDoCard(req) {
   const id = String(req.params.id ?? '')
-  if (!/^\d{1,12}$/.test(id)) throw Object.assign(new Error('Card inválido'), { status: 400 })
+  if (!/^[1-9]\d{0,11}$/.test(id)) throw Object.assign(new Error('Card inválido'), { status: 400 })
   return id
 }
 
@@ -101,7 +101,7 @@ export function createEngenhariaRouter({ carregarProjetos, carregarPropostas = a
     }
   })
 
-  router.get('/acoes/:id/historico', async (req, res) => {
+  router.get('/acoes/:id/historico', exigir('ENGENHARIA_EQUIPE_TOKEN'), async (req, res) => {
     try {
       res.json(await store().historico(idDoCard(req)))
     } catch (err) {

@@ -70,6 +70,18 @@ test('kit (marco 7, paralelo): projeção conta do instalador (9) em diante', ()
   assert.equal(kit.projecao, 10 + 6 + 26)
 })
 
+test('G6 sem venda não projeta entrega; SLA salvo muda o semáforo; data inválida vira aviso', () => {
+  const g6 = classificarCard(projeto({ marco: 'G6', etapa: 'AGUARDANDO ASSINATURA', dataUltimoStatus: '2026-10-04T10:00:00-03:00' }), { prazos, hoje: HOJE })
+  assert.equal(g6.projecao, null)
+  assert.equal(g6.cor, 'ok')
+  const apertado = prazosEfetivos({ sla: { 6: 2 }, metaEntrega: 90 })
+  assert.equal(apertado.sla['6'], 2)
+  assert.equal(apertado.sla['5'], 15)
+  assert.equal(classificarCard(projeto(), { prazos: apertado, hoje: HOJE }).cor, 'atrasado')
+  const semData = classificarCard(projeto({ dataUltimoStatus: 'lixo', dataEntradaStatus: null, dataUltimaAtualizacao: null }), { prazos, hoje: HOJE })
+  assert.ok(semData.motivos.includes('Sem data de entrada no marco no Groner'))
+})
+
 test('universo: só fluxo da Engenharia; encerrados ficam fora da pauta mas contam no painel', () => {
   const r = montarEngenharia({
     projetos: [projeto({ id: 1 }), projeto({ id: 2, marco: 'FIM', etapa: 'DOSSIE ENVIADO' }), projeto({ id: 3, noFluxoEngenharia: false })],
@@ -84,7 +96,7 @@ test('proposta aceita completa kWp e valor sem sobrescrever o que o projeto já 
   const [a, b] = completarComPropostas([{ id: 1, kwp: null }, { id: 2, kwp: 9 }], [
     { projetoId: 1, aceita: true, kwP: 4.5, preco: 20000, geracaoAnual: 6000, dataAlteracao: '2026-09-01' },
     { projetoId: 1, aceita: true, kwP: 5.5, preco: 25000, dataAlteracao: '2026-09-10' },
-    { projetoId: 2, aceita: true, kwP: 3 },
+    { projetoId: '2', aceita: true, kwP: 3 },
     { projetoId: 1, aceita: false, kwP: 99 },
   ])
   assert.equal(a.kwp, 5.5)
@@ -127,6 +139,8 @@ test('rotas: leitura aberta, escrita exige o código certo e prazos exigem o de 
 
     const corpo = JSON.stringify({ acao: 'Cobrar', dono: 'João', prazo: '2026-10-06', por: 'Fabio' })
     assert.equal((await fetch(`${base}/acoes/1`, { method: 'PUT', headers: json, body: corpo })).status, 401)
+    assert.equal((await fetch(`${base}/acoes/0`, { method: 'PUT', headers: { ...json, 'X-Engenharia-Token': 'equipe-teste' }, body: corpo })).status, 400)
+    assert.equal((await fetch(`${base}/acoes/1/historico`)).status, 401)
     assert.equal((await fetch(`${base}/acoes/abc`, { method: 'PUT', headers: { ...json, 'X-Engenharia-Token': 'equipe-teste' }, body: corpo })).status, 400)
     assert.equal((await fetch(`${base}/acoes/1`, { method: 'PUT', headers: { ...json, 'X-Engenharia-Token': 'equipe-teste' }, body: corpo })).status, 200)
     const depois = await fetch(base).then((r) => r.json())

@@ -25,7 +25,7 @@ export const engenhariaApi = {
     enviar<AcaoCombinada>(`/acoes/${id}`, { method: 'PUT', body: JSON.stringify(dados) }, codigo),
   concluirAcao: (id: number, por: string, codigo: string) =>
     enviar<AcaoCombinada>(`/acoes/${id}/concluir`, { method: 'POST', body: JSON.stringify({ por }) }, codigo),
-  historicoAcao: (id: number) => enviar<AcaoCombinada[]>(`/acoes/${id}/historico`),
+  historicoAcao: (id: number, codigo: string) => enviar<AcaoCombinada[]>(`/acoes/${id}/historico`, {}, codigo),
   salvarPrazos: (dados: { sla: Record<string, number>; metaEntrega: number; por: string }, codigo: string) =>
     enviar(`/prazos`, { method: 'PUT', body: JSON.stringify(dados) }, codigo),
 }

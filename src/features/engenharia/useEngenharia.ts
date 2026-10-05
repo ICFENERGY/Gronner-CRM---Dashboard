@@ -10,15 +10,19 @@ export function useEngenharia() {
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
   const ativo = useRef(true)
+  const ultimaRequisicao = useRef(0)
 
+  // Só a resposta da requisição mais recente vale: uma lenta e antiga não sobrescreve a nova.
   const recarregar = useCallback(async () => {
+    const minha = ++ultimaRequisicao.current
+    const vale = () => ativo.current && minha === ultimaRequisicao.current
     try {
       const d = await engenhariaApi.carregar()
-      if (ativo.current) { setDados(d); setErro(null) }
+      if (vale()) { setDados(d); setErro(null) }
     } catch (e) {
-      if (ativo.current) setErro(e instanceof Error ? e.message : 'Falha ao carregar')
+      if (vale()) setErro(e instanceof Error ? e.message : 'Falha ao carregar')
     } finally {
-      if (ativo.current) setCarregando(false)
+      if (vale()) setCarregando(false)
     }
   }, [])
 
