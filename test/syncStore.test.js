@@ -162,11 +162,16 @@ test('protege escrita com token exclusivo e valida a entidade', async (t) => {
 
 test('normaliza Deals com allowlist e deriva o marco', () => {
   const projeto = mapProjeto({ id: 42, etapa: 'PENDÊNCIA DE HOMOLOGAÇÃO', deal: { cidade: 'Cidade teste', kwp: 12.5, tecnico: 'Técnico teste', Documento: 'proibido' } }, {})
-  assert.equal(projeto.marco, 6)
+  assert.equal(projeto.marco, '6')
   assert.equal(projeto.cidade, 'Cidade teste')
   assert.equal(projeto.kwp, 12.5)
   assert.equal(projeto.tecnico, 'Técnico teste')
   assert.equal('Documento' in projeto, false)
-  assert.equal(marcoDoStatus('INSTALAÇÃO AGENDADA'), 10)
+  assert.equal(projeto.noFluxoEngenharia, false)
+  assert.equal(projeto.momento, 'implantação')
+  assert.equal(projeto.diasSemAtualizacao, null)
+  assert.equal(marcoDoStatus('AGUARDANDO ASSINATURA'), 'G6')
+  assert.equal(marcoDoStatus('DOSSIE ENVIADO'), 'FIM')
+  assert.equal(marcoDoStatus('INSTALAÇÃO AGENDADA'), '10')
   assert.equal(marcoDoStatus('material C.A.'), null)
 })

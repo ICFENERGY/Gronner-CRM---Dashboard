@@ -5,6 +5,7 @@ import { execFileSync, execFile } from 'node:child_process'
 
 const input = process.argv[2] || 'conversa-claude-codex/anexos/Deals.xlsx'
 const output = process.argv[3] || 'conversa-claude-codex/anexos/Deals-formato-n8n.xlsx'
+const TAR = process.platform === 'win32' ? 'C:\\Windows\\System32\\tar.exe' : 'tar'
 
 const xmlEscape = (value) => String(value ?? '')
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -15,7 +16,7 @@ const xmlUnescape = (value) => String(value ?? '')
   .replaceAll('&apos;', "'").replaceAll('&amp;', '&')
 
 function zipEntry(file, entry) {
-  return execFileSync('tar', ['-xOf', file, entry], { encoding: 'utf8', maxBuffer: 80 * 1024 * 1024 })
+  return execFileSync(TAR, ['-xOf', file, entry], { encoding: 'utf8', maxBuffer: 80 * 1024 * 1024 })
 }
 
 function sharedStrings(xml) {
@@ -64,15 +65,15 @@ const allowed = [
 const numeric = new Set(['Consumo', 'Proposta Aceita Potência', 'Proposta Aceita Geração mensal', 'Proposta Aceita Valor', 'Quantidade de propostas'])
 const dateColumns = new Set(['Data da venda', 'Data de atualização', 'Previsão de fechamento', 'Data de aceite da proposta', 'Data de início da instalação', 'Data de término da instalação', 'Data de Assinatura do Contrato', 'Data de término da garantia da instalação'])
 const statusMap = new Map([
-  ['FUNIL ENGENHARIA - CRIAR PROP', 1], ['CRIAR PROJETO->PROPOSTA', 1], ['CRIAR ABORDAGEM', 1],
-  ['APROVAR PROPOSTA CRIADA', 2], ['PENDÊNCIAS TÉCNICAS->PROJETOS', 3], ['APROVAÇÃO TECNICA - VENDA', 3],
-  ['PROPOSTA CRIADA APROVADA', 4], ['AGUARDANDO ASSINATURA', 'G6'], ['DOCUMENTOS PENDENTES', 'G6'], ['PAGAMENTO REALIZADO', 'G6'],
-  ['PIETA_CRIAÇÃO DO PROJETO', 5], ['PIETA_PARECER SOLICITADO', 5], ['PENDENCIA DE HOMOLOGAÇÃO', 6], ['PENDENCIA ICF', 6],
-  ['PENDENCIA DOCUMENTAL/TECNICA', 6], ['PARECER EMITIDO', 6], ['PEDIDO ENTREGUE', 7],
-  ['INSTALADOR HOMOLOGADO', 9], ['AGENDAR INSTALAÇÃO', 9], ['INSTALAÇÃO AGENDADA', 10], ['DIARIO DE OBRA', 11],
-  ['OBRA ANDAMENTO', 11], ['PENDENCIA DE OBRA', 11], ['PENDENCIA DE INSTALAÇÃO', 11], ['AGUARDANDO VISTORIA', 12],
-  ['PENDENCIA VIST. CONCESSIONARIA', 12], ['RELÓGIO TROCADO', 13], ['INSTALAÇÃO APP MONITORAMENTO', 13],
-  ['APP MONITOR INSTALADO', 14], ['TERMO DE ACEITE', 15], ['TERMO DE ACEITE ASSINADO', 15], ['DOSSIE', 16], ['DOSSIE ENVIADO', 'FIM'],
+  ['FUNIL ENGENHARIA - CRIAR PROP', '1'], ['CRIAR PROJETO->PROPOSTA', '1'], ['CRIAR ABORDAGEM', '1'],
+  ['APROVAR PROPOSTA CRIADA', '2'], ['PENDÊNCIAS TÉCNICAS->PROJETOS', '3'], ['APROVAÇÃO TECNICA - VENDA', '3'],
+  ['PROPOSTA CRIADA APROVADA', '4'], ['AGUARDANDO ASSINATURA', 'G6'], ['DOCUMENTOS PENDENTES', 'G6'], ['PAGAMENTO REALIZADO', 'G6'],
+  ['PIETA_CRIAÇÃO DO PROJETO', '5'], ['PIETA_PARECER SOLICITADO', '5'], ['PENDENCIA DE HOMOLOGAÇÃO', '6'], ['PENDENCIA ICF', '6'],
+  ['PENDENCIA DOCUMENTAL/TECNICA', '6'], ['PARECER EMITIDO', '6'], ['PEDIDO ENTREGUE', '7'],
+  ['INSTALADOR HOMOLOGADO', '9'], ['AGENDAR INSTALAÇÃO', '9'], ['INSTALAÇÃO AGENDADA', '10'], ['DIARIO DE OBRA', '11'], ['DIARIO DE OBRA / OBRA ANDAMENTO', '11'],
+  ['OBRA ANDAMENTO', '11'], ['PENDENCIA DE OBRA', '11'], ['PENDENCIA DE INSTALAÇÃO', '11'], ['AGUARDANDO VISTORIA', '12'],
+  ['PENDENCIA VIST. CONCESSIONARIA', '12'], ['RELÓGIO TROCADO', '13'], ['INSTALAÇÃO APP MONITORAMENTO', '13'],
+  ['APP MONITOR INSTALADO', '14'], ['TERMO DE ACEITE', '15'], ['TERMO DE ACEITE ASSINADO', '15'], ['DOSSIE', '16'], ['DOSSIE ENVIADO', 'FIM'],
 ])
 
 function normalize(value) {
@@ -109,16 +110,17 @@ function cellValue(value, column) {
   return value == null || value === '' ? null : String(value).trim()
 }
 
-const today = Date.UTC(2026, 9, 5)
+// Referência = data da base (última "Data de atualização"), como nos painéis.
+const today = Date.parse(source.map((row) => date(row['Data de atualização'])).filter(Boolean).sort().pop() ?? '') || Date.now()
 const outputColumns = [...allowed, 'Marco', 'Momento', 'Dono nominal', 'Dias sem atualização', 'Dias desde a venda', 'Data de entrada no status', 'No fluxo da Engenharia']
 const records = source.map((row) => {
   const record = Object.fromEntries(allowed.map((column) => [column, cellValue(row[column], column)]))
   const stage = normalize(record.Etapa)
   const status = normalize(record.Status)
   const marcoAtual = marco(record.Status)
-  const fluxo = /^(04\.|06\.|07\.|08\.|09\.|10\.|11\.)/.test(stage) && !(stage.startsWith('04.') && status !== normalize('FUNIL ENGENHARIA - CRIAR PROP'))
+  const fluxo = marcoAtual != null && /^(04\.|06\.|07\.|08\.|09\.|10\.|11\.)/.test(stage) && !(stage.startsWith('04.') && status !== normalize('FUNIL ENGENHARIA - CRIAR PROP'))
   record.Marco = marcoAtual
-  record.Momento = marcoAtual === 'FIM' ? 'gestão da usina' : marcoAtual === 'G6' || (Number(marcoAtual) >= 1 && Number(marcoAtual) <= 4) ? 'pré-venda' : Number(marcoAtual) >= 5 ? 'implantação' : null
+  record.Momento = marcoAtual === 'FIM' ? 'encerrado' : ['13', '14', '15', '16'].includes(marcoAtual) ? 'gestão da usina' : marcoAtual === 'G6' || (Number(marcoAtual) >= 1 && Number(marcoAtual) <= 4) ? 'pré-venda' : Number(marcoAtual) >= 5 ? 'implantação' : null
   record['Dono nominal'] = record.Técnico || record.Projetista || record.Homologador || null
   record['Dias sem atualização'] = daysSince(record['Data de atualização'], today)
   record['Dias desde a venda'] = daysSince(record['Data da venda'], today)
@@ -162,6 +164,9 @@ for (const [name, content] of [['[Content_Types].xml', types], ['_rels/.rels', r
   fs.writeFileSync(target, content)
 }
 fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true })
-execFileSync('tar', ['-a', '-c', '-f', path.resolve(output), '-C', temp, '[Content_Types].xml', '_rels', 'xl'])
+// O tar escolhe o formato pela extensão: só grava zip (formato do xlsx) se o destino terminar em .zip.
+const zipTemp = path.join(temp, 'saida.zip')
+execFileSync(TAR, ['-a', '-c', '-f', zipTemp, '-C', temp, '[Content_Types].xml', '_rels', 'xl'])
+fs.copyFileSync(zipTemp, path.resolve(output))
 fs.rmSync(temp, { recursive: true, force: true })
 console.log(JSON.stringify({ rows: records.length, columns: outputColumns.length, engineering: records.filter((record) => record['No fluxo da Engenharia'] === 'sim').length, output }, null, 2))

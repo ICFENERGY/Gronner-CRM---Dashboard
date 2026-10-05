@@ -84,8 +84,12 @@ const normalizarProjeto = (item) => {
   const pick = (...keys) => keys.map((key) => item[key]).find((value) => value !== undefined) ?? null
   const funil = String(pick('funil', 'Etapa') || '').trim()
   const status = String(pick('etapa', 'Status') || '').trim()
+  const statusMarco = new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDÊNCIAS TÉCNICAS->PROJETOS', 'APROVAÇÃO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIAÇÃO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGAÇÃO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALAÇÃO', 'INSTALAÇÃO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALAÇÃO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELÓGIO TROCADO', 'INSTALAÇÃO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO'])
+  const statusNormalizado = status.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
+  const statusNoMapa = [...statusMarco].some((valor) => valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase() === statusNormalizado)
   const noFluxo = /^(04\.|06\.|07\.|08\.|09\.|10\.|11\.)/.test(funil)
-    && (!(funil.startsWith('04.') && status !== 'FUNIL ENGENHARIA - CRIAR PROP') ? 'sim' : 'não')
+    && statusNoMapa
+    && (!(funil.startsWith('04.') && statusNormalizado !== 'FUNIL ENGENHARIA - CRIAR PROP') ? 'sim' : 'não')
   return {
     ...item,
     id: Number(item.id ?? item.Id ?? item['Código']),
@@ -153,16 +157,30 @@ return [{ json: {
   pageNumber: entrada.pageNumber,
   totalItems: Number(dados.totalItems ?? dados.totalCount ?? dados.total),
   registros,
-  detalharProjeto: entrada.detalharProjeto === true,
+  detalharProjeto: entrada.detalharProjeto === true && registros.some((registro) => {
+    const status = String(registro.status?.nome ?? registro.status ?? registro.etapa ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
+    return new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDENCIAS TECNICAS->PROJETOS', 'APROVACAO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIACAO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGACAO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALACAO', 'INSTALACAO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALACAO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELOGIO TROCADO', 'INSTALACAO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO']).has(status)
+  }),
 } }]`
 
 const EXPANDIR_DETALHES = `const pagina = $input.first().json
-return pagina.registros.map((registro) => ({ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registro } }))`
+const statusMarco = new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDENCIAS TECNICAS->PROJETOS', 'APROVACAO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIACAO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGACAO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALACAO', 'INSTALACAO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALACAO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELOGIO TROCADO', 'INSTALACAO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO'].map((status) => status.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase()))
+const normalizar = (value) => String(value ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase()
+return pagina.registros.filter((registro) => statusMarco.has(normalizar(registro.status?.nome ?? registro.status ?? registro.etapa))).map((registro) => ({ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registro } }))`
 
-const CONSOLIDAR_DETALHES = `const originais = $('Expandir projetos').all()
+const CONSOLIDAR_DETALHES = `const pagina = $('Extrair página').first().json
+const selecionados = $('Expandir projetos').all()
 const detalhes = $('Buscar detalhe do projeto').all()
 const campos = $input.all()
-return campos.map((item, indice) => ({ json: { ...originais[indice].json.registro, ...detalhes[indice].json, camposPersonalizados: item.json } }))`
+const idDoItem = (item, fallback) => String(item.json?.id ?? item.json?.projetoId ?? item.json?.projeto?.id ?? (item.pairedItem?.item != null ? selecionados[item.pairedItem.item]?.json?.registro?.id : fallback) ?? '')
+const porId = new Map()
+for (const [indice, item] of selecionados.entries()) {
+  const id = String(item.json.registro.id ?? item.json.registro.Id)
+  const detalhe = detalhes.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}
+  const campo = campos.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}
+  porId.set(id, { ...detalhe, camposPersonalizados: campo })
+}
+return [{ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registros: pagina.registros.map((registro) => ({ ...registro, ...(porId.get(String(registro.id ?? registro.Id)) ?? {}) })) } }]`
 
 const SAIDA_PAGINA = `const itens = $input.all().map((item) => item.json)
 if (itens.length === 1 && Array.isArray(itens[0].registros)) return itens

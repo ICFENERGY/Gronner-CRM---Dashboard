@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Sincronizar Vendas",
   "nodes": [
     {
-      "id": "d0ac137f-8c9b-4e39-845d-dc983b9b5db9",
+      "id": "44412d08-2718-4024-bfc1-dc15d532dfdb",
       "name": "Executar manualmente",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "ed00ea86-192a-44b1-ab63-60c2a52b8682",
+      "id": "d4d123ed-5abd-435e-9286-7d769dde3608",
       "name": "Agenda 08h e 18h (aguarda ativação)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -35,7 +35,7 @@
       "notes": "Horários escalonados em 5 minutos para não sobrecarregar os workers nem a API do Groner."
     },
     {
-      "id": "83a9837f-61b2-4eaf-a2d1-b5c62886c11a",
+      "id": "e41d589d-4f54-4612-be59-b4ce1286145c",
       "name": "Entidade",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -49,7 +49,7 @@
       }
     },
     {
-      "id": "25fcfac8-2a69-4d85-85cd-b08b2dec2159",
+      "id": "8f9c0a2d-5b8e-42b5-ad88-9bf0b25426cb",
       "name": "Configuração",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -63,7 +63,7 @@
       }
     },
     {
-      "id": "4ffa98ea-6ec5-47b1-accd-fb9f64b19267",
+      "id": "b6ae38ef-01e6-469a-b72c-929f3b8afc6f",
       "name": "Consultar total",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -102,7 +102,7 @@
       }
     },
     {
-      "id": "faf53ccc-0149-463f-9c02-ea1fe75303c0",
+      "id": "890c4db0-d9de-4c4f-8193-6c67a05e169d",
       "name": "Gerar páginas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -116,7 +116,7 @@
       }
     },
     {
-      "id": "c9ce971a-74f8-4e47-8795-dfcbd3fc0e13",
+      "id": "f77ed1f4-a5e9-4f4b-a95b-0432856a47f6",
       "name": "Buscar páginas separadamente",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -146,7 +146,7 @@
       }
     },
     {
-      "id": "13e3c23c-fbcf-45fd-8d58-1f9f284103db",
+      "id": "1a81cb47-1286-4073-83de-233730219306",
       "name": "Validar e preparar lotes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -156,11 +156,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const cfg = $('Configuração').first().json\nconst paginas = $input.all().map((item) => item.json)\nconst falhas = paginas.filter((p) => !Array.isArray(p.registros))\nif (falhas.length) throw new Error('Uma ou mais páginas não retornaram registros válidos')\nconst totais = new Set(paginas.map((p) => Number(p.totalItems)))\nif (totais.size !== 1) throw new Error('O total do Groner mudou durante a paginação; execute novamente')\nconst totalEsperado = Number([...totais][0])\nconst registros = paginas.flatMap((p) => p.registros)\nconst ids = new Set()\nfor (const registro of registros) {\n  const registroId = registro && (registro.id ?? registro.Id)\n  if (registroId == null) throw new Error('Registro do Groner sem id')\n  const chave = String(registroId)\n  if (ids.has(chave)) throw new Error('ID duplicado entre páginas: ' + chave)\n  ids.add(chave)\n}\nif (registros.length !== totalEsperado) {\n  throw new Error('Carga incompleta: recebidos ' + registros.length + ' de ' + totalEsperado)\n}\nconst normalizarProjeto = (item) => {\n  if (cfg.slug !== 'projetos') return item\n  const pick = (...keys) => keys.map((key) => item[key]).find((value) => value !== undefined) ?? null\n  const funil = String(pick('funil', 'Etapa') || '').trim()\n  const status = String(pick('etapa', 'Status') || '').trim()\n  const noFluxo = /^(04.|06.|07.|08.|09.|10.|11.)/.test(funil)\n    && (!(funil.startsWith('04.') && status !== 'FUNIL ENGENHARIA - CRIAR PROP') ? 'sim' : 'não')\n  return {\n    ...item,\n    id: Number(item.id ?? item.Id ?? item['Código']),\n    funil: pick('funil', 'Etapa'),\n    etapa: pick('etapa', 'Status'),\n    cidade: pick('cidade', 'Cidade'),\n    estado: pick('estado', 'Estado'),\n    concessionaria: pick('concessionaria', 'Concessionária'),\n    dataVenda: pick('dataVenda', 'Data da venda'),\n    dataAceiteProposta: pick('dataAceiteProposta', 'Data de aceite da proposta'),\n    kwp: pick('kwp', 'Proposta Aceita Potência'),\n    geracaoMensalPrevista: pick('geracaoMensalPrevista', 'Proposta Aceita Geração mensal'),\n    valorPrePropostaAceita: pick('valorPrePropostaAceita', 'Proposta Aceita Valor'),\n    tecnico: pick('tecnico', 'Técnico'),\n    projetista: pick('projetista', 'Projetista'),\n    homologador: pick('homologador', 'Homologador'),\n    vendedorResponsavel: pick('vendedorResponsavel', 'Vendedor'),\n    uc: pick('uc', 'Código da unidade consumidora'),\n    donoNominal: item.donoNominal ?? item['Dono nominal'] ?? pick('tecnico', 'Técnico') ?? pick('projetista', 'Projetista') ?? pick('homologador', 'Homologador'),\n    dataEntradaStatus: item.dataEntradaStatus ?? item['Data de entrada no status'] ?? item.dataUltimoStatus ?? null,\n    noFluxoEngenharia: item.noFluxoEngenharia ?? item['No fluxo da Engenharia'] ?? noFluxo,\n  }\n}\nregistros = registros.map(normalizarProjeto)\nregistros.sort((a, b) => Number(a.id ?? a.Id) - Number(b.id ?? b.Id))\nconst lotes = []\nfor (let i = 0; i < registros.length; i += cfg.tamanhoLote) lotes.push(registros.slice(i, i + cfg.tamanhoLote))\nif (!lotes.length) lotes.push([])\nreturn lotes.map((items, indice) => ({ json: {\n  runId: cfg.runId,\n  runStartedAt: cfg.runStartedAt,\n  entity: cfg.slug,\n  batchIndex: indice + 1,\n  batchCount: lotes.length,\n  expectedTotal: totalEsperado,\n  items,\n} }))"
+        "jsCode": "const cfg = $('Configuração').first().json\nconst paginas = $input.all().map((item) => item.json)\nconst falhas = paginas.filter((p) => !Array.isArray(p.registros))\nif (falhas.length) throw new Error('Uma ou mais páginas não retornaram registros válidos')\nconst totais = new Set(paginas.map((p) => Number(p.totalItems)))\nif (totais.size !== 1) throw new Error('O total do Groner mudou durante a paginação; execute novamente')\nconst totalEsperado = Number([...totais][0])\nconst registros = paginas.flatMap((p) => p.registros)\nconst ids = new Set()\nfor (const registro of registros) {\n  const registroId = registro && (registro.id ?? registro.Id)\n  if (registroId == null) throw new Error('Registro do Groner sem id')\n  const chave = String(registroId)\n  if (ids.has(chave)) throw new Error('ID duplicado entre páginas: ' + chave)\n  ids.add(chave)\n}\nif (registros.length !== totalEsperado) {\n  throw new Error('Carga incompleta: recebidos ' + registros.length + ' de ' + totalEsperado)\n}\nconst normalizarProjeto = (item) => {\n  if (cfg.slug !== 'projetos') return item\n  const pick = (...keys) => keys.map((key) => item[key]).find((value) => value !== undefined) ?? null\n  const funil = String(pick('funil', 'Etapa') || '').trim()\n  const status = String(pick('etapa', 'Status') || '').trim()\n  const statusMarco = new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDÊNCIAS TÉCNICAS->PROJETOS', 'APROVAÇÃO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIAÇÃO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGAÇÃO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALAÇÃO', 'INSTALAÇÃO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALAÇÃO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELÓGIO TROCADO', 'INSTALAÇÃO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO'])\n  const statusNormalizado = status.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s+/g, ' ').trim().toUpperCase()\n  const statusNoMapa = [...statusMarco].some((valor) => valor.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s+/g, ' ').trim().toUpperCase() === statusNormalizado)\n  const noFluxo = /^(04.|06.|07.|08.|09.|10.|11.)/.test(funil)\n    && statusNoMapa\n    && (!(funil.startsWith('04.') && statusNormalizado !== 'FUNIL ENGENHARIA - CRIAR PROP') ? 'sim' : 'não')\n  return {\n    ...item,\n    id: Number(item.id ?? item.Id ?? item['Código']),\n    funil: pick('funil', 'Etapa'),\n    etapa: pick('etapa', 'Status'),\n    cidade: pick('cidade', 'Cidade'),\n    estado: pick('estado', 'Estado'),\n    concessionaria: pick('concessionaria', 'Concessionária'),\n    dataVenda: pick('dataVenda', 'Data da venda'),\n    dataAceiteProposta: pick('dataAceiteProposta', 'Data de aceite da proposta'),\n    kwp: pick('kwp', 'Proposta Aceita Potência'),\n    geracaoMensalPrevista: pick('geracaoMensalPrevista', 'Proposta Aceita Geração mensal'),\n    valorPrePropostaAceita: pick('valorPrePropostaAceita', 'Proposta Aceita Valor'),\n    tecnico: pick('tecnico', 'Técnico'),\n    projetista: pick('projetista', 'Projetista'),\n    homologador: pick('homologador', 'Homologador'),\n    vendedorResponsavel: pick('vendedorResponsavel', 'Vendedor'),\n    uc: pick('uc', 'Código da unidade consumidora'),\n    donoNominal: item.donoNominal ?? item['Dono nominal'] ?? pick('tecnico', 'Técnico') ?? pick('projetista', 'Projetista') ?? pick('homologador', 'Homologador'),\n    dataEntradaStatus: item.dataEntradaStatus ?? item['Data de entrada no status'] ?? item.dataUltimoStatus ?? null,\n    noFluxoEngenharia: item.noFluxoEngenharia ?? item['No fluxo da Engenharia'] ?? noFluxo,\n  }\n}\nregistros = registros.map(normalizarProjeto)\nregistros.sort((a, b) => Number(a.id ?? a.Id) - Number(b.id ?? b.Id))\nconst lotes = []\nfor (let i = 0; i < registros.length; i += cfg.tamanhoLote) lotes.push(registros.slice(i, i + cfg.tamanhoLote))\nif (!lotes.length) lotes.push([])\nreturn lotes.map((items, indice) => ({ json: {\n  runId: cfg.runId,\n  runStartedAt: cfg.runStartedAt,\n  entity: cfg.slug,\n  batchIndex: indice + 1,\n  batchCount: lotes.length,\n  expectedTotal: totalEsperado,\n  items,\n} }))"
       }
     },
     {
-      "id": "ab1067a1-5097-426f-87bf-9754d3ca0432",
+      "id": "d56c166b-959e-47a2-a65f-76630ba81207",
       "name": "Upsert no dashboard",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -190,7 +190,7 @@
       }
     },
     {
-      "id": "28bf1e9c-79e0-4f3c-aed7-b29075324e05",
+      "id": "fe5c0509-105d-4bd7-bb3d-29ee596367bb",
       "name": "Validar confirmações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -204,7 +204,7 @@
       }
     },
     {
-      "id": "dcc72be8-463d-48cf-a7a4-83421e9289d9",
+      "id": "7b14be5c-e310-4854-8c73-5ab85410b106",
       "name": "Finalizar carga completa",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

@@ -68,6 +68,21 @@ entrada do marco são expostos; quando não há histórico, usa-se
 
 ## Validação do anexo de 05/10/2026
 
+### Correção de revisão (12:28)
+
+Os endpoints `/Projeto/{id}` e `/CampoPersonalizado/Projeto/{id}/Agrupado`
+são a fonte principal de detalhes/campos personalizados, a confirmar na
+primeira execução com credencial do tenant; o export é fallback para campos
+ausentes.
+
+`Marco` usa strings `'1'` a `'16'`, `'G6'` e `'FIM'`. G6 é um marco próprio de
+5 dias. `DOSSIE ENVIADO` deriva para `FIM` e `Momento=encerrado`.
+
+`No fluxo da Engenharia` só é `sim` quando a etapa é 04 (com o status exato
+`FUNIL ENGENHARIA - CRIAR PROP`) ou 06 a 11, e o status está no mapa de
+marcos. No anexo, isso resulta em 160 cards: 130 ativos e 30 em `FIM`; ficam
+fora 75 `VENDA REALIZADA` e 4 `PERDIDO CONTRATO` de `06. CONTRATO`.
+
 O anexo possui 5.703 linhas de dados e 71 colunas. O arquivo de exemplo
 `conversa-claude-codex/anexos/Deals-formato-n8n.xlsx` possui 5.703 linhas e 36
 colunas permitidas, sem colunas pessoais. A contagem calculada pelo filtro

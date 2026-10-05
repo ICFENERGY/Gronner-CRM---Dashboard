@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Buscar uma página",
   "nodes": [
     {
-      "id": "81eeda0f-ef6d-4589-b46c-fb6c29d8e7e7",
+      "id": "15ff0afd-5421-41fe-a736-e9ae9af0e13d",
       "name": "Detalhar projeto?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -20,7 +20,7 @@
           },
           "conditions": [
             {
-              "id": "fa5d5d2b-a0a2-44f2-86e1-d034f6c85468",
+              "id": "f4684335-3e20-474f-b445-6259f332f379",
               "leftValue": "={{ $json.detalharProjeto }}",
               "rightValue": true,
               "operator": {
@@ -35,7 +35,7 @@
       }
     },
     {
-      "id": "f2dc5efd-253d-4c58-a971-078f20a714e7",
+      "id": "86e68811-8f56-4d2f-9b19-df7619db6b33",
       "name": "Chamado pela rotina",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -48,7 +48,7 @@
       }
     },
     {
-      "id": "19ad774b-533b-48c9-b46f-06ce6f844274",
+      "id": "112efc1e-16c4-417e-ad0f-27bf47a2fff2",
       "name": "Buscar página no Groner",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -87,7 +87,7 @@
       }
     },
     {
-      "id": "acbae043-76e7-4726-aa76-d68a34f6df4f",
+      "id": "9dd924b9-2801-4f45-bbe4-6311ebcf856a",
       "name": "Extrair página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -97,11 +97,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const entrada = $('Chamado pela rotina').first().json\nconst corpo = $input.first().json\nconst dados = corpo && (corpo.Content || corpo.content || corpo)\nconst registros = dados && (dados.list || dados.items || dados.data)\nif (!Array.isArray(registros)) throw new Error('Formato de página desconhecido no Groner')\nreturn [{ json: {\n  pageNumber: entrada.pageNumber,\n  totalItems: Number(dados.totalItems ?? dados.totalCount ?? dados.total),\n  registros,\n  detalharProjeto: entrada.detalharProjeto === true,\n} }]"
+        "jsCode": "const entrada = $('Chamado pela rotina').first().json\nconst corpo = $input.first().json\nconst dados = corpo && (corpo.Content || corpo.content || corpo)\nconst registros = dados && (dados.list || dados.items || dados.data)\nif (!Array.isArray(registros)) throw new Error('Formato de página desconhecido no Groner')\nreturn [{ json: {\n  pageNumber: entrada.pageNumber,\n  totalItems: Number(dados.totalItems ?? dados.totalCount ?? dados.total),\n  registros,\n  detalharProjeto: entrada.detalharProjeto === true && registros.some((registro) => {\n    const status = String(registro.status?.nome ?? registro.status ?? registro.etapa ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s+/g, ' ').trim().toUpperCase()\n    return new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDENCIAS TECNICAS->PROJETOS', 'APROVACAO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIACAO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGACAO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALACAO', 'INSTALACAO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALACAO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELOGIO TROCADO', 'INSTALACAO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO']).has(status)\n  }),\n} }]"
       }
     },
     {
-      "id": "ae037256-870f-494b-a99c-56d6c393bda8",
+      "id": "e46e4927-0846-4867-b3ff-7ec237abf538",
       "name": "Expandir projetos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -111,11 +111,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const pagina = $input.first().json\nreturn pagina.registros.map((registro) => ({ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registro } }))"
+        "jsCode": "const pagina = $input.first().json\nconst statusMarco = new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDENCIAS TECNICAS->PROJETOS', 'APROVACAO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIACAO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGACAO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALACAO', 'INSTALACAO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALACAO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELOGIO TROCADO', 'INSTALACAO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO'].map((status) => status.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase()))\nconst normalizar = (value) => String(value ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase()\nreturn pagina.registros.filter((registro) => statusMarco.has(normalizar(registro.status?.nome ?? registro.status ?? registro.etapa))).map((registro) => ({ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registro } }))"
       }
     },
     {
-      "id": "7535dacd-f98f-4662-94f5-0aff13959492",
+      "id": "22c6f1a6-f3ac-4cae-a959-852b5aef22d9",
       "name": "Buscar detalhe do projeto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "993596d9-1cc6-48f3-a1a2-29f987b5a7ca",
+      "id": "310f1bac-7371-44d4-8876-21f11d76755b",
       "name": "Buscar campos personalizados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -167,7 +167,7 @@
       }
     },
     {
-      "id": "26c0d864-7e4b-46e4-8b0a-e58bc1c618b8",
+      "id": "18af1170-dee5-4715-8717-1812aae00a7f",
       "name": "Consolidar detalhes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -177,11 +177,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const originais = $('Expandir projetos').all()\nconst detalhes = $('Buscar detalhe do projeto').all()\nconst campos = $input.all()\nreturn campos.map((item, indice) => ({ json: { ...originais[indice].json.registro, ...detalhes[indice].json, camposPersonalizados: item.json } }))"
+        "jsCode": "const pagina = $('Extrair página').first().json\nconst selecionados = $('Expandir projetos').all()\nconst detalhes = $('Buscar detalhe do projeto').all()\nconst campos = $input.all()\nconst idDoItem = (item, fallback) => String(item.json?.id ?? item.json?.projetoId ?? item.json?.projeto?.id ?? (item.pairedItem?.item != null ? selecionados[item.pairedItem.item]?.json?.registro?.id : fallback) ?? '')\nconst porId = new Map()\nfor (const [indice, item] of selecionados.entries()) {\n  const id = String(item.json.registro.id ?? item.json.registro.Id)\n  const detalhe = detalhes.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}\n  const campo = campos.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}\n  porId.set(id, { ...detalhe, camposPersonalizados: campo })\n}\nreturn [{ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registros: pagina.registros.map((registro) => ({ ...registro, ...(porId.get(String(registro.id ?? registro.Id)) ?? {}) })) } }]"
       }
     },
     {
-      "id": "ef668f9b-5e9c-4e6a-b706-bd4679adadea",
+      "id": "951abb6a-90f0-4584-91fc-6a2b0b9c674b",
       "name": "Saída da página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

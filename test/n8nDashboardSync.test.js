@@ -52,6 +52,18 @@ test('usa upsert idempotente em lotes e finalização separada para remoções',
   }
 })
 
+test('toda referência $("nó") nos códigos aponta para um nó existente', () => {
+  for (const fluxo of [pagina, ...fluxos.map(({ fluxo }) => fluxo)]) {
+    const nomes = new Set(fluxo.nodes.map((item) => item.name))
+    for (const item of fluxo.nodes) {
+      const codigo = item.parameters?.jsCode ?? ''
+      for (const [, ref] of codigo.matchAll(/\$\('([^']+)'\)/g)) {
+        assert.ok(nomes.has(ref), `${fluxo.name} › ${item.name} referencia nó inexistente: ${ref}`)
+      }
+    }
+  }
+})
+
 test('não salva execuções com dados comerciais nem versiona segredos', () => {
   const bruto = [
     fs.readFileSync(`${dir}/buscar-pagina.json`, 'utf8'),

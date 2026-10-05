@@ -314,4 +314,13 @@ recebida muda `etapa`, grava `{ id, statusAnterior, statusNovo, em }`, usando
 `runStartedAt` como instante da observacao. Para o status atual sem evento
 historico, `dataUltimoStatus` vira `dataEntradaMarco` com
 `dataEntradaMarcoEstimada=true`. O historico so fica disponivel apos a carga
+
+## Correcao de revisao (12:28)
+
+Os endpoints `/Projeto/{id}` e `/CampoPersonalizado/Projeto/{id}/Agrupado`
+sao a fonte principal dos detalhes e campos personalizados, sujeitos a
+confirmacao na primeira execucao com credencial; o export de Deals e fallback.
+O filtro de Engenharia exige tambem status presente no mapa de marcos: 160
+cards no anexo (130 ativos e 30 `FIM`), excluindo 75 `VENDA REALIZADA` e 4
+`PERDIDO CONTRATO` de `06. CONTRATO`.
 ser publicada e nao altera o `sourceHash` do registro.

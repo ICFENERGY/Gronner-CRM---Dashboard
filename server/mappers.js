@@ -39,15 +39,15 @@ export function mapVenda(v, enriquecimento) {
 }
 
 const STATUS_MARCO = new Map([
-  ['FUNIL ENGENHARIA - CRIAR PROP', 1], ['CRIAR PROJETO->PROPOSTA', 1], ['CRIAR ABORDAGEM', 1],
-  ['APROVAR PROPOSTA CRIADA', 2], ['PENDENCIAS TECNICAS->PROJETOS', 3], ['APROVACAO TECNICA - VENDA', 3],
-  ['PROPOSTA CRIADA APROVADA', 4], ['AGUARDANDO ASSINATURA', 4], ['DOCUMENTOS PENDENTES', 4], ['PAGAMENTO REALIZADO', 4],
-  ['PIETA_CRIACAO DO PROJETO', 5], ['PIETA_PARECER SOLICITADO', 5], ['PENDENCIA DE HOMOLOGACAO', 6], ['PENDENCIA ICF', 6],
-  ['PENDENCIA DOCUMENTAL/TECNICA', 6], ['PARECER EMITIDO', 6], ['PEDIDO ENTREGUE', 7], ['INSTALADOR HOMOLOGADO', 9],
-  ['AGENDAR INSTALACAO', 9], ['INSTALACAO AGENDADA', 10], ['DIARIO DE OBRA / OBRA ANDAMENTO', 11], ['PENDENCIA DE OBRA', 11],
-  ['PENDENCIA DE INSTALACAO', 11], ['AGUARDANDO VISTORIA', 12], ['PENDENCIA VIST. CONCESSIONARIA', 12], ['RELOGIO TROCADO', 13],
-  ['INSTALACAO APP MONITORAMENTO', 13], ['APP MONITOR INSTALADO', 14], ['TERMO DE ACEITE', 15], ['TERMO DE ACEITE ASSINADO', 15],
-  ['DOSSIE', 16], ['FIM DOSSIE ENVIADO', 16],
+  ['FUNIL ENGENHARIA - CRIAR PROP', '1'], ['CRIAR PROJETO->PROPOSTA', '1'], ['CRIAR ABORDAGEM', '1'],
+  ['APROVAR PROPOSTA CRIADA', '2'], ['PENDENCIAS TECNICAS->PROJETOS', '3'], ['APROVACAO TECNICA - VENDA', '3'],
+  ['PROPOSTA CRIADA APROVADA', '4'], ['AGUARDANDO ASSINATURA', 'G6'], ['DOCUMENTOS PENDENTES', 'G6'], ['PAGAMENTO REALIZADO', 'G6'],
+  ['PIETA_CRIACAO DO PROJETO', '5'], ['PIETA_PARECER SOLICITADO', '5'], ['PENDENCIA DE HOMOLOGACAO', '6'], ['PENDENCIA ICF', '6'],
+  ['PENDENCIA DOCUMENTAL/TECNICA', '6'], ['PARECER EMITIDO', '6'], ['PEDIDO ENTREGUE', '7'], ['INSTALADOR HOMOLOGADO', '9'],
+  ['AGENDAR INSTALACAO', '9'], ['INSTALACAO AGENDADA', '10'], ['DIARIO DE OBRA / OBRA ANDAMENTO', '11'], ['PENDENCIA DE OBRA', '11'],
+  ['PENDENCIA DE INSTALACAO', '11'], ['AGUARDANDO VISTORIA', '12'], ['PENDENCIA VIST. CONCESSIONARIA', '12'], ['RELOGIO TROCADO', '13'],
+  ['INSTALACAO APP MONITORAMENTO', '13'], ['APP MONITOR INSTALADO', '14'], ['TERMO DE ACEITE', '15'], ['TERMO DE ACEITE ASSINADO', '15'],
+  ['DOSSIE', '16'], ['DOSSIE ENVIADO', 'FIM'],
 ])
 
 function semAcentos(value) {
@@ -62,6 +62,26 @@ function dataVendaValida(value) {
   if (!value) return null
   const year = Number(String(value).slice(0, 4))
   return Number.isFinite(year) && year >= 1950 ? value : null
+}
+
+function diasDesde(value, agora = Date.now()) {
+  const timestamp = Date.parse(value ?? '')
+  return Number.isFinite(timestamp) ? Math.max(0, Math.floor((agora - timestamp) / 86400000)) : null
+}
+
+function momentoDoMarco(marco) {
+  if (marco === 'FIM') return 'encerrado'
+  if (marco === 'G6' || ['1', '2', '3', '4'].includes(marco)) return 'pré-venda'
+  if (['5', '6', '7', '9', '10', '11', '12'].includes(marco)) return 'implantação'
+  if (['13', '14', '15', '16'].includes(marco)) return 'gestão da usina'
+  return null
+}
+
+function estaNoFluxoEngenharia(funil, status, marco) {
+  if (marco == null) return false
+  const etapa = semAcentos(funil)
+  return /^(04\.|06\.|07\.|08\.|09\.|10\.|11\.)/.test(etapa)
+    && (!etapa.startsWith('04.') || semAcentos(status) === 'FUNIL ENGENHARIA - CRIAR PROP')
 }
 
 const DEAL_FIELDS = ['dataVenda', 'dataAceiteProposta', 'kwp', 'geracaoMensalPrevista', 'valorPrePropostaAceita', 'cidade', 'estado', 'bairro', 'concessionaria', 'uc', 'tecnico', 'projetista', 'homologador', 'tipoTelhado', 'faseEnergetica', 'tipoEdificacao', 'dataInicioInstalacao', 'dataTerminoInstalacao', 'dataAssinaturaContrato', 'urlMonitoramento', 'modeloMonitoramento', 'dataTerminoGarantia', 'qtdPrePropostas']
@@ -112,15 +132,19 @@ function fieldsFromProject(p) {
 export function mapProjeto(p, enriquecimento) {
   const apiFields = fieldsFromProject(p)
   const extra = { ...(enriquecimento?.[String(p.id)] ?? {}), ...apiFields }
-  const status = p.status?.nome ?? p.etapa ?? null
+  const status = p.status?.nome ?? p.etapa ?? p.status ?? null
+  const funil = p.funil ?? p.etapa ?? null
+  const marco = marcoDoStatus(status)
+  const dataVenda = dataVendaValida(extra?.dataVenda)
+  const dataAtualizacao = p.dataUltimaAtualizacao ?? extra?.dataAtualizacao ?? null
   return {
     id: p.id,
     nome: p.nome,
     tipo: p.tipo,
     tipoLead: p.tipoLead,
-    funil: p.etapa,
+    funil,
     etapa: status,
-    marco: marcoDoStatus(status),
+    marco,
     corEtapa: p.corEtapa,
     origemLead: p.origemLead?.nome ?? null,
     vendedorResponsavel: p.vendedorResponsavel,
@@ -139,13 +163,13 @@ export function mapProjeto(p, enriquecimento) {
     estado: extra?.estado ?? null,
     bairro: extra?.bairro ?? null,
     concessionaria: extra?.concessionaria ?? null,
-    momento: extra?.momento ?? null,
+    momento: momentoDoMarco(marco),
     donoNominal: extra?.donoNominal ?? extra?.tecnico ?? extra?.projetista ?? extra?.homologador ?? null,
-    diasSemAtualizacao: extra?.diasSemAtualizacao ?? null,
-    diasDesdeVenda: extra?.diasDesdeVenda ?? null,
+    diasSemAtualizacao: extra?.diasSemAtualizacao ?? diasDesde(dataAtualizacao),
+    diasDesdeVenda: extra?.diasDesdeVenda ?? diasDesde(dataVenda),
     dataEntradaStatus: extra?.dataEntradaStatus ?? p.dataUltimoStatus ?? null,
-    noFluxoEngenharia: extra?.noFluxoEngenharia ?? null,
-    dataVenda: dataVendaValida(extra?.dataVenda),
+    noFluxoEngenharia: estaNoFluxoEngenharia(funil, status, marco),
+    dataVenda,
     dataAceiteProposta: extra?.dataAceiteProposta ?? null,
     kwp: extra?.kwp ?? null,
     geracaoMensalPrevista: extra?.geracaoMensalPrevista ?? null,
