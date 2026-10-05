@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { ThemeToggle } from './ThemeToggle'
 
-export type PageKey = 'geral' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento' | 'pieta'
+export type PageKey = 'geral' | 'engenharia' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento' | 'pieta'
 
 const TABS: { key: PageKey; label: string }[] = [
   { key: 'geral', label: 'Visão geral' },
+  { key: 'engenharia', label: 'Engenharia' },
   { key: 'vendas', label: 'Vendas' },
   { key: 'cadastro', label: 'Validação de cadastro' },
   { key: 'tarefas', label: 'Indicador de tarefas' },

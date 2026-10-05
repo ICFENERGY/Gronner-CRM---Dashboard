@@ -9,6 +9,7 @@ import { dealsEnriquecido, salesEnriquecido, usinasRelatorio } from './enrichmen
 import { solarzListarUsinas } from './solarzClient.js'
 import { pietaResumo, pietaDetalheProjeto } from './pietaClient.js'
 import { createSyncRouter } from './syncRoutes.js'
+import { createEngenhariaRouter } from './engenhariaRoutes.js'
 import { getSyncStatuses, loadSyncedEntity } from './syncStore.js'
 
 const app = express()
@@ -238,6 +239,15 @@ app.use('/api/sync/groner', createSyncRouter({
   onChanged: (entity) => {
     invalidate(syncCacheKeys[entity])
     invalidate('summary')
+  },
+}))
+
+app.use('/api/engenharia', createEngenhariaRouter({
+  carregarProjetos: loadProjetosDados,
+  carregarPropostas: loadPropostasDados,
+  statusSync: async () => {
+    const s = await getSyncStatuses()
+    return s.configured ? (s.entities.projetos ?? null) : null
   },
 }))
 

@@ -25,6 +25,11 @@ function defaultRedis() {
   return redisSingleton
 }
 
+/** Conexão compartilhada com o Upstash (null quando não configurado). */
+export function getRedis() {
+  return defaultRedis()
+}
+
 function assertEntity(entity) {
   if (!ENTITIES.has(entity)) throw Object.assign(new Error('Entidade de sincronização desconhecida'), { status: 400 })
 }

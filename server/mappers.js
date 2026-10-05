@@ -64,6 +64,13 @@ function dataVendaValida(value) {
   return Number.isFinite(year) && year >= 1950 ? value : null
 }
 
+/** Nome de responsável, ou null quando o Groner manda id 0 ou "Sem …". */
+function pessoa(nome, id) {
+  if (id === 0 || id === '0') return null
+  const texto = typeof nome === 'string' ? nome.trim() : ''
+  return texto && !/^sem\s/i.test(texto) ? texto : null
+}
+
 export function normalizarDataGroner(value) {
   if (typeof value !== 'string' || !value.trim()) return value ?? null
   const texto = value.trim()
@@ -142,8 +149,13 @@ export function mapProjeto(p, enriquecimento) {
   const status = p.status?.nome ?? p.etapa ?? p.status ?? null
   const funil = p.funil ?? p.etapa ?? null
   const marco = marcoDoStatus(status)
-  const dataVenda = dataVendaValida(extra?.dataVenda)
+  // A API manda 0001-01-01 quando não há venda; isso não pode apagar a data vinda do Deals.
+  const dataVenda = dataVendaValida(apiFields.dataVenda) ?? dataVendaValida(enriquecimento?.[String(p.id)]?.dataVenda)
   const dataAtualizacao = normalizarDataGroner(p.dataUltimaAtualizacao ?? extra?.dataAtualizacao ?? null)
+  // A listagem do /Projeto traz os responsáveis com id 0 e "Sem Técnico"/"Sem Projetista" quando vazios.
+  const tecnico = pessoa(p.tecnicoResponsavel, p.tecnicoResponsavelId) ?? pessoa(extra?.tecnico)
+  const projetista = pessoa(p.projetista, p.projetistaId) ?? pessoa(extra?.projetista)
+  const homologador = pessoa(p.homologador, p.homologadorId) ?? pessoa(extra?.homologador)
   return {
     id: p.id,
     nome: p.nome,
@@ -171,7 +183,7 @@ export function mapProjeto(p, enriquecimento) {
     bairro: extra?.bairro ?? null,
     concessionaria: extra?.concessionaria ?? null,
     momento: momentoDoMarco(marco),
-    donoNominal: extra?.donoNominal ?? extra?.tecnico ?? extra?.projetista ?? extra?.homologador ?? null,
+    donoNominal: pessoa(extra?.donoNominal) ?? tecnico ?? projetista ?? homologador ?? null,
     diasSemAtualizacao: extra?.diasSemAtualizacao ?? diasDesde(dataAtualizacao),
     diasDesdeVenda: extra?.diasDesdeVenda ?? diasDesde(dataVenda),
     dataEntradaStatus: normalizarDataGroner(extra?.dataEntradaStatus ?? p.dataUltimoStatus ?? null),
@@ -181,9 +193,9 @@ export function mapProjeto(p, enriquecimento) {
     kwp: extra?.kwp ?? null,
     geracaoMensalPrevista: extra?.geracaoMensalPrevista ?? null,
     uc: extra?.uc ?? null,
-    tecnico: extra?.tecnico ?? null,
-    projetista: extra?.projetista ?? null,
-    homologador: extra?.homologador ?? null,
+    tecnico,
+    projetista,
+    homologador,
     tipoTelhado: extra?.tipoTelhado ?? null,
     faseEnergetica: extra?.faseEnergetica ?? null,
     tipoEdificacao: extra?.tipoEdificacao ?? null,
