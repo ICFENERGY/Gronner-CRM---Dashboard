@@ -175,3 +175,32 @@ test('normaliza Deals com allowlist e deriva o marco', () => {
   assert.equal(marcoDoStatus('INSTALAÇÃO AGENDADA'), '10')
   assert.equal(marcoDoStatus('material C.A.'), null)
 })
+
+test('incremental e idempotente, registra historico, preserva ativos e so avanca cursor apos sucesso', async () => {
+  const redis = new FakeRedis()
+  const store = createSyncStore(redis)
+  const carga = batch('projetos-20261005T110000Z', [{ id: 1, etapa: 'Etapa A' }, { id: 2, etapa: 'Etapa B' }])
+  await store.upsertBatch(carga, (item) => item)
+  await store.finalize(carga)
+
+  const change = {
+    entity: 'projetos',
+    runId: 'changes-20261005T111000Z',
+    runStartedAt: '2026-10-05T11:10:00.000Z',
+    nextCursor: '2026-10-05T11:10:00.000Z',
+    items: [{ id: 1, etapa: 'Etapa C' }],
+  }
+  const first = await store.upsertChanges(change, (item) => item)
+  assert.deepEqual({ inserted: first.inserted, updated: first.updated, unchanged: first.unchanged }, { inserted: 0, updated: 1, unchanged: 0 })
+  assert.equal(await store.cursor('projetos'), change.nextCursor)
+  assert.deepEqual(await store.upsertChanges(change, (item) => item), first)
+  const loaded = await store.load('projetos')
+  assert.equal(loaded.items.length, 2)
+  assert.equal(loaded.items.find((item) => item.id === 1).etapa, 'Etapa C')
+  assert.equal(loaded.items.find((item) => item.id === 1).historicoStatus.length, 1)
+
+  redis.values.set('groner-dashboard:sync:v1:activity-lock:projetos', 'full:outro-run')
+  const skipped = await store.upsertChanges({ ...change, runId: 'changes-20261005T112000Z', nextCursor: '2026-10-05T11:20:00.000Z' }, (item) => item)
+  assert.equal(skipped.skipped, true)
+  assert.equal(await store.cursor('projetos'), change.nextCursor)
+})

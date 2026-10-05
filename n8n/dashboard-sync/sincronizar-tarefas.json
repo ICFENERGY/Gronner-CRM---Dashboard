@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Sincronizar Tarefas",
   "nodes": [
     {
-      "id": "b06331d0-e7f1-48b3-9d25-013747417f33",
+      "id": "ed58fb9e-5c51-40d5-913d-f6e688ac5856",
       "name": "Executar manualmente",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "c76d8b94-0b17-4103-8bc4-447b79fc850b",
+      "id": "39e67605-0dc7-4b59-8f49-2340d831662e",
       "name": "Agenda 08h e 18h (aguarda ativação)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -35,7 +35,7 @@
       "notes": "Horários escalonados em 5 minutos para não sobrecarregar os workers nem a API do Groner."
     },
     {
-      "id": "e7cd56ea-3232-4746-b211-f5abdc80168c",
+      "id": "afedade9-b5d6-40fe-a253-fb85e545771b",
       "name": "Entidade",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -49,7 +49,7 @@
       }
     },
     {
-      "id": "293a0725-74a8-45f0-9779-e4b0ac583e65",
+      "id": "94d112c4-adc2-4b38-9f68-1b2e2717b56f",
       "name": "Configuração",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -63,7 +63,7 @@
       }
     },
     {
-      "id": "7ad95a9b-4964-4d13-b511-80bb5b74646c",
+      "id": "dae218ce-d27b-4dac-8a53-362855dc38f7",
       "name": "Consultar total",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -102,7 +102,7 @@
       }
     },
     {
-      "id": "95ab198c-d4f7-4964-bf3f-868fcfaca13e",
+      "id": "eb03031e-eb1a-4ac4-b59e-cf2eed8124c8",
       "name": "Gerar páginas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -116,7 +116,7 @@
       }
     },
     {
-      "id": "3e7a04e3-f5db-421b-9e14-cb15204cc99c",
+      "id": "73b21190-88c9-434f-9306-eb692bcbf7ce",
       "name": "Buscar páginas separadamente",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -146,7 +146,7 @@
       }
     },
     {
-      "id": "0a758809-aed4-468c-9d3b-e41a0c383bfc",
+      "id": "3f923bd3-2632-4394-858c-e601191c7842",
       "name": "Validar e preparar lotes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -160,7 +160,7 @@
       }
     },
     {
-      "id": "1546f6a5-231d-4fab-8005-99411163831b",
+      "id": "235a705e-e5b4-4cb6-b8ba-be21ebd20218",
       "name": "Upsert no dashboard",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -190,7 +190,7 @@
       }
     },
     {
-      "id": "f8db794e-6e8e-4fee-8694-3b25d3002ee3",
+      "id": "a98f117e-de5d-4239-8454-6acf77485495",
       "name": "Validar confirmações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -204,7 +204,7 @@
       }
     },
     {
-      "id": "ce722445-7939-44f2-8942-d242d5a89fd0",
+      "id": "438b8755-56e4-4a37-a0ed-c293759c8aa8",
       "name": "Finalizar carga completa",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

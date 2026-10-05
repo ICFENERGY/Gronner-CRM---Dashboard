@@ -11,6 +11,7 @@ export function useRawData<T>(key: string, loader: () => Promise<T>) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -29,7 +30,12 @@ export function useRawData<T>(key: string, loader: () => Promise<T>) {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
+  }, [key, version])
 
-  return { data, error, loading }
+  function reload() {
+    cache.delete(key)
+    setVersion((current) => current + 1)
+  }
+
+  return { data, error, loading, reload }
 }

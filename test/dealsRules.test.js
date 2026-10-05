@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mapProjeto, marcoDoStatus } from '../server/mappers.js'
+import { mapProjeto, marcoDoStatus, normalizarDataGroner } from '../server/mappers.js'
 
 test('aplica o filtro de Engenharia somente a status mapeados', () => {
   const ativo = mapProjeto({ id: 1, funil: '06. CONTRATO', etapa: 'VENDA REALIZADA' }, {})
@@ -29,4 +29,11 @@ test('calcula campos derivados no mapper', () => {
   assert.equal(projeto.momento, 'implantação')
   assert.equal(typeof projeto.diasSemAtualizacao, 'number')
   assert.equal(projeto.noFluxoEngenharia, true)
+})
+
+test('interpreta datas locais do Groner como horário de São Paulo', () => {
+  assert.equal(normalizarDataGroner('2026-10-05T13:40:46.72'), '2026-10-05T13:40:46.72-03:00')
+  const projeto = mapProjeto({ id: 6, dataUltimaAtualizacao: '2026-10-05T13:40:46.72', dataUltimoStatus: '2026-10-05T13:40:46.72' }, {})
+  assert.equal(projeto.dataUltimaAtualizacao, '2026-10-05T13:40:46.72-03:00')
+  assert.equal(projeto.dataEntradaStatus, '2026-10-05T13:40:46.72-03:00')
 })

@@ -64,8 +64,15 @@ function dataVendaValida(value) {
   return Number.isFinite(year) && year >= 1950 ? value : null
 }
 
+export function normalizarDataGroner(value) {
+  if (typeof value !== 'string' || !value.trim()) return value ?? null
+  const texto = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(texto)) return `${texto}-03:00`
+  return texto
+}
+
 function diasDesde(value, agora = Date.now()) {
-  const timestamp = Date.parse(value ?? '')
+  const timestamp = Date.parse(normalizarDataGroner(value) ?? '')
   return Number.isFinite(timestamp) ? Math.max(0, Math.floor((agora - timestamp) / 86400000)) : null
 }
 
@@ -136,7 +143,7 @@ export function mapProjeto(p, enriquecimento) {
   const funil = p.funil ?? p.etapa ?? null
   const marco = marcoDoStatus(status)
   const dataVenda = dataVendaValida(extra?.dataVenda)
-  const dataAtualizacao = p.dataUltimaAtualizacao ?? extra?.dataAtualizacao ?? null
+  const dataAtualizacao = normalizarDataGroner(p.dataUltimaAtualizacao ?? extra?.dataAtualizacao ?? null)
   return {
     id: p.id,
     nome: p.nome,
@@ -148,9 +155,9 @@ export function mapProjeto(p, enriquecimento) {
     corEtapa: p.corEtapa,
     origemLead: p.origemLead?.nome ?? null,
     vendedorResponsavel: p.vendedorResponsavel,
-    dataInclusao: p.dataInclusao,
-    dataUltimaAtualizacao: p.dataUltimaAtualizacao,
-    dataUltimoStatus: p.dataUltimoStatus,
+    dataInclusao: normalizarDataGroner(p.dataInclusao),
+    dataUltimaAtualizacao: dataAtualizacao,
+    dataUltimoStatus: normalizarDataGroner(p.dataUltimoStatus),
     previsaoFechamento: p.previsaoFechamento,
     valorPrePropostaAceita: p.valorPrePropostaAceita,
     valorVenda: p.valorVenda,
@@ -167,7 +174,7 @@ export function mapProjeto(p, enriquecimento) {
     donoNominal: extra?.donoNominal ?? extra?.tecnico ?? extra?.projetista ?? extra?.homologador ?? null,
     diasSemAtualizacao: extra?.diasSemAtualizacao ?? diasDesde(dataAtualizacao),
     diasDesdeVenda: extra?.diasDesdeVenda ?? diasDesde(dataVenda),
-    dataEntradaStatus: extra?.dataEntradaStatus ?? p.dataUltimoStatus ?? null,
+    dataEntradaStatus: normalizarDataGroner(extra?.dataEntradaStatus ?? p.dataUltimoStatus ?? null),
     noFluxoEngenharia: estaNoFluxoEngenharia(funil, status, marco),
     dataVenda,
     dataAceiteProposta: extra?.dataAceiteProposta ?? null,

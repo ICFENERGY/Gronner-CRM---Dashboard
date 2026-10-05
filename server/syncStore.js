@@ -3,6 +3,7 @@ import { Redis } from '@upstash/redis'
 
 const PREFIX = 'groner-dashboard:sync:v1'
 const RUN_TTL_SECONDS = 2 * 24 * 60 * 60
+const CHANGES_LOCK_SECONDS = 4 * 60
 const ENTITIES = new Set(['projetos', 'tarefas', 'propostas', 'vendas'])
 
 let redisSingleton
@@ -49,11 +50,25 @@ function keys(entity, runId) {
     history: `${PREFIX}:history:${entity}`,
     active: `${PREFIX}:active:${entity}`,
     status: `${PREFIX}:status:${entity}`,
+    cursor: `${PREFIX}:cursor:${entity}`,
+    activityLock: `${PREFIX}:activity-lock:${entity}`,
     run,
     final: `${run}:final`,
     lock: (batchIndex) => `${run}:lock:${batchIndex}`,
     batch: (batchIndex) => `${run}:batch:${batchIndex}`,
     result: (batchIndex) => `${run}:result:${batchIndex}`,
+  }
+}
+
+function validateChanges(input) {
+  assertEntity(input.entity)
+  if (!/^[a-z]+-[0-9TZ]+$/i.test(input.runId || '')) throw Object.assign(new Error('runId inválido'), { status: 400 })
+  asTimestamp(input.runStartedAt, 'runStartedAt')
+  if (!Array.isArray(input.items) || input.items.length > 500) {
+    throw Object.assign(new Error('items deve conter no máximo 500 registros'), { status: 400 })
+  }
+  if (input.nextCursor != null && !Number.isFinite(Date.parse(input.nextCursor))) {
+    throw Object.assign(new Error('nextCursor inválido'), { status: 400 })
   }
 }
 
@@ -96,10 +111,91 @@ export function createSyncStore(redis = defaultRedis()) {
   }
 
   return {
+    async upsertChanges(input, normalize) {
+      validateChanges(input)
+      const client = requireRedis()
+      const k = keys(input.entity, 'changes')
+      const resultKey = `${PREFIX}:changes:${input.entity}:${input.runId}`
+      const previous = await client.get(resultKey)
+      if (previous) return previous
+
+      const owner = `changes:${input.runId}`
+      const fullOwner = await client.get(k.activityLock)
+      if (fullOwner && fullOwner !== owner) return { ok: true, skipped: true, reason: 'sync_locked', runId: input.runId, entity: input.entity }
+      const locked = await client.set(k.activityLock, owner, { nx: true, ex: CHANGES_LOCK_SECONDS })
+      if (!locked) return { ok: true, skipped: true, reason: 'sync_locked', runId: input.runId, entity: input.entity }
+
+      try {
+        const normalized = input.items.map((item) => {
+          const record = normalize(item)
+          const sourceId = record?.id ?? record?.Id
+          if (sourceId == null || !Number.isFinite(Number(sourceId))) throw Object.assign(new Error('Registro sem id numérico'), { status: 400 })
+          return { ...record, id: Number(sourceId) }
+        })
+        const ids = normalized.map((record) => String(record.id))
+        if (new Set(ids).size !== ids.length) throw Object.assign(new Error('IDs duplicados no lote'), { status: 400 })
+        const currentHashes = ids.length ? (await client.hmget(k.hashes, ...ids) || {}) : {}
+        const currentRecords = ids.length ? (await client.hmget(k.records, ...ids) || {}) : {}
+        const currentHistory = ids.length ? (await client.hmget(k.history, ...ids) || {}) : {}
+        const hashes = normalized.map(canonicalHash)
+        const historyUpdates = {}
+        let inserted = 0; let updated = 0; let unchanged = 0
+        const recordMap = {}
+        const hashMap = {}
+        normalized.forEach((record, index) => {
+          const id = ids[index]
+          const previousHash = currentHashes?.[id]
+          if (previousHash == null) inserted += 1
+          else if (previousHash === hashes[index]) unchanged += 1
+          else updated += 1
+          recordMap[id] = record
+          hashMap[id] = hashes[index]
+          if (input.entity === 'projetos' && previousHash != null) {
+            const previousRecord = typeof currentRecords[id] === 'string' ? JSON.parse(currentRecords[id]) : currentRecords[id]
+            const statusAnterior = previousRecord?.etapa ?? previousRecord?.status ?? null
+            const statusNovo = record.etapa ?? record.status ?? null
+            if (statusAnterior !== statusNovo) {
+              const oldHistory = currentHistory?.[id] ? (typeof currentHistory[id] === 'string' ? JSON.parse(currentHistory[id]) : currentHistory[id]) : []
+              historyUpdates[id] = [...oldHistory, { id: Number(record.id), statusAnterior, statusNovo, em: input.runStartedAt }]
+            }
+          }
+        })
+        const cursor = input.nextCursor ?? await client.get(k.cursor)
+        const previousStatus = await client.get(k.status)
+        const finishedAt = new Date().toISOString()
+        const result = { ok: true, runId: input.runId, entity: input.entity, received: normalized.length, inserted, updated, unchanged, skipped: false, finishedAt, nextCursor: cursor }
+        const pipeline = client.pipeline()
+        if (Object.keys(recordMap).length) pipeline.hset(k.records, recordMap)
+        if (Object.keys(hashMap).length) pipeline.hset(k.hashes, hashMap)
+        if (Object.keys(historyUpdates).length) pipeline.hset(k.history, historyUpdates)
+        if (ids.length) pipeline.sadd(k.active, ...ids)
+        if (input.nextCursor) pipeline.set(k.cursor, input.nextCursor)
+        pipeline.set(k.status, { ...(previousStatus || {}), entity: input.entity, lastSuccessfulRunAt: finishedAt, sourceUpdatedAt: finishedAt, mode: 'changes', inserted, updated, unchanged })
+        pipeline.set(resultKey, result, { ex: RUN_TTL_SECONDS })
+        await pipeline.exec()
+        return result
+      } finally {
+        const currentOwner = await client.get(k.activityLock).catch(() => null)
+        if (currentOwner === owner) await client.del(k.activityLock).catch(() => {})
+      }
+    },
+
+    async cursor(entity) {
+      assertEntity(entity)
+      return requireRedis().get(keys(entity, 'unused').cursor)
+    },
+
     async upsertBatch(input, normalize) {
       validateBatch(input)
       const client = requireRedis()
       const k = keys(input.entity, input.runId)
+      const fullOwner = `full:${input.runId}`
+      const activeOwner = await client.get(k.activityLock)
+      if (activeOwner && activeOwner !== fullOwner) throw Object.assign(new Error('Sincronização incremental em andamento'), { status: 409 })
+      if (!activeOwner) {
+        const locked = await client.set(k.activityLock, fullOwner, { nx: true, ex: CHANGES_LOCK_SECONDS })
+        if (!locked) throw Object.assign(new Error('Outra sincronização está em andamento'), { status: 409 })
+      }
       const previous = await client.get(k.result(input.batchIndex))
       if (previous) return previous
 
@@ -250,6 +346,9 @@ export function createSyncStore(redis = defaultRedis()) {
       transaction.set(k.final, final, { ex: RUN_TTL_SECONDS })
       await transaction.exec()
 
+      const owner = await client.get(k.activityLock).catch(() => null)
+      if (owner === `full:${input.runId}`) await client.del(k.activityLock).catch(() => {})
+
       if (current && current.runId !== input.runId) {
         const oldKeys = keys(input.entity, current.runId)
         const oldBatchKeys = Array.from({ length: current.batchCount }, (_, index) => oldKeys.batch(index + 1))
@@ -264,12 +363,19 @@ export function createSyncStore(redis = defaultRedis()) {
       const baseKeys = keys(entity, 'unused')
       const manifest = await client.get(baseKeys.current)
       if (!manifest) return null
-      const currentKeys = keys(entity, manifest.runId)
-      const batchKeys = Array.from({ length: manifest.batchCount }, (_, index) => currentKeys.batch(index + 1))
-      const batches = await client.mget(...batchKeys)
-      if (batches.some((batch) => !batch)) throw Object.assign(new Error('Fotografia sincronizada está incompleta'), { status: 503 })
-      const items = batches.flatMap((batch) => batch.items)
-      if (items.length !== manifest.expectedTotal) throw Object.assign(new Error('Total da fotografia sincronizada diverge do manifesto'), { status: 503 })
+      const activeIds = await client.smembers(baseKeys.active)
+      let items
+      if (activeIds.length) {
+        const records = await client.hmget(baseKeys.records, ...activeIds)
+        items = activeIds.map((id) => records?.[String(id)]).filter(Boolean).map((item) => typeof item === 'string' ? JSON.parse(item) : item)
+      } else {
+        const currentKeys = keys(entity, manifest.runId)
+        const batchKeys = Array.from({ length: manifest.batchCount }, (_, index) => currentKeys.batch(index + 1))
+        const batches = await client.mget(...batchKeys)
+        if (batches.some((batch) => !batch)) throw Object.assign(new Error('Fotografia incompleta'), { status: 503 })
+        items = batches.flatMap((batch) => batch.items)
+      }
+      if (activeIds.length && items.length !== activeIds.length) throw Object.assign(new Error('Registros ativos incompletos'), { status: 503 })
       const history = items.length ? (await client.hmget(baseKeys.history, ...items.map((item) => String(item.id))) || {}) : {}
       const withHistory = items.map((item) => {
         const raw = history?.[String(item.id)]

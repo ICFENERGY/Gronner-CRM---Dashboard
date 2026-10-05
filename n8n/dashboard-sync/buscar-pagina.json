@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Buscar uma página",
   "nodes": [
     {
-      "id": "15ff0afd-5421-41fe-a736-e9ae9af0e13d",
+      "id": "b5e4cad2-6398-4e56-bf4f-288d2a0e9033",
       "name": "Detalhar projeto?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -20,7 +20,7 @@
           },
           "conditions": [
             {
-              "id": "f4684335-3e20-474f-b445-6259f332f379",
+              "id": "ec3aad20-4734-471f-9691-e51310bec07c",
               "leftValue": "={{ $json.detalharProjeto }}",
               "rightValue": true,
               "operator": {
@@ -35,7 +35,7 @@
       }
     },
     {
-      "id": "86e68811-8f56-4d2f-9b19-df7619db6b33",
+      "id": "00e0338f-828b-4338-bb54-9b3601b407e0",
       "name": "Chamado pela rotina",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -48,7 +48,7 @@
       }
     },
     {
-      "id": "112efc1e-16c4-417e-ad0f-27bf47a2fff2",
+      "id": "c81a255d-a025-4872-833a-56d2076ca834",
       "name": "Buscar página no Groner",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -87,7 +87,7 @@
       }
     },
     {
-      "id": "9dd924b9-2801-4f45-bbe4-6311ebcf856a",
+      "id": "8cc6bb4a-ce9e-4516-9d8a-927a46dcf3fa",
       "name": "Extrair página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -101,7 +101,7 @@
       }
     },
     {
-      "id": "e46e4927-0846-4867-b3ff-7ec237abf538",
+      "id": "83309b71-12d4-4bd7-8f34-7315aefd6ab8",
       "name": "Expandir projetos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "22c6f1a6-f3ac-4cae-a959-852b5aef22d9",
+      "id": "94b78087-9ef0-4fe2-9a26-39d7bae96232",
       "name": "Buscar detalhe do projeto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "310f1bac-7371-44d4-8876-21f11d76755b",
+      "id": "bbbce409-3928-4b92-af34-4c333e8ad335",
       "name": "Buscar campos personalizados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -167,7 +167,7 @@
       }
     },
     {
-      "id": "18af1170-dee5-4715-8717-1812aae00a7f",
+      "id": "ee443294-95af-4811-8174-8c9fa37d86be",
       "name": "Consolidar detalhes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -181,7 +181,7 @@
       }
     },
     {
-      "id": "951abb6a-90f0-4584-91fc-6a2b0b9c674b",
+      "id": "5773c968-f25c-48e2-bfd6-ed26c87f19ec",
       "name": "Saída da página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

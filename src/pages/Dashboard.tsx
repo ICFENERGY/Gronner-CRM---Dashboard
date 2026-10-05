@@ -18,18 +18,49 @@ import { currency, number } from '../lib/palette'
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
 export function Dashboard() {
-  const { data: projetos, loading: loadingProjetos, error: errorProjetos } = useRawData('projetos', api.getProjetosRaw)
-  const { data: vendas, loading: loadingVendas, error: errorVendas } = useRawData('vendas', api.getVendasRaw)
-  const { data: propostas, loading: loadingPropostas, error: errorPropostas } = useRawData('propostas', api.getPropostasRaw)
-  const { data: leadsResumo } = useRawData('summary-leads', () => api.getSummary().then((s) => s.leads.total))
+  const { data: projetos, loading: loadingProjetos, error: errorProjetos, reload: recarregarProjetos } = useRawData('projetos', api.getProjetosRaw)
+  const { data: vendas, loading: loadingVendas, error: errorVendas, reload: recarregarVendas } = useRawData('vendas', api.getVendasRaw)
+  const { data: propostas, loading: loadingPropostas, error: errorPropostas, reload: recarregarPropostas } = useRawData('propostas', api.getPropostasRaw)
+  const { data: leadsResumo, reload: recarregarResumo } = useRawData('summary-leads', () => api.getSummary().then((s) => s.leads.total))
   const { values, onChange, onClear } = useFilters()
   const [atualizando, setAtualizando] = useState(false)
+  const [syncMeta, setSyncMeta] = useState<{ geradoEm: string; sourceUpdatedAt?: string | null } | null>(null)
   const [buscaProjeto, setBuscaProjeto] = useState('')
   const [paginaProjetos, setPaginaProjetos] = useState(1)
 
+  useEffect(() => {
+    let ativo = true
+    let ultimoSourceUpdatedAt: string | null = null
+    const verificarAtualizacao = () => {
+      api.getSummary().then((summary) => {
+        if (!ativo) return
+        setSyncMeta({ geradoEm: summary.geradoEm, sourceUpdatedAt: summary.sourceUpdatedAt })
+        if (ultimoSourceUpdatedAt && summary.sourceUpdatedAt && summary.sourceUpdatedAt !== ultimoSourceUpdatedAt) {
+          recarregarProjetos()
+          recarregarVendas()
+          recarregarPropostas()
+          recarregarResumo()
+        }
+        ultimoSourceUpdatedAt = summary.sourceUpdatedAt ?? null
+      }).catch(() => {})
+    }
+    verificarAtualizacao()
+    const timer = window.setInterval(verificarAtualizacao, 60_000)
+    return () => {
+      ativo = false
+      window.clearInterval(timer)
+    }
+  }, [])
+
   function atualizarDados() {
     setAtualizando(true)
-    api.getSummary(true).finally(() => window.location.reload())
+    api.getSummary(true).then((summary) => {
+      setSyncMeta({ geradoEm: summary.geradoEm, sourceUpdatedAt: summary.sourceUpdatedAt })
+      recarregarProjetos()
+      recarregarVendas()
+      recarregarPropostas()
+      recarregarResumo()
+    }).finally(() => setAtualizando(false))
   }
 
   const filtros: FilterDef[] = useMemo(() => {
@@ -182,6 +213,14 @@ export function Dashboard() {
   return (
     <div>
       <div className="mb-4 flex justify-end">
+        {syncMeta && (() => {
+          const atualizadoEm = syncMeta.sourceUpdatedAt || syncMeta.geradoEm
+          const desatualizado = Date.now() - Date.parse(atualizadoEm) > 15 * 60 * 1000
+          return <span className={`mr-3 self-center text-xs ${desatualizado ? 'text-amber-600' : 'text-[var(--text-muted)]'}`}>
+            {desatualizado ? 'Dados possivelmente atrasados — ' : 'Dados atualizados às '}
+            {new Date(atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        })()}
         <button
           onClick={atualizarDados}
           disabled={atualizando}

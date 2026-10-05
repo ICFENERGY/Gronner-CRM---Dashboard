@@ -9,7 +9,7 @@ import { dealsEnriquecido, salesEnriquecido, usinasRelatorio } from './enrichmen
 import { solarzListarUsinas } from './solarzClient.js'
 import { pietaResumo, pietaDetalheProjeto } from './pietaClient.js'
 import { createSyncRouter } from './syncRoutes.js'
-import { loadSyncedEntity } from './syncStore.js'
+import { getSyncStatuses, loadSyncedEntity } from './syncStore.js'
 
 const app = express()
 const TTL_MS = 10 * 60 * 1000
@@ -235,6 +235,10 @@ app.use('/api/sync/groner', createSyncRouter({
     invalidate(syncCacheKeys[entity])
     invalidate('summary')
   },
+  onChanged: (entity) => {
+    invalidate(syncCacheKeys[entity])
+    invalidate('summary')
+  },
 }))
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
@@ -288,8 +292,16 @@ app.get('/api/summary', async (req, res) => {
       const { porEstado, porConcessionaria } = buildGeografia(projetos)
       const pivotFunilAno = buildPivotFunilAno(projetos)
 
+      const syncStatus = await getSyncStatuses()
+      const sourceUpdatedAt = Object.values(syncStatus.entities || {})
+        .map((status) => status?.sourceUpdatedAt || status?.finishedAt || status?.lastSuccessfulRunAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1) ?? null
       return {
         geradoEm: new Date().toISOString(),
+        sourceUpdatedAt,
+        syncStatus,
         leads: {
           total: leadsPage.totalItems ?? 0,
         },

@@ -356,6 +356,79 @@ function fluxoEntidade({ entidade, tenant, dashboardUrl, subfluxoId, credGroner,
   }
 }
 
+function fluxoAlteracoes({ tenant, dashboardUrl, credGroner, credDashboard }) {
+  const api = `https://${tenant}.api.groner.app/api`
+  const base = dashboardUrl.replace(/\/+$/, '')
+  const cfg = `const agora = new Date()
+const cursor = $('Ler cursor').first().json.cursor
+const margem = 10 * 60 * 1000
+const inicio = cursor ? new Date(new Date(cursor).getTime() - margem) : new Date(agora.getTime() - margem)
+return [{ json: { entity: 'projetos', runId: 'changes-' + agora.toISOString().replace(/[-:.]/g, ''), runStartedAt: agora.toISOString(), cursorAnterior: cursor, cursorInicio: inicio.toISOString(), nextCursor: agora.toISOString(), maxPaginas: 10, pageSize: 500 } }]`
+  // Para de paginar quando a página vem vazia ou o último card (o mais antigo, pela ordenação)
+  // é anterior ao cursor. Datas do Groner vêm em horário de Brasília sem offset.
+  const paginaFinal = "={{ (() => { const l = ($response.body.Content || $response.body).list || []; if (!l.length) return true; const d = String(l[l.length - 1].dataUltimaAtualizacao || ''); return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(d) ? d : d + '-03:00') < Date.parse($json.cursorInicio) })() }}"
+  const extrair = `const cfg = $('Configuração').first().json
+const paginas = $input.all().map((item) => item.json)
+const registrosPorPagina = paginas.map((pagina) => {
+  const corpo = pagina.Content || pagina.content || pagina
+  return corpo.list || corpo.items || corpo.data
+})
+if (registrosPorPagina.some((registros) => !Array.isArray(registros))) throw new Error('Formato de alterações desconhecido no Groner')
+const parseDataGroner = (value) => {
+  if (typeof value !== 'string') return NaN
+  const texto = value.trim()
+  return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(texto) ? texto + '-03:00' : texto)
+}
+const inicio = Date.parse(cfg.cursorInicio)
+const todos = registrosPorPagina.flat()
+const alterados = todos.filter((registro) => parseDataGroner(registro.dataUltimaAtualizacao ?? registro.updatedAt ?? '') >= inicio)
+const ultimaPagina = registrosPorPagina.at(-1) ?? []
+const ultimaData = ultimaPagina.map((registro) => parseDataGroner(registro.dataUltimaAtualizacao ?? registro.updatedAt ?? '')).filter(Number.isFinite).sort((a, b) => b - a)[0]
+if (paginas.length === cfg.maxPaginas && ultimaData >= inicio) throw new Error('Limite de páginas incrementais atingido; carga completa obrigatória')
+return [{ json: { entity: cfg.entity, runId: cfg.runId, runStartedAt: cfg.runStartedAt, nextCursor: cfg.nextCursor, items: alterados } }]`
+  const expandir = `const item = $input.first().json
+return item.items.map((registro) => ({ json: { registro } }))`
+  const consolidar = `const originais = $('Expandir alterações').all()
+const detalhes = $('Buscar detalhe dos alterados').all()
+const campos = $('Buscar campos personalizados dos alterados').all()
+const corpo = (item) => item?.json?.Content || item?.json?.content || item?.json || {}
+return originais.map((item, index) => ({ json: { ...item.json.registro, ...corpo(detalhes[index]), camposPersonalizados: corpo(campos[index]) } }))`
+  const validar = `const cfg = $('Configuração').first().json
+const items = $input.all().map((item) => item.json)
+return [{ json: { entity: cfg.entity, runId: cfg.runId, runStartedAt: cfg.runStartedAt, nextCursor: cfg.nextCursor, items, received: items.length } }]`
+  return {
+    name: 'Groner Dashboard - Sincronizar alterações (5 min)',
+    nodes: [
+      { id: id(), name: 'Executar manualmente', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
+      { id: id(), name: 'Agenda a cada 5 minutos (aguarda ativação)', type: 'n8n-nodes-base.scheduleTrigger', typeVersion: 1.2, position: [0, 180], disabled: true, parameters: { rule: { interval: [{ field: 'cronExpression', expression: '*/5 * * * *' }] } }, notes: 'Ativar somente depois de validar credenciais e limites do Groner/Upstash.' },
+      { id: id(), name: 'Ler cursor', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [240, 90], credentials: credencial('Groner Dashboard - Sync', credDashboard), parameters: { url: `={{ '${base}/api/sync/groner/projetos/cursor' }}`, authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', options: { timeout: 30000 } } },
+      { id: id(), name: 'Configuração', type: 'n8n-nodes-base.code', typeVersion: 2, position: [480, 90], parameters: { mode: 'runOnceForAllItems', jsCode: cfg } },
+      { id: id(), name: 'Buscar página alterada', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [960, 90], retryOnFail: true, maxTries: 3, waitBetweenTries: 5000, credentials: credencial('GronerZap - Groner API leitura', credGroner), parameters: { url: `={{ '${api}/Projeto' }}`, authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendQuery: true, queryParameters: { parameters: [{ name: 'pageSize', value: '={{ $json.pageSize }}' }, { name: 'ordenarPor', value: 'DataAtualizacao_DESC' }] }, options: { timeout: 60000, pagination: { pagination: { paginationMode: 'updateAParameterInEachRequest', parameters: { parameters: [{ type: 'qs', name: 'pageNumber', value: '={{ $pageCount + 1 }}' }] }, paginationCompleteWhen: 'other', completeExpression: paginaFinal, limitPagesFetched: true, maxRequests: 10, requestInterval: 0 } } } }, notes: 'Pagina só enquanto o último card da página ainda é mais novo que o cursor (normalmente 1 chamada). Nao envia dataInicio/dataFim (ignorados pelo Groner) nem ordem: a direcao esta no enum DataAtualizacao_DESC. Datas sem offset do Groner sao America/Sao_Paulo. Limite de 10 paginas; se atingido, exige carga completa.' },
+      { id: id(), name: 'Extrair alterações', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1200, 90], parameters: { mode: 'runOnceForAllItems', jsCode: extrair } },
+      { id: id(), name: 'Expandir alterações', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1440, 90], parameters: { mode: 'runOnceForAllItems', jsCode: expandir } },
+      { id: id(), name: 'Buscar detalhe dos alterados', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [1680, 90], retryOnFail: true, maxTries: 3, waitBetweenTries: 5000, credentials: credencial('GronerZap - Groner API leitura', credGroner), parameters: { url: `={{ '${api}/Projeto/' + $json.registro.id }}`, authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', options: { timeout: 60000 } } },
+      { id: id(), name: 'Buscar campos personalizados dos alterados', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [1920, 90], retryOnFail: true, maxTries: 3, waitBetweenTries: 5000, credentials: credencial('GronerZap - Groner API leitura', credGroner), parameters: { url: `={{ '${api}/CampoPersonalizado/Projeto/' + $('Expandir alterações').item.json.registro.id + '/Agrupado' }}`, authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', options: { timeout: 60000 } } },
+      { id: id(), name: 'Consolidar alterações', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2160, 90], parameters: { mode: 'runOnceForAllItems', jsCode: consolidar } },
+      { id: id(), name: 'Validar alterações', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2400, 90], parameters: { mode: 'runOnceForAllItems', jsCode: validar } },
+      { id: id(), name: 'Upsert incremental', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [2640, 90], retryOnFail: true, maxTries: 3, waitBetweenTries: 5000, credentials: credencial('Groner Dashboard - Sync', credDashboard), parameters: { method: 'POST', url: `={{ '${base}/api/sync/groner/projetos/changes' }}`, authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json) }}', options: { timeout: 60000 } }, notes: 'A resposta skipped=true indica trava da carga completa ou outra execução incremental.' },
+    ],
+    connections: {
+      'Executar manualmente': { main: [[{ node: 'Ler cursor', type: 'main', index: 0 }]] },
+      'Agenda a cada 5 minutos (aguarda ativação)': { main: [[{ node: 'Ler cursor', type: 'main', index: 0 }]] },
+      'Ler cursor': { main: [[{ node: 'Configuração', type: 'main', index: 0 }]] },
+      'Configuração': { main: [[{ node: 'Buscar página alterada', type: 'main', index: 0 }]] },
+      'Buscar página alterada': { main: [[{ node: 'Extrair alterações', type: 'main', index: 0 }]] },
+      'Extrair alterações': { main: [[{ node: 'Expandir alterações', type: 'main', index: 0 }]] },
+      'Expandir alterações': { main: [[{ node: 'Buscar detalhe dos alterados', type: 'main', index: 0 }]] },
+      'Buscar detalhe dos alterados': { main: [[{ node: 'Buscar campos personalizados dos alterados', type: 'main', index: 0 }]] },
+      'Buscar campos personalizados dos alterados': { main: [[{ node: 'Consolidar alterações', type: 'main', index: 0 }]] },
+      'Consolidar alterações': { main: [[{ node: 'Validar alterações', type: 'main', index: 0 }]] },
+      'Validar alterações': { main: [[{ node: 'Upsert incremental', type: 'main', index: 0 }]] },
+    },
+    settings,
+  }
+}
+
 function seguroParaGit(obj, tenant) {
   return JSON.stringify(obj, null, 2).replaceAll(tenant, '{tenant}') + '\n'
 }
@@ -376,6 +449,7 @@ async function main() {
 
   let subfluxoId = process.env.N8N_FLUXO_DASHBOARD_PAGINA || '{dashboardPaginaWorkflowId}'
   let sub = subfluxo({ tenant, credGroner })
+  const incremental = fluxoAlteracoes({ tenant, dashboardUrl, credGroner, credDashboard })
   const pais = []
 
   if (publicar) {
@@ -395,6 +469,7 @@ async function main() {
     const salvoSub = await salvar(sub)
     subfluxoId = salvoSub.id
     sub.id = subfluxoId
+    await salvar(fluxoAlteracoes({ tenant, dashboardUrl, credGroner, credDashboard }))
     for (const entidade of ENTIDADES) {
       const salvo = await salvar(fluxoEntidade({ entidade, tenant, dashboardUrl, subfluxoId, credGroner, credDashboard }))
       pais.push({ entidade, workflow: salvo })
@@ -407,6 +482,7 @@ async function main() {
   }
 
   escreverJson('buscar-pagina.json', sub, tenant)
+  escreverJson('sincronizar-alteracoes.json', incremental, tenant)
   for (const { entidade, workflow } of pais) escreverJson(`sincronizar-${entidade.slug}.json`, workflow, tenant)
   console.log('Fluxos escritos em n8n/dashboard-sync (todos com agenda desativada).')
 }

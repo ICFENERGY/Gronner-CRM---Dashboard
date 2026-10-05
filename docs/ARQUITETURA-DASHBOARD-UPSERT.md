@@ -243,6 +243,67 @@ como chave única e não somar projetos distintos como se fossem um só negócio
 - nenhuma execução do N8N persiste payload comercial;
 - nenhum token aparece no Git, logs, respostas ou frontend.
 
+## Cadencia operacional em tempo real
+
+O fluxo `sincronizar-alteracoes.json` foi adicionado com agenda `*/5 * * * *`,
+mas permanece desativado ate a primeira validacao do tenant. Ele le o cursor no
+dashboard, consulta `/Projeto` ordenado por `dataUltimaAtualizacao` usando uma
+janela com margem de 10 minutos e envia somente itens alterados para
+`POST /api/sync/groner/projetos/changes`. O endpoint e idempotente por
+`(entity, runId)`, nao faz remocao logica e so grava o cursor depois de aceitar
+os itens.
+
+As cargas completas de Projetos, Tarefas, Propostas e Vendas continuam em
+08:00/18:00 para reconciliar remocoes. Uma trava de 4 minutos no Upstash faz o
+incremental sair com `skipped=true` durante carga completa ou outra execucao
+incremental; o dashboard invalida os caches apos uma carga incremental.
+
+Estimativa de volume: cada incremental consulta ate 500 projetos e grava no
+Upstash somente os cards alterados, em vez de 115 lotes e a fotografia inteira.
+No pior caso de 12 paginas/5.700 projetos a cada 5 minutos, sao cerca de
+5.700 chamadas de pagina/dia ao Groner (alem de detalhes apenas para cards com
+status no mapa) e ate 288 execucoes do endpoint changes/dia. As duas cargas
+completas continuam responsaveis por cerca de 340 chamadas do Groner e 115
+lotes/execucao; os numeros reais dependem da paginação e da taxa de alteracao.
+
+O frontend consulta o resumo a cada 60 segundos e recarrega quando `geradoEm`
+muda. Ele mostra a hora da ultima atualizacao e avisa quando os dados estao ha
+mais de 15 minutos sem atualizacao.
+
+## Evidências da API do Groner e evolução para webhooks
+
+Os testes autenticados confirmaram que o `/Projeto` aceita
+`ordenarPor=DataAtualizacao_DESC` e não aceita `ordenarPor=dataUltimaAtualizacao`
+nem o parâmetro separado `ordem`. `dataInicio` e `dataFim` são ignorados nesse
+endpoint e, portanto, não são enviados pelo incremental. Datas do Groner sem
+offset são tratadas como `America/Sao_Paulo` (`-03:00`) no filtro n8n e nos
+cálculos do servidor.
+
+Webhooks disponíveis no Groner incluem `statusAlteradoUrl` e
+`campoPersonalizadoRespondidoUrl`. Eles ficam documentados como evolução futura:
+webhook do Groner → webhook do n8n → busca `/Projeto/{id}` e campos →
+`POST /api/sync/groner/projetos/changes`. O payload ainda deve ser capturado em
+execução de teste. O webhook existente `propostaAceitaUrl` não deve ser alterado;
+qualquer atualização deve reenviar o registro completo.
+
+Como não há cabeçalho de rate limit conhecido, manter o incremental em até 288
+execuções por dia, com duas chamadas de detalhe por card alterado com marco,
+além das duas cargas completas diárias. Monitorar a duração e respostas antes
+de ativar a agenda.
+
+## Correções do fluxo incremental de 5 minutos
+
+O fluxo incremental não envia `dataInicio`, porque esse filtro pode usar data
+de inclusão em vez de data de alteração. A primeira execução autenticada deve
+editar um card antigo e confirmar que ele aparece no resultado. O fluxo pagina
+até 10 páginas de 500 itens; se a décima ainda alcançar `cursorInicio`, falha
+sem avançar o cursor e exige carga completa.
+
+Cada card alterado passa por `/Projeto/{id}` e
+`/CampoPersonalizado/Projeto/{id}/Agrupado` antes do upsert, preservando os
+campos da Engenharia. O frontend compara `sourceUpdatedAt` e refaz as consultas
+sem recarregar a página, preservando filtros, aba, busca e rolagem.
+
 ## Formato do Deals produzido pelo n8n
 
 O `Deals.xlsx` não é uma quinta entidade do dashboard. Quando `/Projeto` não

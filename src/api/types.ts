@@ -129,6 +129,8 @@ export interface PivotFunilAno {
 
 export interface Summary {
   geradoEm: string
+  sourceUpdatedAt?: string | null
+  syncStatus?: { configured: boolean; entities: Record<string, unknown> }
   leads: { total: number }
   projetos: {
     total: number

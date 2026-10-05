@@ -41,7 +41,7 @@ function publicError(err) {
   return 'Não foi possível processar a sincronização'
 }
 
-export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {} } = {}) {
+export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {}, onChanged = () => {} } = {}) {
   const router = express.Router()
 
   router.get('/status', async (_req, res) => {
@@ -69,6 +69,28 @@ export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {
       res.json(result)
     } catch (err) {
       console.error('[sync] lote rejeitado:', err.message)
+      res.status(err.status || 500).json({ error: publicError(err) })
+    }
+  })
+
+  router.get('/:entity/cursor', authenticate, async (req, res) => {
+    try {
+      if (!normalizers[req.params.entity]) throw Object.assign(new Error('Entidade de sincronização desconhecida'), { status: 404 })
+      res.json({ entity: req.params.entity, cursor: await store.cursor(req.params.entity) })
+    } catch (err) {
+      res.status(err.status || 500).json({ error: publicError(err) })
+    }
+  })
+
+  router.post('/:entity/changes', authenticate, async (req, res) => {
+    try {
+      const entity = entityFrom(req)
+      const result = await store.upsertChanges(req.body, (item) => stripSensitive(normalizers[entity](item)))
+      if (!result.skipped) onChanged(entity)
+      console.info('[sync] alterações aceitas', { entity, runId: result.runId, received: result.received, updated: result.updated, skipped: result.skipped })
+      res.json(result)
+    } catch (err) {
+      console.error('[sync] alterações rejeitadas:', err.message)
       res.status(err.status || 500).json({ error: publicError(err) })
     }
   })

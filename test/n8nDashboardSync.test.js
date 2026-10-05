@@ -9,6 +9,7 @@ const fluxos = slugs.map((slug) => ({
   fluxo: JSON.parse(fs.readFileSync(`${dir}/sincronizar-${slug}.json`, 'utf8')),
 }))
 const pagina = JSON.parse(fs.readFileSync(`${dir}/buscar-pagina.json`, 'utf8'))
+const incremental = JSON.parse(fs.readFileSync(`${dir}/sincronizar-alteracoes.json`, 'utf8'))
 
 const no = (fluxo, nome) => fluxo.nodes.find((item) => item.name === nome)
 
@@ -77,4 +78,30 @@ test('não salva execuções com dados comerciais nem versiona segredos', () => 
     assert.equal(fluxo.settings.saveDataErrorExecution, 'none')
     assert.equal(fluxo.settings.saveManualExecutions, false)
   }
+})
+
+test('mantem fluxo incremental de 5 minutos desativado e protegido por cursor', () => {
+  const agenda = incremental.nodes.find((item) => item.type === 'n8n-nodes-base.scheduleTrigger')
+  assert.equal(agenda.disabled, true)
+  assert.equal(agenda.parameters.rule.interval[0].expression, '*/5 * * * *')
+  const cursor = incremental.nodes.find((item) => item.name === 'Ler cursor')
+  const upsert = incremental.nodes.find((item) => item.name === 'Upsert incremental')
+  assert.match(cursor.parameters.url, /\/cursor/)
+  assert.match(upsert.parameters.url, /\/changes/)
+  assert.match(incremental.nodes.find((item) => item.name === 'Configuração').parameters.jsCode, /cursorAnterior/)
+  const busca = incremental.nodes.find((item) => item.name === 'Buscar página alterada')
+  // Pagina sob demanda: para quando o card mais antigo da página fica antes do cursor.
+  const paginacao = busca.parameters.options.pagination.pagination
+  assert.equal(paginacao.maxRequests, 10)
+  assert.match(paginacao.completeExpression, /cursorInicio/)
+  assert.match(paginacao.completeExpression, /-03:00/)
+  assert.equal(busca.parameters.queryParameters.parameters.some((item) => item.name === 'pageNumber'), false)
+  assert.ok(busca.parameters.queryParameters.parameters.some((item) => item.name === 'ordenarPor'))
+  assert.equal(busca.parameters.queryParameters.parameters.find((item) => item.name === 'ordenarPor').value, 'DataAtualizacao_DESC')
+  assert.equal(busca.parameters.queryParameters.parameters.some((item) => item.name === 'ordem'), false)
+  assert.equal(busca.parameters.queryParameters.parameters.some((item) => item.name === 'dataInicio'), false)
+  assert.ok(incremental.nodes.some((item) => item.name === 'Buscar detalhe dos alterados'))
+  assert.ok(incremental.nodes.some((item) => item.name === 'Buscar campos personalizados dos alterados'))
+  assert.match(incremental.nodes.find((item) => item.name === 'Extrair alterações').parameters.jsCode, /Limite de páginas incrementais atingido/)
+  assert.match(incremental.nodes.find((item) => item.name === 'Extrair alterações').parameters.jsCode, /-03:00/)
 })
