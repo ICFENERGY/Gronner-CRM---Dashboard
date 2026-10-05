@@ -13,11 +13,11 @@ const ATRASO_MS = 15 * 60 * 1000
 
 /** Engenharia: Pauta Diária (reunião) e Painel (indicadores), lidos do Groner sincronizado. */
 export function EngenhariaPage() {
-  // Aba no endereço (#engenharia ou #engenharia/painel), para abrir direto por link.
-  const [aba, setAbaState] = useState<Aba>(() => (window.location.hash === '#engenharia/painel' ? 'painel' : 'pauta'))
+  // Aba no endereço (#reuniao ou #reuniao/painel), para abrir direto por link.
+  const [aba, setAbaState] = useState<Aba>(() => (/^#(reuniao|engenharia)\/painel$/.test(window.location.hash) ? 'painel' : 'pauta'))
   const setAba = (a: Aba) => {
     setAbaState(a)
-    window.history.replaceState(null, '', a === 'painel' ? '#engenharia/painel' : '#engenharia')
+    window.history.replaceState(null, '', a === 'painel' ? '#reuniao/painel' : '#reuniao')
   }
   const [aviso, setAviso] = useState<string | null>(null)
   const { dados, erro, carregando, recarregar } = useEngenharia()

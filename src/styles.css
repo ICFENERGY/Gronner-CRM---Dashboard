@@ -23,6 +23,14 @@
   --text-muted: #94a3b8;
   --track-bg: #e2e8f0;
   --accent-text: #15803d;
+  /* Gráficos (paleta validada da skill de dataviz): série única, referência e semáforo */
+  --viz-1: #2a78d6;
+  --viz-ref: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #898781;
+  --st-atrasado: #d03b3b;
+  --st-risco: #fab219;
+  --st-ok: #0ca30c;
 }
 
 .dark {
@@ -39,6 +47,13 @@
   --text-muted: #64748b;
   --track-bg: #1e293b;
   --accent-text: #22c55e;
+  --viz-1: #3987e5;
+  --viz-ref: #c3c2b7;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #898781;
+  --st-atrasado: #d03b3b;
+  --st-risco: #fab219;
+  --st-ok: #0ca30c;
 }
 
 body {
