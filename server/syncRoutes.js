@@ -4,6 +4,7 @@ import { mapProjeto, mapProposta, mapTarefa, mapVenda } from './mappers.js'
 import { dealsEnriquecido, salesEnriquecido } from './enrichment.js'
 import { stripSensitive } from './sanitize.js'
 import { getSyncStatuses, getSyncStore, syncStorageConfigured } from './syncStore.js'
+import { sincronizarAlteracoes } from './syncTick.js'
 
 const normalizers = {
   projetos: (item) => mapProjeto(item, dealsEnriquecido),
@@ -29,6 +30,18 @@ function authenticate(req, res, next) {
   next()
 }
 
+/** Como authenticate, mas aceita a chave também em ?key= (agendadores que só configuram URL). */
+function authenticateTick(req, res, next) {
+  const expected = process.env.GRONER_SYNC_TOKEN
+  if (!expected || !syncStorageConfigured()) {
+    return res.status(503).json({ error: 'Sincronização ainda não configurada' })
+  }
+  if (!safeEqual(req.get('X-Groner-Sync-Token') || req.query.key, expected)) {
+    return res.status(401).json({ error: 'Credencial de sincronização inválida' })
+  }
+  next()
+}
+
 function entityFrom(req) {
   const entity = req.params.entity
   if (!normalizers[entity]) throw Object.assign(new Error('Entidade de sincronização desconhecida'), { status: 404 })
@@ -41,8 +54,27 @@ function publicError(err) {
   return 'Não foi possível processar a sincronização'
 }
 
-export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {}, onChanged = () => {} } = {}) {
+/** Busca no Groner, carregada só quando usada (o cliente exige as variáveis do Groner). */
+async function buscarGronerPadrao(recurso, params) {
+  const { gronerGet } = await import('./gronerClient.js')
+  return gronerGet(recurso, params)
+}
+
+export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {}, onChanged = () => {}, buscarGroner = buscarGronerPadrao } = {}) {
   const router = express.Router()
+
+  // Atualização de 5 minutos dentro do dashboard, chamada por um agendador externo.
+  router.all('/projetos/tick', authenticateTick, async (_req, res) => {
+    try {
+      const result = await sincronizarAlteracoes({ store, normalize: (item) => stripSensitive(normalizers.projetos(item)), buscar: buscarGroner })
+      if (!result.skipped) onChanged('projetos')
+      console.info('[sync] tick', { runId: result.runId, alterados: result.alterados, processados: result.processados, detalhes: result.detalhes, pendente: result.pendente, skipped: result.skipped })
+      res.json({ ok: true, runId: result.runId, skipped: Boolean(result.skipped), alterados: result.alterados, processados: result.processados, detalhes: result.detalhes, pendente: result.pendente, inserted: result.inserted, updated: result.updated, unchanged: result.unchanged })
+    } catch (err) {
+      console.error('[sync] tick falhou:', err.message)
+      res.status(err.status || 500).json({ error: publicError(err) })
+    }
+  })
 
   router.get('/status', async (_req, res) => {
     try {
