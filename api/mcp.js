@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import axios from "axios";
 
 const TENANT = process.env.GRONER_TENANT ?? "";
@@ -194,10 +195,32 @@ async function handleMessage(msg) {
 
 // ─── Handler Vercel ───────────────────────────────────────────────────────────
 
+/**
+ * Chave de acesso do MCP (MCP_ACCESS_TOKEN). As ferramentas usam o token de
+ * administrador do Groner, então ninguém chama sem a chave. Aceita
+ * "Authorization: Bearer <chave>", "x-api-key: <chave>" ou "?key=<chave>",
+ * conforme o que o cliente de MCP permitir configurar. Sem a variável no
+ * servidor, o MCP fica fechado (nunca aberto por engano).
+ */
+function chaveRecebida(req) {
+  const auth = String(req.headers.authorization ?? "");
+  if (/^Bearer\s+/i.test(auth)) return auth.replace(/^Bearer\s+/i, "").trim();
+  if (req.headers["x-api-key"]) return String(req.headers["x-api-key"]).trim();
+  return String(req.query?.key ?? "").trim();
+}
+
+function autorizado(req) {
+  const esperada = process.env.MCP_ACCESS_TOKEN;
+  if (!esperada) return false;
+  const a = Buffer.from(chaveRecebida(req), "utf8");
+  const b = Buffer.from(esperada, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-session-id");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, mcp-session-id");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -209,6 +232,15 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (!autorizado(req)) {
+    res.setHeader("WWW-Authenticate", 'Bearer realm="groner-mcp"');
+    return res.status(401).json({
+      jsonrpc: "2.0",
+      id: req.body?.id ?? null,
+      error: { code: -32001, message: "Chave de acesso do MCP ausente ou inválida" },
+    });
   }
 
   if (!TENANT) {
