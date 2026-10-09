@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Buscar uma página",
   "nodes": [
     {
-      "id": "daa0d968-689e-480c-8b67-9751d77b4b7c",
+      "id": "f19fb674-5329-4c93-9673-19d83fa9c764",
       "name": "Detalhar projeto?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -20,7 +20,7 @@
           },
           "conditions": [
             {
-              "id": "41bc5690-6eac-47b8-9907-2e17878cd203",
+              "id": "946b4929-7949-4614-a230-f3e9a8d296f8",
               "leftValue": "={{ $json.detalharProjeto }}",
               "rightValue": true,
               "operator": {
@@ -35,7 +35,7 @@
       }
     },
     {
-      "id": "23fbf4e2-7dff-436b-87a6-21cd1f6a240e",
+      "id": "b80d5d15-641c-4ab0-bbf7-99a7ada8211e",
       "name": "Chamado pela rotina",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -48,7 +48,7 @@
       }
     },
     {
-      "id": "33f617ff-5232-4294-a9a3-89f8ae637fae",
+      "id": "c6496e01-3f6a-462b-909d-c537a0543824",
       "name": "Buscar página no Groner",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -87,7 +87,7 @@
       }
     },
     {
-      "id": "d7bd6d02-8fef-4575-80a2-937c4d6707df",
+      "id": "c31351e3-0311-4a67-a667-1cd9c22cb104",
       "name": "Extrair página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -101,7 +101,7 @@
       }
     },
     {
-      "id": "0418c958-2439-4ba6-a05f-4fee90382169",
+      "id": "fbbe6432-0270-4e18-a088-205b13944539",
       "name": "Expandir projetos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "c764dd63-d450-44d8-8443-084803ef070a",
+      "id": "34f72e38-a8d1-4016-98f1-3b417e719ffd",
       "name": "Buscar detalhe do projeto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "743c87e5-61a0-41d6-a6b9-1ffe826c07e4",
+      "id": "de07fc14-4a29-456c-9dde-34dfda710c5c",
       "name": "Buscar campos personalizados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -167,7 +167,7 @@
       }
     },
     {
-      "id": "7e5b07a9-ee43-4c48-863a-3a135d96064a",
+      "id": "82e124cd-693f-45b9-9af3-18ad42ac431d",
       "name": "Consolidar detalhes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -181,7 +181,7 @@
       }
     },
     {
-      "id": "29da1e3e-3a5b-416c-bb64-d1c216a12fb2",
+      "id": "0e92ec8a-1344-494d-a451-f26539f4a6e5",
       "name": "Saída da página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -192,6 +192,78 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "jsCode": "const itens = $input.all().map((item) => item.json)\nif (itens.length === 1 && Array.isArray(itens[0].registros)) return itens\nconst pagina = $('Extrair página').first().json\nreturn [{ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registros: itens } }]"
+      }
+    },
+    {
+      "id": "cb0ff1b1-3cf1-44a0-b8f4-69f98b966cb8",
+      "name": "Processar lotes da página",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const entrada = $('Chamado pela rotina').first().json\nconst pagina = $input.first().json\nif (!Array.isArray(pagina.registros)) throw new Error('Página sem registros')\nif (entrada.pageSize % entrada.tamanhoLote !== 0) throw new Error('pageSize deve ser múltiplo de tamanhoLote')\n// normalizarProjeto vem do código antigo e lê cfg.slug.\nconst cfg = entrada\nconst normalizarProjeto = (item) => {\n  if (cfg.slug !== 'projetos') return item\n  const pick = (...keys) => keys.map((key) => item[key]).find((value) => value !== undefined) ?? null\n  const funil = String(pick('funil', 'Etapa') || '').trim()\n  const status = String(pick('etapa', 'Status') || '').trim()\n  const statusMarco = new Set(['FUNIL ENGENHARIA - CRIAR PROP', 'CRIAR PROJETO->PROPOSTA', 'CRIAR ABORDAGEM', 'APROVAR PROPOSTA CRIADA', 'PENDÊNCIAS TÉCNICAS->PROJETOS', 'APROVAÇÃO TECNICA - VENDA', 'PROPOSTA CRIADA APROVADA', 'AGUARDANDO ASSINATURA', 'DOCUMENTOS PENDENTES', 'PAGAMENTO REALIZADO', 'PIETA_CRIAÇÃO DO PROJETO', 'PIETA_PARECER SOLICITADO', 'PENDENCIA DE HOMOLOGAÇÃO', 'PENDENCIA ICF', 'PENDENCIA DOCUMENTAL/TECNICA', 'PARECER EMITIDO', 'PEDIDO ENTREGUE', 'INSTALADOR HOMOLOGADO', 'AGENDAR INSTALAÇÃO', 'INSTALAÇÃO AGENDADA', 'DIARIO DE OBRA / OBRA ANDAMENTO', 'PENDENCIA DE OBRA', 'PENDENCIA DE INSTALAÇÃO', 'AGUARDANDO VISTORIA', 'PENDENCIA VIST. CONCESSIONARIA', 'RELÓGIO TROCADO', 'INSTALAÇÃO APP MONITORAMENTO', 'APP MONITOR INSTALADO', 'TERMO DE ACEITE', 'TERMO DE ACEITE ASSINADO', 'DOSSIE', 'DOSSIE ENVIADO'])\n  const statusNormalizado = status.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase()\n  const statusNoMapa = [...statusMarco].some((valor) => valor.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase() === statusNormalizado)\n  const noFluxo = /^(04\\.|06\\.|07\\.|08\\.|09\\.|10\\.|11\\.)/.test(funil)\n    && statusNoMapa\n    && (!(funil.startsWith('04.') && statusNormalizado !== 'FUNIL ENGENHARIA - CRIAR PROP') ? 'sim' : 'não')\n  return {\n    ...item,\n    id: Number(item.id ?? item.Id ?? item['Código']),\n    funil: pick('funil', 'Etapa'),\n    etapa: pick('etapa', 'Status'),\n    cidade: pick('cidade', 'Cidade'),\n    estado: pick('estado', 'Estado'),\n    concessionaria: pick('concessionaria', 'Concessionária'),\n    dataVenda: pick('dataVenda', 'Data da venda'),\n    dataAceiteProposta: pick('dataAceiteProposta', 'Data de aceite da proposta'),\n    kwp: pick('kwp', 'Proposta Aceita Potência'),\n    geracaoMensalPrevista: pick('geracaoMensalPrevista', 'Proposta Aceita Geração mensal'),\n    valorPrePropostaAceita: pick('valorPrePropostaAceita', 'Proposta Aceita Valor'),\n    tecnico: pick('tecnico', 'Técnico'),\n    projetista: pick('projetista', 'Projetista'),\n    homologador: pick('homologador', 'Homologador'),\n    vendedorResponsavel: pick('vendedorResponsavel', 'Vendedor'),\n    uc: pick('uc', 'Código da unidade consumidora'),\n    donoNominal: item.donoNominal ?? item['Dono nominal'] ?? pick('tecnico', 'Técnico') ?? pick('projetista', 'Projetista') ?? pick('homologador', 'Homologador'),\n    dataEntradaStatus: item.dataEntradaStatus ?? item['Data de entrada no status'] ?? item.dataUltimoStatus ?? null,\n    noFluxoEngenharia: item.noFluxoEngenharia ?? item['No fluxo da Engenharia'] ?? noFluxo,\n  }\n}\nconst registros = pagina.registros.map((item) => entrada.slug === 'projetos' ? normalizarProjeto(item) : item)\nconst lotes = []\nfor (let i = 0; i < registros.length; i += entrada.tamanhoLote) lotes.push(registros.slice(i, i + entrada.tamanhoLote))\nif (!lotes.length) lotes.push([])\nconst porPagina = entrada.pageSize / entrada.tamanhoLote\nreturn lotes.map((items, indice) => ({ json: {\n  runId: entrada.runId,\n  runStartedAt: entrada.runStartedAt,\n  entity: entrada.slug,\n  batchIndex: (entrada.pageNumber - 1) * porPagina + indice + 1,\n  batchCount: entrada.batchCount,\n  expectedTotal: entrada.totalEsperado,\n  items,\n} }))"
+      }
+    },
+    {
+      "id": "9ab75d62-a5c8-4585-8060-b626440187a8",
+      "name": "Enviar lote da página",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Groner Dashboard - Sync"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://groner-crm-dashboard-ten.vercel.app/api/sync/groner/' + $json.entity + '/batches' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "f32f65fe-3474-43ca-8682-1aba64a2c165",
+      "name": "Validar lote da página",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const runId = $('Chamado pela rotina').first().json.runId\nconst respostas = $input.all().map((item) => item.json)\nfor (const resposta of respostas) if (resposta.ok !== true || resposta.runId !== runId) throw new Error('Dashboard rejeitou ou não confirmou um lote')\nreturn respostas.map((resposta) => ({ json: resposta }))"
+      }
+    },
+    {
+      "id": "7c768f29-e016-456d-a5c0-ecfba52ff9ea",
+      "name": "Contar página processada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const entrada = $('Chamado pela rotina').first().json\nconst respostas = $input.all().map((item) => item.json)\nif (!respostas.length) throw new Error('Dashboard não confirmou nenhum lote')\nfor (const resposta of respostas) {\n  if (resposta.ok !== true || resposta.runId !== entrada.runId) throw new Error('Dashboard rejeitou ou não confirmou um lote')\n}\nconst soma = (campo) => respostas.reduce((total, r) => total + Number(r[campo] || 0), 0)\n// totalItems = o que o Groner informou nesta página, para detectar mudança de total no meio da carga.\nconst totalNaPagina = Number($('Extrair página').first().json.totalItems)\nreturn [{ json: { pageNumber: entrada.pageNumber, received: soma('received'), inserted: soma('inserted'), updated: soma('updated'), unchanged: soma('unchanged'), totalItems: totalNaPagina } }]"
       }
     }
   ],
@@ -285,6 +357,50 @@
         [
           {
             "node": "Extrair página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Saída da página": {
+      "main": [
+        [
+          {
+            "node": "Processar lotes da página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar lotes da página": {
+      "main": [
+        [
+          {
+            "node": "Enviar lote da página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar lote da página": {
+      "main": [
+        [
+          {
+            "node": "Validar lote da página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar lote da página": {
+      "main": [
+        [
+          {
+            "node": "Contar página processada",
             "type": "main",
             "index": 0
           }

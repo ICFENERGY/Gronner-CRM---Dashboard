@@ -32,15 +32,17 @@ const settings = {
   saveExecutionProgress: false,
 }
 
-const CONFIGURAR = `const agora = new Date()
+// $input.first().json funciona em "uma vez para todos os itens"; $json não é garantido nesse modo.
+const CONFIGURAR = `const entidade = $input.first().json
+const agora = new Date()
 return [{ json: {
-  runId: $json.slug + '-' + agora.toISOString().replace(/[-:.]/g, ''),
+  runId: entidade.slug + '-' + agora.toISOString().replace(/[-:.]/g, ''),
   runStartedAt: agora.toISOString(),
-  slug: $json.slug,
-  recurso: $json.recurso,
-  tamanhoPagina: 500,
+  slug: entidade.slug,
+  recurso: entidade.recurso,
+  tamanhoPagina: entidade.slug === 'propostas' ? 100 : 500,
   tamanhoLote: 50,
-  detalharProjeto: $json.slug === 'projetos',
+  detalharProjeto: entidade.slug === 'projetos',
 } }]`
 
 const GERAR_PAGINAS = `const cfg = $('Configuração').first().json
@@ -58,6 +60,9 @@ return Array.from({ length: paginas }, (_, i) => ({ json: {
   pageNumber: i + 1,
   pageSize: cfg.tamanhoPagina,
   totalEsperado: total,
+  tamanhoLote: cfg.tamanhoLote,
+  batchCount: Math.max(1, Math.ceil(total / cfg.tamanhoLote)),
+  detalharProjeto: cfg.detalharProjeto,
 } }))`
 
 const PREPARAR_LOTES = `const cfg = $('Configuração').first().json
@@ -128,6 +133,52 @@ return lotes.map((items, indice) => ({ json: {
   items,
 } }))`
 
+const NORMALIZAR_PROJETO = PREPARAR_LOTES.match(/const normalizarProjeto = ([\s\S]*?)\nregistros = registros\.map/)[1]
+// Parâmetros da carga vêm do gatilho do subfluxo; a saída da página só traz os registros.
+const PROCESSAR_PAGINA = String.raw`const entrada = $('Chamado pela rotina').first().json
+const pagina = $input.first().json
+if (!Array.isArray(pagina.registros)) throw new Error('Página sem registros')
+if (entrada.pageSize % entrada.tamanhoLote !== 0) throw new Error('pageSize deve ser múltiplo de tamanhoLote')
+// normalizarProjeto vem do código antigo e lê cfg.slug.
+const cfg = entrada
+const normalizarProjeto = ${NORMALIZAR_PROJETO}
+const registros = pagina.registros.map((item) => entrada.slug === 'projetos' ? normalizarProjeto(item) : item)
+const lotes = []
+for (let i = 0; i < registros.length; i += entrada.tamanhoLote) lotes.push(registros.slice(i, i + entrada.tamanhoLote))
+if (!lotes.length) lotes.push([])
+const porPagina = entrada.pageSize / entrada.tamanhoLote
+return lotes.map((items, indice) => ({ json: {
+  runId: entrada.runId,
+  runStartedAt: entrada.runStartedAt,
+  entity: entrada.slug,
+  batchIndex: (entrada.pageNumber - 1) * porPagina + indice + 1,
+  batchCount: entrada.batchCount,
+  expectedTotal: entrada.totalEsperado,
+  items,
+} }))`
+
+const CONTAR_PAGINA = String.raw`const entrada = $('Chamado pela rotina').first().json
+const respostas = $input.all().map((item) => item.json)
+if (!respostas.length) throw new Error('Dashboard não confirmou nenhum lote')
+for (const resposta of respostas) {
+  if (resposta.ok !== true || resposta.runId !== entrada.runId) throw new Error('Dashboard rejeitou ou não confirmou um lote')
+}
+const soma = (campo) => respostas.reduce((total, r) => total + Number(r[campo] || 0), 0)
+// totalItems = o que o Groner informou nesta página, para detectar mudança de total no meio da carga.
+const totalNaPagina = Number($('Extrair página').first().json.totalItems)
+return [{ json: { pageNumber: entrada.pageNumber, received: soma('received'), inserted: soma('inserted'), updated: soma('updated'), unchanged: soma('unchanged'), totalItems: totalNaPagina } }]`
+
+// Total e número de lotes são calculados em "Gerar páginas", não na configuração.
+const SOMAR_PAGINAS = String.raw`const cfg = $('Gerar páginas').first().json
+const paginas = $input.all().map((item) => item.json)
+if (!paginas.length) throw new Error('Nenhuma página foi processada')
+const totais = new Set(paginas.map((pagina) => Number(pagina.totalItems)))
+const esperado = Number(cfg.totalEsperado)
+if (totais.size !== 1 || Number([...totais][0]) !== esperado) throw new Error('O total do Groner mudou durante a paginação')
+const received = paginas.reduce((total, pagina) => total + Number(pagina.received || 0), 0)
+if (received !== esperado) throw new Error('Carga incompleta: recebidos ' + received + ' de ' + esperado)
+return [{ json: { runId: cfg.runId, runStartedAt: cfg.runStartedAt, entity: cfg.slug, batchCount: cfg.batchCount, expectedTotal: cfg.totalEsperado, inserted: paginas.reduce((t, p) => t + Number(p.inserted || 0), 0), updated: paginas.reduce((t, p) => t + Number(p.updated || 0), 0), unchanged: paginas.reduce((t, p) => t + Number(p.unchanged || 0), 0) } }]`
+
 const VALIDAR_RESPOSTAS = `const cfg = $('Configuração').first().json
 const respostas = $input.all().map((item) => item.json)
 if (!respostas.length) throw new Error('Dashboard não confirmou nenhum lote')
@@ -187,8 +238,9 @@ if (itens.length === 1 && Array.isArray(itens[0].registros)) return itens
 const pagina = $('Extrair página').first().json
 return [{ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registros: itens } }]`
 
-function subfluxo({ tenant, credGroner }) {
+function subfluxo({ tenant, dashboardUrl, credGroner, credDashboard }) {
   const api = `https://${tenant}.api.groner.app/api`
+  const base = dashboardUrl.replace(/\/+$/, '')
   return {
     name: 'Groner Dashboard - Buscar uma página',
     nodes: [
@@ -239,10 +291,14 @@ function subfluxo({ tenant, credGroner }) {
         id: id(), name: 'Consolidar detalhes', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1680, -120],
         parameters: { mode: 'runOnceForAllItems', jsCode: CONSOLIDAR_DETALHES },
       },
-      {
-        id: id(), name: 'Saída da página', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1920, 0],
-        parameters: { mode: 'runOnceForAllItems', jsCode: SAIDA_PAGINA },
-      },
+      { id: id(), name: 'Saída da página', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1920, 0], parameters: { mode: 'runOnceForAllItems', jsCode: SAIDA_PAGINA } },
+      { id: id(), name: 'Processar lotes da página', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2160, 0], parameters: { mode: 'runOnceForAllItems', jsCode: PROCESSAR_PAGINA } },
+      { id: id(), name: 'Enviar lote da página', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [2400, 0], retryOnFail: true, maxTries: 3, waitBetweenTries: 5000, credentials: credencial('Groner Dashboard - Sync', credDashboard), parameters: { method: 'POST', url: `={{ '${base}/api/sync/groner/' + $json.entity + '/batches' }}`, authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json) }}', options: { timeout: 60000 } } },
+      { id: id(), name: 'Validar lote da página', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2640, 0], parameters: { mode: 'runOnceForAllItems', jsCode: `const runId = $('Chamado pela rotina').first().json.runId
+const respostas = $input.all().map((item) => item.json)
+for (const resposta of respostas) if (resposta.ok !== true || resposta.runId !== runId) throw new Error('Dashboard rejeitou ou não confirmou um lote')
+return respostas.map((resposta) => ({ json: resposta }))` } },
+      { id: id(), name: 'Contar página processada', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2880, 0], parameters: { mode: 'runOnceForAllItems', jsCode: CONTAR_PAGINA } },
     ],
     connections: {
       'Extrair página': { main: [[{ node: 'Detalhar projeto?', type: 'main', index: 0 }]] },
@@ -253,6 +309,10 @@ function subfluxo({ tenant, credGroner }) {
       'Consolidar detalhes': { main: [[{ node: 'Saída da página', type: 'main', index: 0 }]] },
       'Chamado pela rotina': { main: [[{ node: 'Buscar página no Groner', type: 'main', index: 0 }]] },
       'Buscar página no Groner': { main: [[{ node: 'Extrair página', type: 'main', index: 0 }]] },
+      'Saída da página': { main: [[{ node: 'Processar lotes da página', type: 'main', index: 0 }]] },
+      'Processar lotes da página': { main: [[{ node: 'Enviar lote da página', type: 'main', index: 0 }]] },
+      'Enviar lote da página': { main: [[{ node: 'Validar lote da página', type: 'main', index: 0 }]] },
+      'Validar lote da página': { main: [[{ node: 'Contar página processada', type: 'main', index: 0 }]] },
     },
     settings,
   }
@@ -309,23 +369,8 @@ function fluxoEntidade({ entidade, tenant, dashboardUrl, subfluxoId, credGroner,
         },
       },
       {
-        id: id(), name: 'Validar e preparar lotes', type: 'n8n-nodes-base.code', typeVersion: 2,
-        position: [1440, 90], parameters: { mode: 'runOnceForAllItems', jsCode: PREPARAR_LOTES },
-      },
-      {
-        id: id(), name: 'Upsert no dashboard', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2,
-        position: [1680, 90], retryOnFail: true, maxTries: 3, waitBetweenTries: 5000,
-        credentials: credencial('Groner Dashboard - Sync', credDashboard),
-        parameters: {
-          method: 'POST', url: `={{ '${base}/api/sync/groner/' + $json.entity + '/batches' }}`,
-          authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
-          sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json) }}',
-          options: { timeout: 60000 },
-        },
-      },
-      {
-        id: id(), name: 'Validar confirmações', type: 'n8n-nodes-base.code', typeVersion: 2,
-        position: [1920, 90], parameters: { mode: 'runOnceForAllItems', jsCode: VALIDAR_RESPOSTAS },
+        id: id(), name: 'Somar e validar paginas', type: 'n8n-nodes-base.code', typeVersion: 2,
+        position: [1440, 90], parameters: { mode: 'runOnceForAllItems', jsCode: SOMAR_PAGINAS },
       },
       {
         id: id(), name: 'Finalizar carga completa', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2,
@@ -347,10 +392,8 @@ function fluxoEntidade({ entidade, tenant, dashboardUrl, subfluxoId, credGroner,
       Configuração: { main: [[{ node: 'Consultar total', type: 'main', index: 0 }]] },
       'Consultar total': { main: [[{ node: 'Gerar páginas', type: 'main', index: 0 }]] },
       'Gerar páginas': { main: [[{ node: 'Buscar páginas separadamente', type: 'main', index: 0 }]] },
-      'Buscar páginas separadamente': { main: [[{ node: 'Validar e preparar lotes', type: 'main', index: 0 }]] },
-      'Validar e preparar lotes': { main: [[{ node: 'Upsert no dashboard', type: 'main', index: 0 }]] },
-      'Upsert no dashboard': { main: [[{ node: 'Validar confirmações', type: 'main', index: 0 }]] },
-      'Validar confirmações': { main: [[{ node: 'Finalizar carga completa', type: 'main', index: 0 }]] },
+      'Buscar páginas separadamente': { main: [[{ node: 'Somar e validar paginas', type: 'main', index: 0 }]], },
+      'Somar e validar paginas': { main: [[{ node: 'Finalizar carga completa', type: 'main', index: 0 }]] },
     },
     settings,
   }
@@ -448,7 +491,7 @@ async function main() {
   }
 
   let subfluxoId = process.env.N8N_FLUXO_DASHBOARD_PAGINA || '{dashboardPaginaWorkflowId}'
-  let sub = subfluxo({ tenant, credGroner })
+  let sub = subfluxo({ tenant, dashboardUrl, credGroner, credDashboard })
   const incremental = fluxoAlteracoes({ tenant, dashboardUrl, credGroner, credDashboard })
   const pais = []
 

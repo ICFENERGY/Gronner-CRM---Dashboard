@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Sincronizar alterações (5 min)",
   "nodes": [
     {
-      "id": "781e7cd5-9866-4e92-a665-b4550881ed24",
+      "id": "f540f764-e60f-41b4-9b41-81ced79bcb83",
       "name": "Executar manualmente",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "8164d50f-6b24-48f2-a8bd-b132eca58f6b",
+      "id": "cb0f6125-1e16-4626-ac0b-9fde34592782",
       "name": "Agenda a cada 5 minutos (aguarda ativação)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -35,7 +35,7 @@
       "notes": "Ativar somente depois de validar credenciais e limites do Groner/Upstash."
     },
     {
-      "id": "23dc45a0-fb78-44f8-871e-4f01a7b0bc0b",
+      "id": "63255518-5592-41a9-9ea5-4db50c1e6add",
       "name": "Ler cursor",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -58,7 +58,7 @@
       }
     },
     {
-      "id": "515e5351-4d9a-491f-a27b-016d989d666b",
+      "id": "7ae46ab4-8243-4690-8c1b-ca9931d1a7ff",
       "name": "Configuração",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -72,7 +72,7 @@
       }
     },
     {
-      "id": "ef6075d1-c3e7-4bf5-b393-0bdbb110687d",
+      "id": "e2b76104-1cc5-485b-9272-f05bd88631bb",
       "name": "Buscar página alterada",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -131,7 +131,7 @@
       "notes": "Pagina só enquanto o último card da página ainda é mais novo que o cursor (normalmente 1 chamada). Nao envia dataInicio/dataFim (ignorados pelo Groner) nem ordem: a direcao esta no enum DataAtualizacao_DESC. Datas sem offset do Groner sao America/Sao_Paulo. Limite de 10 paginas; se atingido, exige carga completa."
     },
     {
-      "id": "75e0dfe2-facb-4018-8cda-580f98be11f1",
+      "id": "478beccc-09c1-4166-85c2-865a4d83f187",
       "name": "Extrair alterações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -145,7 +145,7 @@
       }
     },
     {
-      "id": "288a2b97-40d4-47b2-b628-527a87bb978f",
+      "id": "87c87d42-5dfa-43b0-9a73-8c53ad11a868",
       "name": "Expandir alterações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -159,7 +159,7 @@
       }
     },
     {
-      "id": "827cb99a-7503-4140-8493-e3c4d5656fec",
+      "id": "64ae8042-9af0-4824-802c-17cc3d894bdc",
       "name": "Buscar detalhe dos alterados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -185,7 +185,7 @@
       }
     },
     {
-      "id": "f7a81fd0-c952-4c84-ad06-96ef83d63b68",
+      "id": "4074d392-b92f-4ff2-84da-7b6d9f94a0cb",
       "name": "Buscar campos personalizados dos alterados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -211,7 +211,7 @@
       }
     },
     {
-      "id": "c9628117-cf21-45fe-a942-c84e2c3fc323",
+      "id": "10919c59-8314-44af-b7dd-e256f158d1a9",
       "name": "Consolidar alterações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -225,7 +225,7 @@
       }
     },
     {
-      "id": "49f28dd3-4f13-451d-a978-91e2bff87793",
+      "id": "8d457f45-63f5-4909-9244-68db5ca4b5d4",
       "name": "Validar alterações",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -239,7 +239,7 @@
       }
     },
     {
-      "id": "5e77fa47-ed09-462a-8273-ecb2e34ecaaa",
+      "id": "2c54cbc1-cf4a-4f87-ba73-c0e66e89a4d4",
       "name": "Upsert incremental",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

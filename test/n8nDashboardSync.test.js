@@ -12,6 +12,7 @@ const pagina = JSON.parse(fs.readFileSync(`${dir}/buscar-pagina.json`, 'utf8'))
 const incremental = JSON.parse(fs.readFileSync(`${dir}/sincronizar-alteracoes.json`, 'utf8'))
 
 const no = (fluxo, nome) => fluxo.nodes.find((item) => item.name === nome)
+const porNome = (fluxo, trecho) => fluxo.nodes.find((item) => item.name.includes(trecho))
 
 test('mantém quatro rotinas independentes e escalonadas nas janelas de 08h e 18h', () => {
   const crons = fluxos.map(({ fluxo }) => {
@@ -23,33 +24,56 @@ test('mantém quatro rotinas independentes e escalonadas nas janelas de 08h e 18
   assert.equal(new Set(fluxos.map(({ fluxo }) => fluxo.name)).size, 4)
 })
 
-test('pagina em subexecuções de 500 e só prepara lotes após validar a carga completa', () => {
-  const busca = no(pagina, 'Buscar página no Groner')
+test('processa cada pagina em lotes leves e usa pagina 100 para propostas', () => {
+  const busca = pagina.nodes.find((item) => item.type === 'n8n-nodes-base.httpRequest' && item.parameters.queryParameters?.parameters?.some((x) => x.name === 'pageNumber'))
   assert.equal(busca.parameters.queryParameters.parameters.find((x) => x.name === 'pageSize').value, '={{ $json.pageSize }}')
   assert.equal(busca.parameters.queryParameters.parameters.find((x) => x.name === 'pageNumber').value, '={{ $json.pageNumber }}')
 
-  for (const { fluxo } of fluxos) {
-    assert.match(no(fluxo, 'Configuração').parameters.jsCode, /tamanhoPagina: 500/)
-    assert.match(no(fluxo, 'Configuração').parameters.jsCode, /tamanhoLote: 50/)
-    const exec = no(fluxo, 'Buscar páginas separadamente')
+  for (const { slug, fluxo } of fluxos) {
+    const config = fluxo.nodes.find((item) => item.name.includes('Configura'))
+    assert.match(config.parameters.jsCode, /tamanhoLote: 50/)
+    assert.ok(config.parameters.jsCode.includes("tamanhoPagina: entidade.slug === 'propostas' ? 100 : 500"))
+    const exec = fluxo.nodes.find((item) => item.type === 'n8n-nodes-base.executeWorkflow')
     assert.equal(exec.parameters.mode, 'each')
     assert.equal(exec.parameters.options.waitForSubWorkflow, true)
-    const lotes = no(fluxo, 'Validar e preparar lotes').parameters.jsCode
-    assert.match(lotes, /registros\.length !== totalEsperado/)
-    assert.match(lotes, /ID duplicado entre páginas/)
+    const soma = no(fluxo, 'Somar e validar paginas')
+    assert.match(soma.parameters.jsCode, /received !== esperado/)
+    assert.doesNotMatch(soma.parameters.jsCode, /flatMap/)
+    if (slug === 'propostas') assert.match(config.parameters.jsCode, /propostas.*100/)
   }
 })
 
-test('usa upsert idempotente em lotes e finalização separada para remoções', () => {
+test('calcula o indice global dos lotes da pagina', () => {
+  const processar = porNome(pagina, 'Processar lotes da')
+  const codigo = processar.parameters.jsCode
+  assert.match(codigo, /batchIndex: \(entrada\.pageNumber - 1\) \* porPagina \+ indice \+ 1/)
+  assert.match(codigo, /const porPagina = entrada\.pageSize \/ entrada\.tamanhoLote/)
+  assert.equal((3 - 1) * (100 / 50) + 0 + 1, 5)
+  assert.equal((3 - 1) * (100 / 50) + 1 + 1, 6)
+})
+
+test('envia lotes dentro da subexecucao e retorna somente contagens', () => {
+  const processar = porNome(pagina, 'Processar lotes da')
+  const enviar = porNome(pagina, 'Enviar lote da')
+  const validar = porNome(pagina, 'Validar lote da')
+  const contar = pagina.nodes.find((item) => item.parameters?.jsCode?.includes("received: soma('received')"))
+  assert.match(processar.parameters.jsCode, /pageSize % entrada.tamanhoLote/)
+  assert.ok(processar.parameters.jsCode.includes('batchIndex: (entrada.pageNumber - 1) * porPagina + indice + 1'))
+  assert.match(enviar.parameters.url, /batches/)
+  assert.match(validar.parameters.jsCode, /resposta\.runId !== runId/)
+  assert.match(contar.parameters.jsCode, /received: soma/)
+  assert.doesNotMatch(contar.parameters.jsCode, /items/)
   for (const { fluxo } of fluxos) {
-    const upsert = no(fluxo, 'Upsert no dashboard')
+    assert.equal(fluxo.nodes.some((item) => item.name === 'Upsert no dashboard'), false)
+    assert.equal(fluxo.nodes.some((item) => item.name === 'Validar e preparar lotes'), false)
+  }
+})
+
+test('usa finalizacao separada para remocoes', () => {
+  for (const { fluxo } of fluxos) {
     const finalizar = no(fluxo, 'Finalizar carga completa')
-    assert.equal(upsert.parameters.method, 'POST')
-    assert.match(upsert.parameters.url, /\/api\/sync\/groner\/' \+ \$json\.entity \+ '\/batches/)
-    assert.match(finalizar.parameters.url, /\/api\/sync\/groner\/' \+ \$json\.entity \+ '\/finalize/)
-    assert.equal(upsert.credentials.httpHeaderAuth.name, 'Groner Dashboard - Sync')
+    assert.match(finalizar.parameters.url, /finalize/)
     assert.equal(finalizar.credentials.httpHeaderAuth.name, 'Groner Dashboard - Sync')
-    assert.match(no(fluxo, 'Validar confirmações').parameters.jsCode, /resposta\.runId !== cfg\.runId/)
   }
 })
 

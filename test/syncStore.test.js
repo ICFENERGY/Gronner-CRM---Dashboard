@@ -126,6 +126,15 @@ test('recusa finalização quando faltam lotes', async () => {
   await assert.rejects(() => store.finalize(input), /Nem todos os lotes/)
 })
 
+test('recusa IDs duplicados entre lotes na finalização', async () => {
+  const store = createSyncStore(new FakeRedis())
+  const primeiro = batch('projetos-20261005T120000Z', [{ id: 7 }], { batchIndex: 1, batchCount: 2, expectedTotal: 2 })
+  const segundo = batch(primeiro.runId, [{ id: 7 }], { batchIndex: 2, batchCount: 2, expectedTotal: 2 })
+  await store.upsertBatch(primeiro, (item) => item)
+  await store.upsertBatch(segundo, (item) => item)
+  await assert.rejects(() => store.finalize(primeiro), /IDs duplicados entre lotes/)
+})
+
 test('protege escrita com token exclusivo e valida a entidade', async (t) => {
   process.env.GRONER_SYNC_TOKEN = 'segredo-de-teste'
   process.env.UPSTASH_REDIS_REST_URL = 'https://example.upstash.io'
