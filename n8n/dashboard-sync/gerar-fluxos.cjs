@@ -229,7 +229,8 @@ for (const [indice, item] of selecionados.entries()) {
   const id = String(item.json.registro.id ?? item.json.registro.Id)
   const detalhe = detalhes.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}
   const campo = campos.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}
-  porId.set(id, { ...detalhe, camposPersonalizados: campo })
+  // O detalhe vai inteiro no campo detalhe: espalhado, ele sobrescrevia datas e cidade da listagem.
+  porId.set(id, { detalhe, camposPersonalizados: campo })
 }
 return [{ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registros: pagina.registros.map((registro) => ({ ...registro, ...(porId.get(String(registro.id ?? registro.Id)) ?? {}) })) } }]`
 
@@ -435,7 +436,7 @@ return item.items.map((registro) => ({ json: { registro } }))`
 const detalhes = $('Buscar detalhe dos alterados').all()
 const campos = $('Buscar campos personalizados dos alterados').all()
 const corpo = (item) => item?.json?.Content || item?.json?.content || item?.json || {}
-return originais.map((item, index) => ({ json: { ...item.json.registro, ...corpo(detalhes[index]), camposPersonalizados: corpo(campos[index]) } }))`
+return originais.map((item, index) => ({ json: { ...item.json.registro, detalhe: corpo(detalhes[index]), camposPersonalizados: corpo(campos[index]) } }))`
   const validar = `const cfg = $('Configuração').first().json
 const items = $input.all().map((item) => item.json)
 return [{ json: { entity: cfg.entity, runId: cfg.runId, runStartedAt: cfg.runStartedAt, nextCursor: cfg.nextCursor, items, received: items.length } }]`

@@ -1,13 +1,13 @@
 import crypto from 'node:crypto'
 import express from 'express'
-import { mapProjeto, mapProposta, mapTarefa, mapVenda } from './mappers.js'
+import { mapProjetoParaArmazenar, mapProposta, mapTarefa, mapVenda } from './mappers.js'
 import { dealsEnriquecido, salesEnriquecido } from './enrichment.js'
 import { stripSensitive } from './sanitize.js'
 import { getSyncStatuses, getSyncStore, syncStorageConfigured } from './syncStore.js'
 import { sincronizarAlteracoes } from './syncTick.js'
 
 const normalizers = {
-  projetos: (item) => mapProjeto(item, dealsEnriquecido),
+  projetos: (item) => mapProjetoParaArmazenar(item, dealsEnriquecido),
   tarefas: mapTarefa,
   propostas: mapProposta,
   vendas: (item) => mapVenda(item, salesEnriquecido),

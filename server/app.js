@@ -194,8 +194,10 @@ export function loadProjetosDados() {
       const items = stripSensitive(raw.items.map((item) => mapProjeto(item, dealsEnriquecido)))
       return { items, totalItems: raw.totalItems }
     })
-    // Registros sincronizados antes da correção guardam o vendedor como objeto do usuário.
-    return { ...dados, items: dados.items.map(normalizarProjetoLido) }
+    // Corrige registros gravados por versões antigas da sincronização (vendedor em objeto,
+    // datas 0001-01-01, cidade da loja) e recalcula os dias derivados da data de hoje.
+    const agora = Date.now()
+    return { ...dados, items: dados.items.map((p) => normalizarProjetoLido(p, dealsEnriquecido, agora)) }
   })
 }
 

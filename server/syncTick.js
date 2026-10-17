@@ -13,7 +13,7 @@
  * massa processa os mais antigos primeiro e avança o cursor só até onde foi, e a
  * próxima rodada continua dali.
  */
-import { marcoDoStatus, normalizarDataGroner } from './mappers.js'
+import { marcoDoStatus, mesclarProjetoComDetalhe, normalizarDataGroner } from './mappers.js'
 
 const MARGEM_MS = 10 * 60 * 1000
 const TAMANHO_PAGINA = 100
@@ -76,7 +76,8 @@ export async function sincronizarAlteracoes({ store, normalize, buscar, agora = 
       buscar(`Projeto/${item.id}`).catch(() => ({})),
       buscar(`CampoPersonalizado/Projeto/${item.id}/Agrupado`).catch(() => ({})),
     ])
-    return { ...item, ...(detalhe ?? {}), camposPersonalizados: campos ?? {} }
+    // A listagem tem prioridade; do detalhe só entra o resumo do que ela não traz.
+    return mesclarProjetoComDetalhe(item, detalhe, campos)
   })
 
   // Sem pendência, o cursor vai para agora; senão, até o último processado.

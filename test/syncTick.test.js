@@ -29,7 +29,7 @@ function gronerFalso(lista) {
         const ini = (params.pageNumber - 1) * params.pageSize
         return { totalItems: lista.length, list: lista.slice(ini, ini + params.pageSize) }
       }
-      if (recurso.startsWith('Projeto/')) return { id: Number(recurso.split('/')[1]), tecnicoResponsavel: 'Técnico X' }
+      if (recurso.startsWith('Projeto/')) return { id: Number(recurso.split('/')[1]), dataUltimoStatus: '0001-01-01T00:00:00', endereco: { cidade: 'Cidade X', uf: 'SP' }, lead: { loja: { endereco: { cidade: 'Barueri' } } } }
       return []
     },
   }
@@ -47,7 +47,11 @@ test('pega só a janela do cursor (Brasília), detalha só cards com marco e ava
   assert.equal(r.pendente, false)
   const envio = loja.chamadas[0]
   assert.deepEqual(envio.items.map((i) => i.id), [2, 3]) // mais antigo primeiro
-  assert.equal(envio.items[1].tecnicoResponsavel, 'Técnico X')
+  // Listagem tem prioridade; o detalhe entra resumido (sem lead/loja) em `detalhe`.
+  assert.equal(envio.items[1].dataUltimaAtualizacao, '2026-10-05T16:58:00.00')
+  assert.equal(envio.items[1].dataUltimoStatus, undefined)
+  assert.equal(envio.items[1].detalhe.cidade, 'Cidade X')
+  assert.equal('lead' in envio.items[1], false)
   assert.ok('camposPersonalizados' in envio.items[1])
   assert.equal(envio.nextCursor, AGORA.toISOString())
   assert.equal(groner.pedidos.filter((p) => p.startsWith('Projeto/')).length, 1)

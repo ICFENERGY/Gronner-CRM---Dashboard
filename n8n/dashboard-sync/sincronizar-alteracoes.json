@@ -221,7 +221,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const originais = $('Expandir alterações').all()\nconst detalhes = $('Buscar detalhe dos alterados').all()\nconst campos = $('Buscar campos personalizados dos alterados').all()\nconst corpo = (item) => item?.json?.Content || item?.json?.content || item?.json || {}\nreturn originais.map((item, index) => ({ json: { ...item.json.registro, ...corpo(detalhes[index]), camposPersonalizados: corpo(campos[index]) } }))"
+        "jsCode": "const originais = $('Expandir alterações').all()\nconst detalhes = $('Buscar detalhe dos alterados').all()\nconst campos = $('Buscar campos personalizados dos alterados').all()\nconst corpo = (item) => item?.json?.Content || item?.json?.content || item?.json || {}\nreturn originais.map((item, index) => ({ json: { ...item.json.registro, detalhe: corpo(detalhes[index]), camposPersonalizados: corpo(campos[index]) } }))"
       }
     },
     {

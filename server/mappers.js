@@ -58,10 +58,55 @@ export function marcoDoStatus(status) {
   return STATUS_MARCO.get(semAcentos(status)) ?? null
 }
 
-function dataVendaValida(value) {
-  if (!value) return null
-  const year = Number(String(value).slice(0, 4))
-  return Number.isFinite(year) && year >= 1950 ? value : null
+const ANO_MINIMO = 1950
+const ANOS_FUTURO_MAXIMO = 10
+
+/**
+ * Data do Groner utilizável, já normalizada (Brasília), ou null. O Groner manda
+ * 0001-01-01 (e às vezes 1901) para "vazio"; anos antes de 1950, mais de 10 anos
+ * no futuro, ou texto que não é data também contam como vazio.
+ */
+export function dataGronerValida(value, agora = new Date()) {
+  if (typeof value !== 'string' || !value.trim()) return null
+  const texto = value.trim()
+  const ano = Number(texto.slice(0, 4))
+  if (!/^\d{4}-\d{2}-\d{2}/.test(texto) || !(ano >= ANO_MINIMO) || ano > agora.getUTCFullYear() + ANOS_FUTURO_MAXIMO) return null
+  const normalizada = normalizarDataGroner(texto)
+  const t = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(normalizada) ? `${normalizada}T12:00:00-03:00` : normalizada)
+  return Number.isFinite(t) ? normalizada : null
+}
+
+const UF_POR_NOME = {
+  ACRE: 'AC', ALAGOAS: 'AL', AMAPA: 'AP', AMAZONAS: 'AM', BAHIA: 'BA', CEARA: 'CE', 'DISTRITO FEDERAL': 'DF',
+  'ESPIRITO SANTO': 'ES', GOIAS: 'GO', MARANHAO: 'MA', 'MATO GROSSO': 'MT', 'MATO GROSSO DO SUL': 'MS',
+  'MINAS GERAIS': 'MG', PARA: 'PA', PARAIBA: 'PB', PARANA: 'PR', PERNAMBUCO: 'PE', PIAUI: 'PI',
+  'RIO DE JANEIRO': 'RJ', 'RIO GRANDE DO NORTE': 'RN', 'RIO GRANDE DO SUL': 'RS', RONDONIA: 'RO', RORAIMA: 'RR',
+  'SANTA CATARINA': 'SC', 'SAO PAULO': 'SP', SERGIPE: 'SE', TOCANTINS: 'TO',
+}
+const SIGLAS_UF = new Set(Object.values(UF_POR_NOME))
+
+/** Sigla da UF ("São Paulo" e "sp" viram "SP"); qualquer outra coisa vira null. */
+export function siglaUF(value) {
+  if (typeof value !== 'string') return null
+  const t = semAcentos(value)
+  if (SIGLAS_UF.has(t)) return t
+  return UF_POR_NOME[t] ?? null
+}
+
+function texto(value) {
+  if (value == null || typeof value === 'object') return null
+  const t = String(value).trim()
+  return t === '' ? null : t
+}
+
+/** Nome de um objeto do Groner ({ nome }) ou o próprio texto. */
+function nomeDe(value) {
+  return value && typeof value === 'object' ? texto(value.nome) : texto(value)
+}
+
+function primeiro(...valores) {
+  for (const v of valores) if (v !== null && v !== undefined && v !== '') return v
+  return null
 }
 
 /** Nome de responsável, ou null quando o Groner manda id 0 ou "Sem …". */
@@ -82,11 +127,47 @@ export function nomeDePessoa(value) {
   return null
 }
 
-/** Corrige projeto já gravado no armazenamento com o vendedor em objeto. */
-export function normalizarProjetoLido(projeto) {
+const DATAS_DO_PROJETO = [
+  'dataInclusao', 'dataUltimaAtualizacao', 'dataUltimoStatus', 'dataEntradaStatus', 'previsaoFechamento', 'dataVenda',
+  'dataAceiteProposta', 'dataInicioInstalacao', 'dataTerminoInstalacao', 'dataAssinaturaContrato', 'dataTerminoGarantia',
+]
+const ehSentinela = (v) => typeof v === 'string' && /^0001-01-01/.test(v)
+
+/**
+ * Corrige, na leitura, projeto já gravado no armazenamento por versões antigas
+ * da sincronização: vendedor em objeto, datas-sentinela (0001-01-01) e — nos
+ * cards gravados com o detalhe espalhado por cima da listagem (reconhecidos
+ * pela data de status 0001-01-01, que só o detalhe manda) — cidade/UF/bairro da
+ * loja do vendedor e kWp/geração de uma proposta qualquer. Esses voltam para o
+ * enriquecimento do Deals (ou vazio; kWp/geração são completados pela proposta
+ * aceita). Também recalcula os dias derivados da data de hoje, que não são
+ * gravados. Sem nada a corrigir, devolve o próprio objeto.
+ */
+export function normalizarProjetoLido(projeto, enriquecimento = null, agora = Date.now()) {
   if (!projeto || typeof projeto !== 'object') return projeto
+  const fix = {}
   const v = projeto.vendedorResponsavel
-  return v == null || typeof v === 'string' ? projeto : { ...projeto, vendedorResponsavel: nomeDePessoa(v) }
+  if (v != null && typeof v !== 'string') fix.vendedorResponsavel = nomeDePessoa(v)
+  const contaminado = ehSentinela(projeto.dataUltimoStatus) || ehSentinela(projeto.dataEntradaStatus)
+  for (const campo of DATAS_DO_PROJETO) {
+    const valor = projeto[campo]
+    if (valor != null && dataGronerValida(valor) == null) fix[campo] = null
+  }
+  if (contaminado) {
+    const enr = enriquecimento?.[String(projeto.id)] ?? {}
+    fix.cidade = texto(enr.cidade)
+    fix.estado = siglaUF(enr.estado)
+    fix.bairro = texto(enr.bairro)
+    fix.kwp = null
+    fix.geracaoMensalPrevista = null
+  }
+  const estado = 'estado' in fix ? fix.estado : projeto.estado
+  if (estado != null && siglaUF(estado) !== estado) fix.estado = siglaUF(estado)
+  const atual = (campo) => (campo in fix ? fix[campo] : projeto[campo])
+  const dias = { diasSemAtualizacao: diasDesde(atual('dataUltimaAtualizacao'), agora), diasDesdeVenda: diasDesde(atual('dataVenda'), agora) }
+  for (const [campo, valor] of Object.entries(dias)) if ((projeto[campo] ?? null) !== valor) fix[campo] = valor
+  const mudou = Object.keys(fix).some((campo) => projeto[campo] !== fix[campo])
+  return mudou ? { ...projeto, ...fix } : projeto
 }
 
 export function normalizarDataGroner(value) {
@@ -116,68 +197,124 @@ function estaNoFluxoEngenharia(funil, status, marco) {
     && (!etapa.startsWith('04.') || semAcentos(status) === 'FUNIL ENGENHARIA - CRIAR PROP')
 }
 
-const DEAL_FIELDS = ['dataVenda', 'dataAceiteProposta', 'kwp', 'geracaoMensalPrevista', 'valorPrePropostaAceita', 'cidade', 'estado', 'bairro', 'concessionaria', 'uc', 'tecnico', 'projetista', 'homologador', 'tipoTelhado', 'faseEnergetica', 'tipoEdificacao', 'dataInicioInstalacao', 'dataTerminoInstalacao', 'dataAssinaturaContrato', 'urlMonitoramento', 'modeloMonitoramento', 'dataTerminoGarantia', 'qtdPrePropostas']
+function numero(value) {
+  if (value === null || value === undefined || value === '' || typeof value === 'object') return null
+  const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'))
+  return Number.isFinite(n) ? n : null
+}
 
-function fieldsFromProject(p) {
-  const sources = [p, p.deal, p.deals, p.enriquecimento, p.camposPersonalizados, p.customFields]
-  const aliases = Object.fromEntries(DEAL_FIELDS.map((field) => [field, [field]]))
-  Object.assign(aliases, {
-    kwp: ['kwp', 'kwP', 'Proposta Aceita Potência'], geracaoMensalPrevista: ['geracaoMensalPrevista', 'Proposta Aceita Geração mensal'],
-    valorPrePropostaAceita: ['valorPrePropostaAceita', 'Proposta Aceita Valor'], concessionaria: ['concessionaria', 'Concessionária'],
-    uc: ['uc', 'Código da unidade consumidora'], tecnico: ['tecnico', 'Técnico'], projetista: ['projetista', 'Projetista'], homologador: ['homologador', 'Homologador'],
-    tipoTelhado: ['tipoTelhado', 'Tipo de Telhado'], faseEnergetica: ['faseEnergetica', 'Fase energética'], tipoEdificacao: ['tipoEdificacao', 'Tipo de Edificação'],
-    dataInicioInstalacao: ['dataInicioInstalacao', 'Data de início da instalação'], dataTerminoInstalacao: ['dataTerminoInstalacao', 'Data de término da instalação'],
-    dataAssinaturaContrato: ['dataAssinaturaContrato', 'Data de Assinatura do Contrato'], urlMonitoramento: ['urlMonitoramento', 'URL do monitoramento'],
-    modeloMonitoramento: ['modeloMonitoramento', 'Modelo do monitoramento'], dataTerminoGarantia: ['dataTerminoGarantia', 'Data de término da garantia da instalação'],
-    qtdPrePropostas: ['qtdPrePropostas', 'Quantidade de propostas'], dataAceiteProposta: ['dataAceiteProposta', 'Data de aceite da proposta'], dataVenda: ['dataVenda', 'Data da venda'],
-  })
-  const flat = (source) => {
-    const values = {}
-    const visit = (node) => {
-      if (Array.isArray(node)) return node.forEach(visit)
-      if (!node || typeof node !== 'object') return
-      for (const [key, value] of Object.entries(node)) {
-        if (value == null || value === '') continue
-        if (typeof value !== 'object') values[key] = value
-        visit(value)
-      }
-      const label = node.nome ?? node.name ?? node.campoNome ?? node.fieldName
-      const answer = node.resposta ?? node.answer ?? node.valor ?? node.value
-      if (label && answer != null && typeof answer !== 'object') values[label] = answer
-    }
-    visit(source)
-    return values
+const objeto = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : null)
+
+/**
+ * Resumo do detalhe do projeto (GET /Projeto/{id}) com SÓ os campos que o
+ * dashboard usa e que a listagem não traz. Os caminhos são os validados no
+ * Deals (server/deals.js). O detalhe embute o contato (lead), o responsável e a
+ * loja — com endereço da loja e datas-sentinela 0001-01-01 —, por isso nada é
+ * lido por busca genérica: cidade/UF vêm só do endereço do projeto (ou do
+ * contato), nunca de `lead.responsavel` nem de `loja`.
+ */
+export function resumirDetalheProjeto(det) {
+  const d = objeto(det)
+  if (!d) return null
+  if (d.resumoDetalhe === true) return d
+  const lead = objeto(d.lead) ?? {}
+  const end = objeto(d.endereco) ?? {}
+  const endLead = objeto(lead.endereco) ?? {}
+  const aceita = objeto(d.prePropostaAceita)
+  const sim = objeto(aceita?.preProposta?.simulacao)
+  const atuais = Array.isArray(d.statusAtuais) ? d.statusAtuais : []
+  const statusAtual = atuais.find((s) => s?.statusId != null && s.statusId === d.statusId)
+  return {
+    resumoDetalhe: true,
+    cidade: texto(primeiro(end.cidade, endLead.cidade)),
+    uf: siglaUF(end.uf) ?? siglaUF(endLead.uf),
+    bairro: texto(primeiro(end.bairro, endLead.bairro)),
+    concessionaria: nomeDe(d.concessionaria),
+    uc: texto(d.unidadeConsumidora),
+    tipoTelhado: nomeDe(d.tipoTelhado),
+    tipoEdificacao: nomeDe(d.tipoEdificacao),
+    faseEnergetica: texto(d.faseEnergetica),
+    dataAssinaturaContrato: dataGronerValida(d.dataAssinaturaContrato),
+    kwp: numero(sim?.kwP),
+    geracaoMensalPrevista: numero(sim?.geracaoMensal),
+    valorPropostaAceita: numero(primeiro(sim?.preco, aceita?.valorTotal)),
+    dataAceiteProposta: dataGronerValida(aceita?.dataInclusao),
+    dataEntradaStatus: dataGronerValida(statusAtual?.data),
+    qtdPrePropostas: Array.isArray(d.prePropostas) ? d.prePropostas.length : null,
   }
-  const output = {}
-  for (const source of sources) {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) continue
-    const values = flat(source)
-    for (const field of DEAL_FIELDS) {
-      if (output[field] != null) continue
-      const key = aliases[field].find((candidate) => values[candidate] != null && values[candidate] !== '')
-      if (key) output[field] = values[key]
+}
+
+/** Campos personalizados (CampoPersonalizado/Projeto/{id}/Agrupado) lidos pelo título. */
+const CAMPO_POR_TITULO = {
+  'DATA ASSINATURA DO CONTRATO': 'dataAssinaturaContrato',
+  'DATA DE ASSINATURA DO CONTRATO': 'dataAssinaturaContrato',
+  'DATA DE INICIO DA INSTALACAO': 'dataInicioInstalacao',
+  'DATA DE TERMINO DA INSTALACAO': 'dataTerminoInstalacao',
+  'DATA DE TERMINO DA GARANTIA DA INSTALACAO': 'dataTerminoGarantia',
+  'URL DO MONITORAMENTO': 'urlMonitoramento',
+  'MODELO DO MONITORAMENTO': 'modeloMonitoramento',
+}
+
+export function resumirCamposPersonalizados(campos) {
+  if (objeto(campos)?.resumoCampos === true) return campos
+  const grupos = Array.isArray(campos) ? campos : Array.isArray(campos?.list) ? campos.list : Array.isArray(campos?.Content) ? campos.Content : []
+  const saida = { resumoCampos: true }
+  for (const grupo of grupos) {
+    for (const item of Array.isArray(grupo?.campos) ? grupo.campos : []) {
+      const chave = CAMPO_POR_TITULO[semAcentos(item?.campo?.titulo ?? item?.titulo)]
+      const valor = texto(item?.resposta)
+      if (chave && valor != null && saida[chave] == null) saida[chave] = valor
     }
   }
-  return output
+  return saida
+}
+
+/**
+ * Junta o item da listagem do /Projeto com o detalhe e os campos personalizados.
+ * A listagem tem prioridade: o detalhe entra resumido em `detalhe` (só o que a
+ * listagem não tem), e nunca sobrescreve datas, etapa, status ou cidade/UF dela —
+ * no detalhe, `dataUltimoStatus` vem sempre 0001-01-01.
+ */
+export function mesclarProjetoComDetalhe(item, detalhe, campos) {
+  return { ...item, detalhe: resumirDetalheProjeto(detalhe), camposPersonalizados: resumirCamposPersonalizados(campos) }
+}
+
+/** Fluxos antigos do n8n espalham o detalhe bruto por cima do item da listagem. */
+function pareceDetalheEspalhado(p) {
+  return p.detalhe == null && (objeto(p.lead) != null || objeto(p.endereco) != null || Array.isArray(p.prePropostas) || 'dataAlteracao' in p)
+}
+
+/** Data em que o card entrou no status atual, pela lista de status atuais com data da listagem. */
+function entradaNoStatusDaListagem(p) {
+  const atuais = Array.isArray(p.statusAtuaisComData) ? p.statusAtuaisComData : []
+  const atual = atuais.find((s) => s?.statusId != null && s.statusId === p.statusId)
+  return dataGronerValida(atual?.data)
 }
 
 export function mapProjeto(p, enriquecimento) {
-  const apiFields = fieldsFromProject(p)
-  const extra = { ...(enriquecimento?.[String(p.id)] ?? {}), ...apiFields }
+  const espalhado = pareceDetalheEspalhado(p)
+  const det = resumirDetalheProjeto(p.detalhe) ?? (espalhado ? resumirDetalheProjeto(p) : null) ?? {}
+  const campos = resumirCamposPersonalizados(p.camposPersonalizados)
+  const enr = enriquecimento?.[String(p.id)] ?? {}
+  // Campos do Deals mandados prontos (p.deal): só o primeiro nível, sem busca recursiva.
+  const deal = objeto(p.deal) ?? {}
   const status = p.status?.nome ?? p.etapa ?? p.status ?? null
   const funil = p.funil ?? p.etapa ?? null
   const marco = marcoDoStatus(status)
   // A API manda 0001-01-01 quando não há venda; isso não pode apagar a data vinda do Deals.
-  const dataVenda = dataVendaValida(apiFields.dataVenda) ?? dataVendaValida(enriquecimento?.[String(p.id)]?.dataVenda)
-  const dataAtualizacao = normalizarDataGroner(p.dataUltimaAtualizacao ?? extra?.dataAtualizacao ?? null)
+  const dataVenda = dataGronerValida(p.dataVenda) ?? dataGronerValida(enr.dataVenda)
+  const dataAtualizacao = dataGronerValida(p.dataUltimaAtualizacao) ?? (espalhado ? dataGronerValida(p.dataAlteracao) : null)
+  const dataUltimoStatus = dataGronerValida(p.dataUltimoStatus)
   // A listagem do /Projeto traz os responsáveis com id 0 e "Sem Técnico"/"Sem Projetista" quando vazios.
-  const tecnico = pessoa(p.tecnicoResponsavel, p.tecnicoResponsavelId) ?? pessoa(extra?.tecnico)
-  const projetista = pessoa(p.projetista, p.projetistaId) ?? pessoa(extra?.projetista)
-  const homologador = pessoa(p.homologador, p.homologadorId) ?? pessoa(extra?.homologador)
+  const tecnico = pessoa(nomeDePessoa(p.tecnicoResponsavel), p.tecnicoResponsavelId) ?? pessoa(texto(deal.tecnico))
+  const projetista = pessoa(nomeDePessoa(p.projetista), p.projetistaId)
+  const homologador = pessoa(nomeDePessoa(p.homologador), p.homologadorId)
+  const latitude = numero(p.latidude) ?? numero(p.latitude)
+  const longitude = numero(p.longitude)
   return {
     id: p.id,
     nome: p.nome,
-    tipo: p.tipo,
+    tipo: nomeDe(p.tipo),
     tipoLead: p.tipoLead,
     funil,
     etapa: status,
@@ -185,46 +322,58 @@ export function mapProjeto(p, enriquecimento) {
     corEtapa: p.corEtapa,
     origemLead: p.origemLead?.nome ?? null,
     vendedorResponsavel: nomeDePessoa(p.vendedorResponsavel),
-    dataInclusao: normalizarDataGroner(p.dataInclusao),
+    dataInclusao: dataGronerValida(p.dataInclusao),
     dataUltimaAtualizacao: dataAtualizacao,
-    dataUltimoStatus: normalizarDataGroner(p.dataUltimoStatus),
-    previsaoFechamento: p.previsaoFechamento,
-    valorPrePropostaAceita: p.valorPrePropostaAceita,
+    dataUltimoStatus,
+    previsaoFechamento: dataGronerValida(p.previsaoFechamento),
+    valorPrePropostaAceita: p.valorPrePropostaAceita ?? det.valorPropostaAceita ?? null,
     valorVenda: p.valorVenda,
     perda: p.perda,
-    consumo: p.consumo,
-    qtdPrePropostas: p.qtdPrePropostas,
-    latitude: p.latidude ? Number(p.latidude) : null,
-    longitude: p.longitude ? Number(p.longitude) : null,
-    cidade: extra?.cidade ?? null,
-    estado: extra?.estado ?? null,
-    bairro: extra?.bairro ?? null,
-    concessionaria: extra?.concessionaria ?? null,
+    // No detalhe, `consumo` pode vir dividido; o total é `consumoTotal` (ver server/deals.js).
+    consumo: espalhado ? primeiro(p.consumoTotal, p.consumo) : p.consumo,
+    qtdPrePropostas: p.qtdPrePropostas ?? det.qtdPrePropostas ?? null,
+    latitude: latitude || null,
+    longitude: longitude || null,
+    cidade: texto(p.cidade) ?? det.cidade ?? texto(deal.cidade) ?? texto(enr.cidade),
+    estado: siglaUF(p.uf) ?? siglaUF(p.estado) ?? det.uf ?? siglaUF(deal.estado) ?? siglaUF(enr.estado),
+    bairro: texto(p.bairro) ?? det.bairro ?? texto(enr.bairro),
+    concessionaria: det.concessionaria ?? nomeDe(p.concessionaria) ?? texto(enr.concessionaria),
     momento: momentoDoMarco(marco),
-    donoNominal: pessoa(extra?.donoNominal) ?? tecnico ?? projetista ?? homologador ?? null,
-    diasSemAtualizacao: extra?.diasSemAtualizacao ?? diasDesde(dataAtualizacao),
-    diasDesdeVenda: extra?.diasDesdeVenda ?? diasDesde(dataVenda),
-    dataEntradaStatus: normalizarDataGroner(extra?.dataEntradaStatus ?? p.dataUltimoStatus ?? null),
+    donoNominal: tecnico ?? projetista ?? homologador ?? null,
+    diasSemAtualizacao: diasDesde(dataAtualizacao),
+    diasDesdeVenda: diasDesde(dataVenda),
+    dataEntradaStatus: entradaNoStatusDaListagem(p) ?? det.dataEntradaStatus ?? dataUltimoStatus,
     noFluxoEngenharia: estaNoFluxoEngenharia(funil, status, marco),
     dataVenda,
-    dataAceiteProposta: extra?.dataAceiteProposta ?? null,
-    kwp: extra?.kwp ?? null,
-    geracaoMensalPrevista: extra?.geracaoMensalPrevista ?? null,
-    uc: extra?.uc ?? null,
+    dataAceiteProposta: det.dataAceiteProposta ?? dataGronerValida(p.dataPropostaAceita) ?? dataGronerValida(p.dataAceiteProposta),
+    kwp: numero(p.kwp) ?? det.kwp ?? numero(deal.kwp) ?? null,
+    geracaoMensalPrevista: numero(p.geracaoMensalPrevista) ?? det.geracaoMensalPrevista ?? null,
+    uc: det.uc ?? texto(p.uc),
     tecnico,
     projetista,
     homologador,
-    tipoTelhado: extra?.tipoTelhado ?? null,
-    faseEnergetica: extra?.faseEnergetica ?? null,
-    tipoEdificacao: extra?.tipoEdificacao ?? null,
-    dataInicioInstalacao: extra?.dataInicioInstalacao ?? null,
-    dataTerminoInstalacao: extra?.dataTerminoInstalacao ?? null,
-    dataAssinaturaContrato: extra?.dataAssinaturaContrato ?? null,
-    urlMonitoramento: extra?.urlMonitoramento ?? null,
-    modeloMonitoramento: extra?.modeloMonitoramento ?? null,
-    dataTerminoGarantia: extra?.dataTerminoGarantia ?? null,
+    tipoTelhado: det.tipoTelhado ?? nomeDe(p.tipoTelhado) ?? texto(enr.tipoTelhado),
+    faseEnergetica: det.faseEnergetica ?? texto(p.faseEnergetica) ?? texto(enr.faseEnergetica),
+    tipoEdificacao: det.tipoEdificacao ?? nomeDe(p.tipoEdificacao) ?? texto(enr.tipoEdificacao),
+    dataInicioInstalacao: dataGronerValida(campos.dataInicioInstalacao ?? p.dataInicioInstalacao),
+    dataTerminoInstalacao: dataGronerValida(campos.dataTerminoInstalacao ?? p.dataTerminoInstalacao),
+    dataAssinaturaContrato: det.dataAssinaturaContrato ?? dataGronerValida(campos.dataAssinaturaContrato) ?? dataGronerValida(p.dataAssinaturaContrato),
+    urlMonitoramento: campos.urlMonitoramento ?? texto(p.urlMonitoramento),
+    modeloMonitoramento: campos.modeloMonitoramento ?? texto(p.modeloMonitoramento),
+    dataTerminoGarantia: dataGronerValida(campos.dataTerminoGarantia ?? p.dataTerminoGarantia),
   }
 }
+
+/** Campos calculados a partir da data de hoje: não são gravados (mudariam o hash a cada carga). */
+const CAMPOS_VOLATEIS = ['diasSemAtualizacao', 'diasDesdeVenda']
+
+/** mapProjeto sem os campos que dependem do relógio, para gravar no armazenamento. */
+export function mapProjetoParaArmazenar(p, enriquecimento) {
+  const registro = mapProjeto(p, enriquecimento)
+  for (const campo of CAMPOS_VOLATEIS) delete registro[campo]
+  return registro
+}
+
 
 export function mapProposta(pp) {
   const sim = pp.simulacao ?? {}

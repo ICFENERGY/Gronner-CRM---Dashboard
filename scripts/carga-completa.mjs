@@ -10,12 +10,12 @@
  */
 import { gronerGet, gronerGetAll } from '../server/gronerClient.js'
 import { dealsEnriquecido, salesEnriquecido } from '../server/enrichment.js'
-import { mapProjeto, mapProposta, mapTarefa, mapVenda, marcoDoStatus } from '../server/mappers.js'
+import { mapProjetoParaArmazenar, mapProposta, mapTarefa, mapVenda, marcoDoStatus, mesclarProjetoComDetalhe } from '../server/mappers.js'
 import { stripSensitive } from '../server/sanitize.js'
 import { getSyncStore } from '../server/syncStore.js'
 
 const ENTIDADES = {
-  projetos: { recurso: 'Projeto', normalizar: (i) => mapProjeto(i, dealsEnriquecido) },
+  projetos: { recurso: 'Projeto', normalizar: (i) => mapProjetoParaArmazenar(i, dealsEnriquecido) },
   propostas: { recurso: 'PreProposta', normalizar: mapProposta },
   tarefas: { recurso: 'Tarefa', normalizar: mapTarefa },
   vendas: { recurso: 'Venda', normalizar: (i) => mapVenda(i, salesEnriquecido) },
@@ -43,7 +43,8 @@ async function detalharProjetos(itens) {
       gronerGet(`Projeto/${item.id}`, {}, OPC).catch(tolerante),
       gronerGet(`CampoPersonalizado/Projeto/${item.id}/Agrupado`, {}, OPC).catch(tolerante),
     ])
-    return { ...item, ...(detalhe ?? {}), camposPersonalizados: campos ?? {} }
+    // A listagem tem prioridade; do detalhe só entra o resumo do que ela não traz.
+    return mesclarProjetoComDetalhe(item, detalhe, campos)
   })
   return { itens: detalhados, comDetalhe: precisa }
 }

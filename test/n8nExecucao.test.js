@@ -122,7 +122,7 @@ test('projetos: páginas de 500, detalhe só dos cards com marco e normalizaçã
   assert.equal(r.lotes.length, 21)
   assert.deepEqual(r.lotes.map((l) => l.batchIndex), Array.from({ length: 21 }, (_, i) => i + 1))
   assert.equal(groner.detalhes, 32)
-  const comDetalhe = r.lotes.flatMap((l) => l.items).filter((i) => i.tecnicoResponsavel === 'Técnico X')
+  const comDetalhe = r.lotes.flatMap((l) => l.items).filter((i) => i.detalhe?.tecnicoResponsavel === 'Técnico X')
   assert.equal(comDetalhe.length, 32)
   assert.equal(r.finalizar.expectedTotal, 1050)
   assert.equal(r.finalizar.batchCount, 21)

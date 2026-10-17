@@ -15,6 +15,7 @@ import { LIMITES_PARADO, MARCOS, META_ENTREGA_PADRAO, MOMENTOS, momentoDoMarco }
 import { marcoDoStatus, nomeDePessoa, normalizarDataGroner } from './mappers.js'
 
 const DIA = 86_400_000
+const MAX_DIAS_NO_MARCO = 3650
 const RANK = { ok: 0, risco: 1, atrasado: 2 }
 const MK = Object.fromEntries(MARCOS.map((m, i) => [m.k, { ...m, i }]))
 /** Marcos que entram na conta de entrega (venda → relógio), sem a trilha paralela. */
@@ -59,9 +60,10 @@ export function prazosEfetivos(config) {
  * sincronização: volta enquanto os status continuam no mesmo marco. Sem uma
  * transição vinda de outro marco, a data é estimada pela do último status.
  */
-export function entradaNoMarco(projeto) {
+export function entradaNoMarco(projeto, hoje = hojeSP()) {
   const marco = projeto.marco
   const historico = Array.isArray(projeto.historicoStatus) ? projeto.historicoStatus : []
+  const valida = dataDeEntradaValida(projeto, hoje)
   let desde = null
   let exato = false
   for (let i = historico.length - 1; i >= 0; i--) {
@@ -70,8 +72,25 @@ export function entradaNoMarco(projeto) {
     desde = mov.em
     if (marcoDoStatus(mov.statusAnterior) !== marco) { exato = true; break }
   }
-  if (exato) return { desde, estimado: false }
-  return { desde: projeto.dataUltimoStatus ?? projeto.dataEntradaStatus ?? projeto.dataUltimaAtualizacao ?? null, estimado: true }
+  if (exato && valida(desde)) return { desde, estimado: false }
+  // Sem transição exata: a melhor data válida, na ordem de confiança.
+  const candidata = [projeto.dataUltimoStatus, projeto.dataEntradaStatus, projeto.dataUltimaAtualizacao, projeto.dataInclusao].find(valida)
+  return { desde: candidata ?? null, estimado: true }
+}
+
+/**
+ * Data de entrada utilizável: data de verdade (não 0001-01-01 nem ano < 1950),
+ * não posterior a amanhã e não anterior ao cadastro do projeto (1 dia de folga
+ * para fuso). Sem cadastro válido, só as duas primeiras regras valem.
+ */
+function dataDeEntradaValida(projeto, hoje) {
+  const cadastro = ts(projeto.dataInclusao)
+  const limiteCadastro = Number.isFinite(cadastro) && new Date(cadastro).getUTCFullYear() >= 1950 ? cadastro - DIA : -Infinity
+  const limiteFuturo = ts(hoje) + DIA
+  return (valor) => {
+    const t = ts(valor)
+    return Number.isFinite(t) && new Date(t).getUTCFullYear() >= 1950 && t >= limiteCadastro && !(t > limiteFuturo)
+  }
 }
 
 /** Passagens pelos marcos, a partir do histórico (mais recente primeiro). */
@@ -90,9 +109,10 @@ function passagens(projeto) {
 
 export function classificarCard(projeto, { prazos, acao, hoje }) {
   const m = MK[projeto.marco]
-  const { desde, estimado } = entradaNoMarco(projeto)
+  const { desde, estimado } = entradaNoMarco(projeto, hoje)
   const diasBrutos = diasEntre(hoje, desde)
-  const dias = Math.max(0, diasBrutos ?? 0)
+  // Sem data válida conta 0 (não vira atrasado só por falta de data); nunca negativo nem mais de 10 anos.
+  const dias = Math.min(MAX_DIAS_NO_MARCO, Math.max(0, diasBrutos ?? 0))
   const L = prazos.sla[projeto.marco] ?? 7
   const margem = Math.max(1, Math.round(L * 0.3))
   const motivos = []
