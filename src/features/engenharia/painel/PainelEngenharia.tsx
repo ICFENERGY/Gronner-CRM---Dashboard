@@ -146,7 +146,7 @@ export function PainelEngenharia({ dados }: { dados: Engenharia }) {
       </Secao>
 
       <Secao titulo="O que mudar para fechar os indicadores">
-        <ol className="grid max-w-[80ch] list-decimal gap-3 pl-6 text-sm marker:font-mono marker:text-icf-green">
+        <ol className="grid max-w-[80ch] list-decimal gap-3 pl-6 text-sm marker:font-mono marker:text-[var(--accent-text)]">
           {RECOMENDACOES.map((r) => <li key={r.titulo}><b className="font-semibold">{r.titulo}</b> {r.texto(p)}</li>)}
         </ol>
       </Secao>

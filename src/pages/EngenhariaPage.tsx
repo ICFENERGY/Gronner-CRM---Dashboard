@@ -12,12 +12,12 @@ const ABAS: { k: Aba; rotulo: string }[] = [
 const ATRASO_MS = 15 * 60 * 1000
 
 /** Engenharia: Pauta Diária (reunião) e Painel (indicadores), lidos do Groner sincronizado. */
-export function EngenhariaPage() {
-  // Aba no endereço (#reuniao ou #reuniao/painel), para abrir direto por link.
+export function EngenhariaPage({ base = 'engenharia' }: { base?: 'engenharia' | 'reuniao' }) {
+  // Aba no endereço (#engenharia/painel ou #reuniao/painel), para abrir direto por link.
   const [aba, setAbaState] = useState<Aba>(() => (/^#(reuniao|engenharia)\/painel$/.test(window.location.hash) ? 'painel' : 'pauta'))
   const setAba = (a: Aba) => {
     setAbaState(a)
-    window.history.replaceState(null, '', a === 'painel' ? '#reuniao/painel' : '#reuniao')
+    window.history.replaceState(null, '', a === 'painel' ? `#${base}/painel` : `#${base}`)
   }
   const [aviso, setAviso] = useState<string | null>(null)
   const { dados, erro, carregando, recarregar } = useEngenharia()
@@ -50,7 +50,7 @@ export function EngenhariaPage() {
         </div>
         <nav aria-label="Abas da Engenharia" className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
           {ABAS.map((a) => (
-            <button key={a.k} type="button" aria-pressed={aba === a.k} onClick={() => setAba(a.k)} className={`rounded-md px-3 py-1.5 text-sm font-medium ${aba === a.k ? 'bg-icf-green text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'}`}>
+            <button key={a.k} type="button" aria-pressed={aba === a.k} onClick={() => setAba(a.k)} className={`rounded-md px-3 py-1.5 text-sm font-medium ${aba === a.k ? 'bg-icf-green text-icf-navy' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'}`}>
               {a.rotulo}
             </button>
           ))}

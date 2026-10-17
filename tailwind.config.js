@@ -5,9 +5,13 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Paleta da ICF Energy: verde, azul-marinho e cinza claro.
         icf: {
-          green: '#15803D',
-          greenLight: '#22C55E',
+          green: '#01C38E',
+          greenLight: '#01C38E',
+          greenDark: '#00805F',
+          navy: '#132D46',
+          gray: '#F4F4F4',
         },
       },
     },

@@ -9,7 +9,7 @@ export interface BarDatum {
 export function BarChartGeneric({
   title,
   data,
-  color = '#22C55E',
+  color = 'var(--viz-1)',
   layout = 'horizontal',
   maxBars = 12,
   formatValue,
@@ -36,7 +36,7 @@ export function BarChartGeneric({
       ) : (
         <ResponsiveContainer width="100%" height={Math.max(260, isVertical ? sorted.length * 28 : 260)}>
           <BarChart data={sorted} layout={isVertical ? 'vertical' : 'horizontal'} margin={{ left: isVertical ? 16 : 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={!isVertical} vertical={isVertical} />
+            <CartesianGrid stroke="var(--viz-grid)" horizontal={!isVertical} vertical={isVertical} />
             {isVertical ? (
               <>
                 <XAxis type="number" stroke="var(--text-muted)" fontSize={11} tickFormatter={fmt} />

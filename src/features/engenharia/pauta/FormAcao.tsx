@@ -87,7 +87,7 @@ export function FormAcao({
         </label>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="submit" disabled={bloqueado} className="rounded-md bg-icf-green px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">
+        <button type="submit" disabled={bloqueado} className="rounded-md bg-icf-green px-3 py-1.5 text-sm font-semibold text-icf-navy disabled:opacity-50">
           {enviando ? 'Salvando…' : 'Salvar ação'}
         </button>
         {aberta && (

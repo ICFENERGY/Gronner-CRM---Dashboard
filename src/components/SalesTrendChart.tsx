@@ -9,7 +9,7 @@ export function SalesTrendChart({ data }: { data: MesResumo[] }) {
       <h3 className="mb-4 text-sm font-medium text-[var(--text-secondary)]">Vendas por mês</h3>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <CartesianGrid stroke="var(--viz-grid)" />
           <XAxis dataKey="mes" stroke="var(--text-muted)" fontSize={12} />
           <YAxis stroke="var(--text-muted)" fontSize={12} tickFormatter={(v) => currency.format(v)} width={90} />
           <Tooltip
@@ -17,7 +17,7 @@ export function SalesTrendChart({ data }: { data: MesResumo[] }) {
             labelStyle={{ color: 'var(--text-primary)' }}
             formatter={(value: number) => currency.format(value)}
           />
-          <Line type="monotone" dataKey="valorTotal" stroke="#22C55E" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="valorTotal" stroke="var(--viz-1)" strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>

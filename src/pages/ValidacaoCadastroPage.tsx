@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
 import type { PropostaRaw } from '../api/types'
-import { BarChartGeneric } from '../components/BarChartGeneric'
+import { DonutChart } from '../components/DonutChart'
 import { DataTable } from '../components/DataTable'
 import { DetailRow, Modal } from '../components/Modal'
 import { FilterBar, type FilterDef } from '../components/FilterBar'
@@ -85,9 +85,9 @@ export function ValidacaoCadastroPage() {
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <BarChartGeneric title="Negócios por tipo de negócio" data={porTipo} layout="vertical" />
-        <BarChartGeneric title="Contato origem" data={porOrigem} />
-        <BarChartGeneric title="Negócios por vendedor" data={porVendedor} layout="vertical" />
+        <DonutChart title="Negócios por tipo de negócio" data={porTipo} />
+        <DonutChart title="Contato origem" data={porOrigem} />
+        <DonutChart title="Negócios por vendedor" data={porVendedor} />
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -100,7 +100,7 @@ export function ValidacaoCadastroPage() {
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <MultiYearBarChart title="Cards em aberto por mês" items={naoAprovadas} />
-        <BarChartGeneric title="Cards por status" data={porStatus} layout="vertical" maxBars={15} />
+        <DonutChart title="Cards por status" data={porStatus} />
       </section>
 
       <section className="grid grid-cols-1 gap-4">

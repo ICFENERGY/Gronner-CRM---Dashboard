@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { ThemeToggle } from './ThemeToggle'
 
-export interface ItemMenu { k: string; rotulo: string }
+export interface AbaItem { k: string; rotulo: string; badge?: number }
 
 /**
- * Moldura do painel único: marca, ações (modo reunião, análises completas,
- * alerta de tarefas, tema) e o conteúdo. Não há mais abas: o detalhe abre em
- * gaveta, sem trocar de tela.
+ * Moldura do painel: marca, abas por área (com badge de tarefas atrasadas),
+ * alerta no topo, modo reunião e tema.
  */
 export function Layout({
-  analises,
-  onAnalise,
+  abas,
+  aba,
+  onAba,
   onModoReuniao,
   alertCount = 0,
   onAlerta,
@@ -18,8 +18,9 @@ export function Layout({
   onToggleTheme,
   children,
 }: {
-  analises: ItemMenu[]
-  onAnalise: (k: string) => void
+  abas: AbaItem[]
+  aba: string
+  onAba: (k: string) => void
   onModoReuniao: () => void
   alertCount?: number
   onAlerta: () => void
@@ -27,25 +28,14 @@ export function Layout({
   onToggleTheme: () => void
   children: ReactNode
 }) {
-  const [menu, setMenu] = useState(false)
-  const caixa = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!menu) return
-    const fora = (e: MouseEvent) => { if (!caixa.current?.contains(e.target as Node)) setMenu(false) }
-    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false) }
-    document.addEventListener('mousedown', fora)
-    document.addEventListener('keydown', tecla)
-    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', tecla) }
-  }, [menu])
-
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
-      <header className="border-b border-[var(--border)] bg-[var(--surface)] px-6 py-3 md:px-10">
+      <header className="border-b border-[var(--border)] bg-[var(--surface)] px-6 pt-3 md:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-icf-green/15 text-icf-green dark:text-icf-greenLight">⚡</span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-icf-green text-lg text-icf-navy" aria-hidden="true">⚡</span>
             <div>
-              <p className="text-xs uppercase tracking-wide text-icf-green dark:text-icf-greenLight">ICF Energy</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-text)]">ICF Energy</p>
               <h1 className="text-lg font-semibold leading-tight">Painel Groner CRM</h1>
             </div>
           </div>
@@ -57,28 +47,35 @@ export function Layout({
                 {alertCount} {alertCount === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}
               </button>
             )}
-            <div ref={caixa} className="relative">
-              <button type="button" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)} className="rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
-                Análises completas ▾
-              </button>
-              {menu && (
-                <div role="menu" className="absolute right-0 z-30 mt-1 w-60 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] py-1 shadow-lg">
-                  {analises.map((a) => (
-                    <button key={a.k} role="menuitem" type="button" onClick={() => { setMenu(false); onAnalise(a.k) }} className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--surface-hover)]">
-                      {a.rotulo}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button type="button" onClick={onModoReuniao} className="rounded-lg bg-icf-green px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-green-800">
+            <button type="button" onClick={onModoReuniao} className="rounded-lg bg-icf-green px-3.5 py-1.5 text-sm font-semibold text-icf-navy hover:brightness-95">
               Modo reunião
             </button>
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>
+
+        <nav aria-label="Áreas do painel" className="-mx-1 mt-3 flex gap-1 overflow-x-auto">
+          {abas.map((a) => {
+            const ativa = a.k === aba
+            return (
+              <button
+                key={a.k}
+                type="button"
+                aria-current={ativa ? 'page' : undefined}
+                onClick={() => onAba(a.k)}
+                className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors ${ativa ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+              >
+                {a.rotulo}
+                {!!a.badge && (
+                  <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white" title={`${a.badge} atrasadas`}>◆ {a.badge}</span>
+                )}
+                <span className={`absolute inset-x-2 bottom-0 h-[3px] rounded-t ${ativa ? 'bg-icf-green' : 'bg-transparent'}`} />
+              </button>
+            )
+          })}
+        </nav>
       </header>
-      <main className="px-6 pb-8 md:px-10">{children}</main>
+      <main className="px-6 pb-8 pt-4 md:px-10">{children}</main>
     </div>
   )
 }

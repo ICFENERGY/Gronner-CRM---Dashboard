@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { colorFor, number } from '../lib/palette'
+import { number } from '../lib/palette'
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
@@ -27,7 +27,7 @@ export function MultiYearBarChart({ title, items }: { title: string; items: { da
             <Tooltip contentStyle={{ background: 'var(--surface-solid)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: 'var(--text-primary)' }} />
             <Legend wrapperStyle={{ fontSize: 11, color: 'var(--text-secondary)' }} />
             {anos.map((ano, i) => (
-              <Bar key={ano} dataKey={ano} fill={colorFor(i)} radius={[3, 3, 0, 0]} />
+              <Bar key={ano} dataKey={ano} fill={`var(--cat-${(i % 6) + 1})`} radius={[3, 3, 0, 0]} />
             ))}
           </BarChart>
         </ResponsiveContainer>

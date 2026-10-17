@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-/** KPI clicável: número grande, contexto e variação contra o período anterior. */
+/** Cor da faixa do KPI por área (decorativa; o semáforo é só para estado). */
+const FAIXA: Record<string, string> = { Comercial: 'var(--cat-1)', Engenharia: 'var(--cat-2)', Tarefas: 'var(--cat-5)', Usinas: 'var(--cat-6)' }
+
+/**
+ * KPI clicável: faixa colorida da área com o rótulo em caixa alta, número grande,
+ * contexto, variação contra o período anterior e, quando faz sentido, "% do total".
+ */
 export function Kpi({
   area,
   rotulo,
   valor,
   contexto,
   variacao,
+  pctTotal,
   tom,
   onAbrir,
 }: {
@@ -15,6 +22,8 @@ export function Kpi({
   valor: string
   contexto?: string
   variacao?: number | null
+  /** Parte do todo (0 a 100) mostrada como "x% do total". */
+  pctTotal?: number | null
   /** Destaque de estado (status), com ícone — nunca só a cor. */
   tom?: 'atrasado' | 'risco' | 'ok'
   onAbrir?: () => void
@@ -25,23 +34,26 @@ export function Kpi({
       type="button"
       onClick={onAbrir}
       disabled={!onAbrir}
-      className="group grid min-w-0 content-start gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors enabled:hover:border-[var(--border-strong)] enabled:hover:bg-[var(--surface-hover)] disabled:cursor-default"
+      className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] text-left shadow-sm transition-colors enabled:hover:border-[var(--border-strong)] enabled:hover:bg-[var(--surface-hover)] disabled:cursor-default"
     >
-      <span className="flex items-center justify-between gap-2 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
-        <span className="truncate">{area}</span>
+      <span className="flex items-center justify-between gap-2 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#0b1f33]" style={{ background: FAIXA[area] ?? 'var(--cat-1)' }}>
+        <span className="truncate">{rotulo}</span>
         {onAbrir && <span aria-hidden="true" className="opacity-0 transition-opacity group-hover:opacity-100">›</span>}
       </span>
-      <span className="text-sm text-[var(--text-secondary)]">{rotulo}</span>
-      <span className="flex items-baseline gap-2">
-        {icone && <span aria-hidden="true" className="text-sm" style={{ color: `var(--st-${tom})` }}>{icone}</span>}
-        <b className="text-[1.75rem] font-semibold leading-tight text-[var(--text-primary)]">{valor}</b>
-        {variacao != null && (
-          <span className={`text-xs font-semibold ${variacao >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-            {variacao >= 0 ? '↑' : '↓'} {Math.abs(variacao)}%
-          </span>
-        )}
+      <span className="grid flex-1 content-start gap-1 p-4">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">{area}</span>
+        <span className="flex items-baseline gap-2">
+          {icone && <span aria-hidden="true" className="text-sm" style={{ color: `var(--st-${tom})` }}>{icone}</span>}
+          <b className="text-[2rem] font-semibold leading-tight text-[var(--text-primary)]">{valor}</b>
+          {variacao != null && (
+            <span className={`text-xs font-semibold ${variacao >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+              {variacao >= 0 ? '↑' : '↓'} {Math.abs(variacao)}%
+            </span>
+          )}
+        </span>
+        {contexto && <span className="text-xs text-[var(--text-secondary)]">{contexto}</span>}
+        {pctTotal != null && <span className="text-xs text-[var(--text-muted)]">{pctTotal.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% do total</span>}
       </span>
-      {contexto && <span className="text-xs text-[var(--text-muted)]">{contexto}</span>}
     </button>
   )
 }
@@ -73,7 +85,7 @@ export function Cartao({
 }) {
   const [tabela, setTabela] = useState(false)
   return (
-    <section className={`flex min-w-0 flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 ${className}`}>
+    <section className={`flex min-w-0 flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm ${className}`}>
       <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">{titulo}</h3>
@@ -85,7 +97,7 @@ export function Cartao({
             {tabela ? 'Gráfico' : 'Tabela'}
           </button>
           {onDetalhe && (
-            <button type="button" onClick={onDetalhe} className="rounded-md px-2 py-1 text-xs font-semibold text-icf-green hover:bg-[var(--surface-hover)] dark:text-icf-greenLight">
+            <button type="button" onClick={onDetalhe} className="rounded-md px-2 py-1 text-xs font-semibold text-[var(--accent-text)] hover:bg-[var(--surface-hover)] ">
               Detalhes ›
             </button>
           )}

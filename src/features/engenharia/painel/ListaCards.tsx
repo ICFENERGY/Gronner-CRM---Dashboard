@@ -14,7 +14,7 @@ function parado(d: number | null): Parado {
 
 function Chip({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: string }) {
   return (
-    <button type="button" aria-pressed={ativo} onClick={onClick} className={`rounded-full border px-3 py-1 text-xs font-medium ${ativo ? 'border-icf-green bg-icf-green text-white' : 'border-[var(--border-strong)] text-[var(--text-secondary)]'}`}>
+    <button type="button" aria-pressed={ativo} onClick={onClick} className={`rounded-full border px-3 py-1 text-xs font-medium ${ativo ? 'border-icf-green bg-icf-green text-icf-navy' : 'border-[var(--border-strong)] text-[var(--text-secondary)]'}`}>
       {children}
     </button>
   )

@@ -75,7 +75,7 @@ export function PietaPage() {
   return (
     <div>
       <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-        <p className="text-xs uppercase tracking-wide text-icf-green dark:text-icf-greenLight">Pieta — Plataforma PIEP</p>
+        <p className="text-xs uppercase tracking-wide text-[var(--accent-text)]">Pieta — Plataforma PIEP</p>
         <h2 className="text-lg font-medium text-[var(--text-primary)]">{resumo.companyName}</h2>
         <p className="text-xs text-[var(--text-muted)]">
           {resumo.socialName} · {resumo.document}
@@ -113,7 +113,7 @@ export function PietaPage() {
             {
               key: 'projectId',
               label: 'ID',
-              render: (r) => <span className="text-icf-green dark:text-icf-greenLight hover:underline">{r.projectId}</span>,
+              render: (r) => <span className="text-[var(--accent-text)] hover:underline">{r.projectId}</span>,
             },
             { key: 'clientName', label: 'Cliente', render: (r) => r.clientName },
             { key: 'status', label: 'Status', render: (r) => r.status },

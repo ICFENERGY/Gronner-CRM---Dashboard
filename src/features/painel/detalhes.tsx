@@ -87,7 +87,7 @@ export function ConteudoDetalhe({ detalhe, painel, onModoReuniao }: { detalhe: D
       <>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <Resumo>{linhas.length} cards · {linhas.filter((c) => c.cor === 'atrasado').length} atrasados · {linhas.filter((c) => c.cor === 'atrasado' && !c.acao).length} sem plano</Resumo>
-          <button type="button" onClick={onModoReuniao} className="rounded-md bg-icf-green px-3 py-1.5 text-sm font-semibold text-white">Abrir modo reunião</button>
+          <button type="button" onClick={onModoReuniao} className="rounded-md bg-icf-green px-3 py-1.5 text-sm font-semibold text-icf-navy">Abrir modo reunião</button>
         </div>
         <Tabela linhas={linhas} chave={(c) => c.id} colunas={[
           { rotulo: 'Card', render: (c) => <span className="font-mono">{c.id}</span> },

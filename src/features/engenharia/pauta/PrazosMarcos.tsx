@@ -58,7 +58,7 @@ export function PrazosMarcos({ dados, identidade, onSalvo }: { dados: Engenharia
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {pode ? (
-            <button type="button" onClick={salvar} disabled={enviando} className="rounded-md bg-icf-green px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">
+            <button type="button" onClick={salvar} disabled={enviando} className="rounded-md bg-icf-green px-3 py-1.5 text-sm font-semibold text-icf-navy disabled:opacity-50">
               {enviando ? 'Salvando…' : 'Salvar prazos'}
             </button>
           ) : (

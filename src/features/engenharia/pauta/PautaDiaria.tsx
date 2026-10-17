@@ -121,7 +121,7 @@ export function PautaDiaria({ dados, identidade, onAtualizar }: { dados: Engenha
                   />
                 ))}
                 {g.length > POR_GRUPO && (
-                  <button type="button" onClick={() => setExpandidos(alternar(expandidos, k))} className="block w-full border-t border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-left text-sm font-semibold text-icf-green md:pl-[100px]">
+                  <button type="button" onClick={() => setExpandidos(alternar(expandidos, k))} className="block w-full border-t border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-left text-sm font-semibold text-[var(--accent-text)] md:pl-[100px]">
                     {expandidos.has(k) ? `Mostrar só os ${POR_GRUPO} primeiros` : `Mostrar os outros ${g.length - POR_GRUPO} cards deste marco`}
                   </button>
                 )}

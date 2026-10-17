@@ -36,7 +36,7 @@ export function FilterBar({ filters, values, onChange, onClear }: Props) {
       <button
         onClick={onClear}
         disabled={!algumFiltroAtivo}
-        className="ml-auto rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:border-icf-green hover:text-icf-green dark:hover:text-icf-green dark:text-icf-greenLight disabled:opacity-40"
+        className="ml-auto rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:border-icf-green hover:text-[var(--accent-text)] disabled:opacity-40"
       >
         Limpar filtros
       </button>

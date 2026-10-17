@@ -78,7 +78,12 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
     return { nome: m.k, titulo: `${m.k} · ${m.nome}`, momento: m.mom, atrasado: g.filter((c) => c.cor === 'atrasado').length, risco: g.filter((c) => c.cor === 'risco').length, ok: g.filter((c) => c.cor === 'ok').length }
   })
   const homolog = cards.filter((c) => ['5', '6', '7', '9', '10', '11', '12'].includes(c.marco))
-  const concessionarias = top(agrupar(homolog, (c) => c.concessionaria, () => 1), 10)
+  const concessionarias = top(agrupar(homolog, (c) => c.concessionaria, () => 1), Infinity)
+  const engSituacao: Barra[] = [
+    { nome: 'Atrasado', valor: cards.filter((c) => c.cor === 'atrasado').length },
+    { nome: 'Em risco', valor: cards.filter((c) => c.cor === 'risco').length },
+    { nome: 'No prazo', valor: cards.filter((c) => c.cor === 'ok').length },
+  ]
   const comVenda = cards.filter((c) => c.diasDesdeVenda != null)
 
   // Usinas
@@ -123,18 +128,20 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
       obrasAlemMeta: comVenda.filter((c) => (c.diasDesdeVenda ?? 0) > meta).length, obras: comVenda.length, meta,
       desempenhoUsinas: comDesempenho.length ? Math.round((100 * soma(comDesempenho, (u) => u.desempenhoMedio3mPct)) / comDesempenho.length) : null,
       usinasCriticas: usinas.filter((u) => u.statusDesempenho === 'Crítico').length, usinas: usinas.length,
-      tarefasAtrasadas: atrasadas.length,
+      tarefasAtrasadas: atrasadas.length, tarefasTotal: f.tarefas?.length ?? 0,
     },
     series: {
       vendasTempo,
-      vendedores: top(agrupar(vendas, (v) => v.vendedor, (v) => v.valorTotal, () => 1), 10),
-      ufs: top(agrupar(vendas, (v) => v.estado, (v) => v.valorTotal, () => 1), 10),
+      vendedores: top(agrupar(vendas, (v) => v.vendedor, (v) => v.valorTotal, () => 1), Infinity),
+      ufs: top(agrupar(vendas, (v) => v.estado, (v) => v.valorTotal, () => 1), Infinity),
       funil,
       engMarcos,
       concessionarias,
       geracao,
       statusUsinas,
-      tarefasResponsavel: top(porResp, 10),
+      tarefasResponsavel: top(porResp, Infinity),
+      tarefasStatus: top(agrupar(f.tarefas ?? [], (t) => t.status, () => 1), Infinity),
+      engSituacao,
     },
   }
 }

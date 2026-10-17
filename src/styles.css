@@ -11,23 +11,35 @@
  */
 :root {
   color-scheme: light;
-  --bg: #f8fafc;
+  /* Paleta ICF: verde #01C38E, azul-marinho #132D46, cinza claro #F4F4F4 */
+  --bg: #f4f4f4;
   --surface: #ffffff;
   --surface-solid: #ffffff;
-  --surface-hover: #f1f5f9;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --surface-hover: #eef2f2;
+  --border: #e1e5e8;
+  --border-strong: #c5ced6;
   --input-bg: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --track-bg: #e2e8f0;
-  --accent-text: #15803d;
-  /* Gráficos (paleta validada da skill de dataviz): série única, referência e semáforo */
-  --viz-1: #2a78d6;
-  --viz-ref: #898781;
-  --viz-grid: #e1e0d9;
-  --viz-axis: #898781;
+  --text-primary: #132d46;
+  --text-secondary: #3f5468;
+  --text-muted: #5c6e80;
+  --track-bg: #e1e5e8;
+  --accent: #01c38e;
+  --accent-text: #00805f;
+  --navy: #132d46;
+  /* Gráficos (validados com a skill de dataviz sobre a superfície branca) */
+  --viz-1: #01c38e;
+  --viz-ref: #5c6e80;
+  --viz-grid: #e6e9ec;
+  --viz-axis: #6b7c8c;
+  --viz-outros: #8a97a5;
+  --viz-ring: #ffffff;
+  --cat-1: #01c38e;
+  --cat-2: #2e8fd6;
+  --cat-3: #d99a1e;
+  --cat-4: #e0605f;
+  --cat-5: #8077d0;
+  --cat-6: #d2569a;
+  /* Semáforo: reservado para estado (sempre com ícone e rótulo) */
   --st-atrasado: #d03b3b;
   --st-risco: #fab219;
   --st-ok: #0ca30c;
@@ -35,27 +47,38 @@
 
 .dark {
   color-scheme: dark;
-  --bg: #020617;
-  --surface: rgba(15, 23, 42, 0.6);
-  --surface-solid: #0f172a;
-  --surface-hover: rgba(30, 41, 59, 0.4);
-  --border: #1e293b;
-  --border-strong: #334155;
-  --input-bg: #020617;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --track-bg: #1e293b;
-  --accent-text: #22c55e;
-  --viz-1: #3987e5;
-  --viz-ref: #c3c2b7;
-  --viz-grid: #2c2c2a;
-  --viz-axis: #898781;
-  --st-atrasado: #d03b3b;
+  --bg: #132d46;
+  --surface: #1b3b5c;
+  --surface-solid: #1b3b5c;
+  --surface-hover: #24496e;
+  --border: #2b4c6c;
+  --border-strong: #41668a;
+  --input-bg: #132d46;
+  --text-primary: #f4f4f4;
+  --text-secondary: #bccad6;
+  --text-muted: #93a6b8;
+  --track-bg: #2b4c6c;
+  --accent: #01c38e;
+  --accent-text: #01c38e;
+  /* Passos próprios do escuro (validados contra a superfície #1b3b5c) */
+  --viz-1: #00a87c;
+  --viz-ref: #bccad6;
+  --viz-grid: #2b4c6c;
+  --viz-axis: #93a6b8;
+  --viz-outros: #7f93a6;
+  --viz-ring: #1b3b5c;
+  --cat-1: #00a87c;
+  --cat-2: #3b8fd0;
+  --cat-3: #bc8410;
+  --cat-4: #e3506a;
+  --cat-5: #8f86da;
+  --cat-6: #cf5a9b;
+  --st-atrasado: #e0504f;
   --st-risco: #fab219;
-  --st-ok: #0ca30c;
+  --st-ok: #2fb82f;
 }
 
 body {
   background-color: var(--bg);
+  color: var(--text-primary);
 }

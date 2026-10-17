@@ -130,12 +130,12 @@ export function MonitoramentoSolarPage() {
           formatValue={(v) => decimal.format(v)}
           ordenarPorValor={false}
         />
-        <DonutChart title="Status de desempenho (méd. 3 meses)" data={porStatusDesempenho} />
+        <DonutChart title="Status de desempenho (méd. 3 meses)" data={porStatusDesempenho} semaforo={{ "Dentro do esperado": "ok", Atenção: "risco", Crítico: "atrasado" }} />
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <BarChartGeneric title="Usinas por estado" data={porEstado} layout="vertical" />
-        <BarChartGeneric title="Usinas por concessionária" data={porConcessionaria} layout="vertical" maxBars={12} />
+        <DonutChart title="Usinas por estado" data={porEstado} />
+        <DonutChart title="Usinas por concessionária" data={porConcessionaria} />
         <DonutChart title="Usinas por plano" data={porPlano} />
       </section>
 

@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
 import type { TarefaRaw } from '../api/types'
-import { BarChartGeneric } from '../components/BarChartGeneric'
 import { DataTable } from '../components/DataTable'
 import { DetailRow, Modal } from '../components/Modal'
 import { DonutChart } from '../components/DonutChart'
@@ -154,7 +153,7 @@ export function IndicadorTarefasPage() {
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4">
-        <BarChartGeneric title="Tarefas por tipo" data={porTipo} layout="vertical" maxBars={15} />
+        <DonutChart title="Tarefas por tipo" data={porTipo} />
       </section>
 
       <section className="grid grid-cols-1 gap-4">

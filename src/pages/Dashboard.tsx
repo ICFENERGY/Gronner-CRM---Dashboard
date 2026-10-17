@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
-import { BarChartGeneric } from '../components/BarChartGeneric'
 import { CategoriaLegend } from '../components/CategoriaLegend'
 import { DonutChart } from '../components/DonutChart'
 import { DataTable } from '../components/DataTable'
@@ -224,7 +223,7 @@ export function Dashboard() {
         <button
           onClick={atualizarDados}
           disabled={atualizando}
-          className="rounded-lg border border-icf-green bg-icf-green/10 px-4 py-2 text-sm font-medium text-icf-green dark:text-icf-greenLight hover:bg-icf-green/20 disabled:opacity-50"
+          className="rounded-lg border border-icf-green bg-icf-green/10 px-4 py-2 text-sm font-medium text-[var(--accent-text)] hover:bg-icf-green/20 disabled:opacity-50"
         >
           {atualizando ? 'Atualizando…' : 'Atualizar dados'}
         </button>
@@ -340,7 +339,7 @@ export function Dashboard() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <BarChartGeneric title="Projetos por estado" data={porEstado} layout="vertical" />
+        <DonutChart title="Projetos por estado" data={porEstado} />
         <DonutChart title="Projetos por concessionária" data={porConcessionaria} />
       </section>
     </div>

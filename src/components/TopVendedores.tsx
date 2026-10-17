@@ -26,7 +26,7 @@ export function TopVendedores({ data, onSelect }: { data: VendedorResumo[]; onSe
             >
               <td className="py-2 text-[var(--text-primary)]">{v.vendedor}</td>
               <td className="py-2 text-right text-[var(--text-secondary)]">{v.quantidade}</td>
-              <td className="py-2 text-right font-medium text-icf-green dark:text-icf-greenLight">{currency.format(v.valorTotal)}</td>
+              <td className="py-2 text-right font-medium text-[var(--accent-text)]">{currency.format(v.valorTotal)}</td>
             </tr>
           ))}
         </tbody>

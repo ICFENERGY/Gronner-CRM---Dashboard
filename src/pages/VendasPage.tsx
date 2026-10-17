@@ -119,7 +119,7 @@ export function VendasPage() {
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <DonutChart title="Origem do negócio" data={porOrigem} />
         <DonutChart title="Visão por vendedor" data={porVendedor} />
-        <DonutChart title="Venda mensal (%)" data={porMes} />
+        <BarChartGeneric title="Vendas por mês (quantidade)" data={[...porMes].sort((a, b) => MESES.indexOf(a.name) - MESES.indexOf(b.name))} ordenarPorValor={false} />
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -134,7 +134,7 @@ export function VendasPage() {
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <BarChartGeneric title="Vendas por estado" data={porEstado} layout="vertical" />
+        <DonutChart title="Vendas por estado" data={porEstado} />
         <DonutChart title="Fornecedor do kit" data={porFornecedor} />
       </section>
 
