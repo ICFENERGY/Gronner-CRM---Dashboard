@@ -3,10 +3,13 @@ import { MARCOS } from '../../../shared/engenharia.js'
 import type { ProjetoRaw, PropostaRaw, TarefaRaw, UsinaRaw, VendaRaw } from '../../api/types'
 import { buildPorCategoria, buildPorFunil } from '../../lib/funilAggregations'
 import type { CardEngenharia, Engenharia } from '../engenharia/tipos'
-import { chavesDoIntervalo, dentro, intervalo, PERIODOS, rotuloChave, type PeriodoKey } from './periodo'
+import { ANO_PADRAO, anoEspecifico, anoValido, chavesDoIntervalo, dentro, hojeSP, intervalo, mesValido, rotuloChave, type Ano } from './periodo'
 
 export interface Filtros {
-  periodo: PeriodoKey
+  /** '12m' (últimos 12 meses), 'tudo' (todos os anos) ou um ano, como '2026'. */
+  ano: Ano
+  /** '01'..'12', ou '' para o ano todo. Só vale com ano específico. */
+  mes: string
   vendedor: string
   uf: string
 }
@@ -20,16 +23,38 @@ export interface Fontes {
   engenharia: Engenharia | null
 }
 
-/** Filtros lidos do armazenamento local: aceita só período conhecido e texto em vendedor/UF. */
-export function filtrosValidos(lido: unknown, padrao: Filtros): Filtros {
+/**
+ * Filtros lidos do armazenamento local. Aceita o formato novo (ano + mês) e migra o
+ * antigo ({ periodo }): "12m", "tudo", "ano" (este ano) e "mes" (este mês) viram o
+ * equivalente; "30d" e "3m" não têm correspondente e voltam ao padrão.
+ */
+export function filtrosValidos(lido: unknown, padrao: Filtros, hoje = hojeSP()): Filtros {
   if (!lido || typeof lido !== 'object' || Array.isArray(lido)) return padrao
   const o = lido as Record<string, unknown>
+  let ano: Ano = padrao.ano
+  let mes = padrao.mes
+  if (anoValido(o.ano)) {
+    ano = o.ano
+    mes = anoEspecifico(ano) && mesValido(o.mes) ? o.mes : ''
+  } else if (o.periodo === 'tudo' || o.periodo === '12m') {
+    ano = o.periodo
+    mes = ''
+  } else if (o.periodo === 'ano') {
+    ano = hoje.slice(0, 4)
+    mes = ''
+  } else if (o.periodo === 'mes') {
+    ano = hoje.slice(0, 4)
+    mes = hoje.slice(5, 7)
+  }
   return {
-    periodo: PERIODOS.some((p) => p.k === o.periodo) ? (o.periodo as PeriodoKey) : padrao.periodo,
+    ano,
+    mes,
     vendedor: typeof o.vendedor === 'string' ? o.vendedor : padrao.vendedor,
     uf: typeof o.uf === 'string' ? o.uf : padrao.uf,
   }
 }
+
+export const FILTROS_PADRAO: Filtros = { ano: ANO_PADRAO, mes: '', vendedor: '', uf: '' }
 
 export interface Barra { nome: string; valor: number; extra?: number }
 
@@ -56,11 +81,22 @@ function agrupar<T>(xs: T[], chave: (x: T) => string | null | undefined, valor: 
   return m
 }
 
+/**
+ * Projeto "vendido": tem valor de venda, ou está num funil de contrato em diante
+ * (06. CONTRATO até 17. SEGURO: financeiro, engenharia, homologação, pós-venda).
+ */
+export function projetoVendido(p: ProjetoRaw | undefined): boolean {
+  if (!p) return false
+  if (Number(p.valorVenda) > 0) return true
+  const n = parseInt((p.funil ?? '').trim(), 10)
+  return n >= 6 && n <= 17
+}
+
 /** Variação percentual contra o período anterior; null quando não há base. */
 const variacao = (atual: number, anterior: number | null) => (anterior == null || anterior === 0 ? null : Math.round(((atual - anterior) / anterior) * 100))
 
 export function calcularPainel(f: Fontes, filtros: Filtros) {
-  const iv = intervalo(filtros.periodo)
+  const iv = intervalo(filtros.ano, filtros.mes)
 
   // Comercial: vendas
   const vendasFiltro = (f.vendas ?? []).filter((v) => igual(v.vendedor, filtros.vendedor) && igual(v.estado, filtros.uf))
@@ -78,6 +114,26 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
   const propostas = (f.propostas ?? []).filter((p) => igual(p.vendedorNome, filtros.vendedor) && dentro(p.dataInclusao, iv.inicio, iv.fim))
   const aceitas = propostas.filter((p) => p.aceita).length
 
+  // Comercial: propostas aceitas x não aceitas é derivado de `propostas`.
+  // Financeiro: proposta aceita vira "vendida" quando o projeto dela tem valor de venda ou já passou do contrato.
+  const projetoPorId = new Map((f.projetos ?? []).map((p) => [p.id, p]))
+  const aceitasLista = propostas.filter((p) => p.aceita)
+  const vendidaPorProjeto = (p: PropostaRaw) => projetoVendido(projetoPorId.get(p.projetoId))
+  const propostasVendidas = aceitasLista.filter(vendidaPorProjeto)
+  const propostasNaoVendidas = aceitasLista.filter((p) => !vendidaPorProjeto(p))
+  const valorProposta = (p: PropostaRaw) => (Number(p.preco) > 0 ? Number(p.preco) : 0)
+
+  // Financeiro: composição do valor vendido (sem negativos)
+  const composicao = { lucro: 0, comissao: 0, outros: 0 }
+  for (const v of vendas) {
+    const total = Number(v.valorTotal) > 0 ? Number(v.valorTotal) : 0
+    const lucro = Math.min(Math.max(Number(v.lucro) || 0, 0), total)
+    const comissao = Math.min(Math.max(Number(v.valorComissao) || 0, 0), total - lucro)
+    composicao.lucro += lucro
+    composicao.comissao += comissao
+    composicao.outros += total - lucro - comissao
+  }
+
   // Comercial: funil (posição atual)
   const projetos = (f.projetos ?? []).filter((p) => igual(p.vendedorResponsavel, filtros.vendedor) && igual(p.estado, filtros.uf))
   const categorias = buildPorCategoria(buildPorFunil(projetos))
@@ -85,6 +141,9 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
     .map((k) => categorias.find((c) => c.categoria === k))
     .filter((c): c is NonNullable<typeof c> => Boolean(c && c.quantidade > 0))
     .map((c) => ({ nome: c.label, valor: c.quantidade, chave: c.categoria }))
+
+  // Financeiro: projetos no funil 07. FINANCEIRO por etapa (posição atual)
+  const projetosFinanceiro = projetos.filter((p) => /^07(?!\d)/.test((p.funil ?? '').trim()))
 
   // Engenharia
   const eng = f.engenharia
@@ -101,6 +160,9 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
     { nome: 'Em risco', valor: cards.filter((c) => c.cor === 'risco').length },
     { nome: 'No prazo', valor: cards.filter((c) => c.cor === 'ok').length },
   ]
+  const NOME_MOMENTO: Record<string, string> = { pre: 'Pré-venda', imp: 'Implantação', usi: 'Gestão da usina' }
+  const engMomento: Barra[] = ['pre', 'imp', 'usi'].map((m) => ({ nome: NOME_MOMENTO[m], valor: cards.filter((c) => c.momento === m).length }))
+  const engMarcosRosca: Barra[] = MARCOS.map((m) => ({ nome: `${m.k} · ${m.nome}`, valor: cards.filter((c) => c.marco === m.k).length }))
   const comVenda = cards.filter((c) => c.diasDesdeVenda != null)
 
   // Usinas
@@ -133,6 +195,9 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
     intervalo: iv,
     vendas,
     propostas,
+    propostasVendidas,
+    propostasNaoVendidas,
+    projetosFinanceiro,
     cards,
     usinas,
     atrasadas,
@@ -152,6 +217,24 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
       vendedores: top(agrupar(vendas, (v) => v.vendedor, (v) => v.valorTotal, () => 1), Infinity),
       ufs: top(agrupar(vendas, (v) => v.estado, (v) => v.valorTotal, () => 1), Infinity),
       funil,
+      origens: top(agrupar(vendas, (v) => v.origemNome, () => 1, (v) => v.valorTotal), Infinity),
+      propostasAceitacao: [
+        { nome: 'Aceitas', valor: aceitas },
+        { nome: 'Não aceitas', valor: propostas.length - aceitas },
+      ] as Barra[],
+      finComposicao: [
+        { nome: 'Lucro', valor: composicao.lucro },
+        { nome: 'Comissão', valor: composicao.comissao },
+        { nome: 'Demais custos', valor: composicao.outros },
+      ] as Barra[],
+      finStatus: top(agrupar(vendas, (v) => v.statusNome, (v) => (Number(v.valorTotal) > 0 ? Number(v.valorTotal) : 0), () => 1), Infinity),
+      finFunil: top(agrupar(projetosFinanceiro, (p) => p.etapa, () => 1), Infinity),
+      finPropostas: [
+        { nome: 'Já vendidas', valor: propostasVendidas.reduce((a, p) => a + valorProposta(p), 0), extra: propostasVendidas.length },
+        { nome: 'Ainda não vendidas', valor: propostasNaoVendidas.reduce((a, p) => a + valorProposta(p), 0), extra: propostasNaoVendidas.length },
+      ] as Barra[],
+      engMomento,
+      engMarcosRosca,
       engMarcos,
       concessionarias,
       geracao,
@@ -171,6 +254,11 @@ export function opcoesFiltros(f: Fontes) {
   const ufs = new Set<string>()
   f.vendas?.forEach((v) => { const nome = textoDe(v.vendedor).trim(); const uf = textoDe(v.estado).trim(); if (nome) nomes.add(nome); if (uf) ufs.add(uf.toUpperCase()) })
   f.projetos?.forEach((p) => { const uf = textoDe(p.estado).trim(); if (uf) ufs.add(uf.toUpperCase()) })
+  const anos = new Set<string>([hojeSP().slice(0, 4)])
+  for (const d of [...(f.vendas ?? []).map((v) => v.dataVenda), ...(f.propostas ?? []).map((p) => p.dataInclusao)]) {
+    const a = typeof d === 'string' ? d.slice(0, 4) : ''
+    if (anoEspecifico(a)) anos.add(a)
+  }
   const ordena = (s: Set<string>) => [...s].filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  return { vendedores: ordena(nomes), ufs: ordena(ufs) }
+  return { vendedores: ordena(nomes), ufs: ordena(ufs), anos: [...anos].sort().reverse() }
 }

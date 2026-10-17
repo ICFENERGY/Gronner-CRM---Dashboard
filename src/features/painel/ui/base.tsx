@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ErrorBoundary } from '../../../components/ErrorBoundary'
 
 /** Cor da faixa do KPI por área (decorativa; o semáforo é só para estado). */
-const FAIXA: Record<string, string> = { Comercial: 'var(--cat-1)', Engenharia: 'var(--cat-2)', Tarefas: 'var(--cat-5)', Usinas: 'var(--cat-6)' }
+const FAIXA: Record<string, string> = { Comercial: 'var(--cat-1)', Engenharia: 'var(--cat-2)', Tarefas: 'var(--cat-5)', Usinas: 'var(--cat-6)', Financeiro: 'var(--cat-3)' }
 
 /**
  * KPI clicável: faixa colorida da área com o rótulo em caixa alta, número grande,
@@ -56,6 +56,19 @@ export function Kpi({
         {pctTotal != null && <span className="text-xs text-[var(--text-muted)]">{pctTotal.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% do total</span>}
       </span>
     </button>
+  )
+}
+
+/** Bloco de uma área (Comercial, Engenharia, Financeiro): faixa colorida com o título e os cartões dentro. */
+export function BlocoArea({ area, subtitulo, children }: { area: string; subtitulo: string; children: ReactNode }) {
+  return (
+    <section aria-label={area} className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg)] shadow-sm">
+      <header className="flex flex-wrap items-baseline gap-x-3 px-4 py-2 text-[#0b1f33]" style={{ background: FAIXA[area] ?? 'var(--cat-1)' }}>
+        <h2 className="text-sm font-bold uppercase tracking-wide">{area}</h2>
+        <p className="text-xs">{subtitulo}</p>
+      </header>
+      <div className="grid gap-3 p-3 md:grid-cols-2">{children}</div>
+    </section>
   )
 }
 

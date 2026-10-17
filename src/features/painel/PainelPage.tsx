@@ -5,15 +5,15 @@ import { useRawData } from '../../api/useRawData'
 import { currency, number } from '../../lib/palette'
 import { CHAVE_FILTROS_PAINEL, ErrorBoundary } from '../../components/ErrorBoundary'
 import { useEngenharia } from '../engenharia/useEngenharia'
-import { calcularPainel, filtrosValidos, opcoesFiltros, type Filtros } from './calculos'
+import { calcularPainel, FILTROS_PADRAO, filtrosValidos, opcoesFiltros, type Filtros } from './calculos'
 import { ConteudoDetalhe, type Detalhe } from './detalhes'
-import { PERIODOS, type PeriodoKey } from './periodo'
-import { Cartao, Gaveta, Kpi } from './ui/base'
+import { anoEspecifico, NOMES_MESES, textoPeriodo } from './periodo'
+import { BlocoArea, Cartao, Gaveta, Kpi } from './ui/base'
 import { BarrasVerticais, EmpilhadoStatus, GeracaoPrognostico } from './ui/graficos'
 import { CartaoRosca } from './ui/Rosca'
 
 const CHAVE_FILTROS = CHAVE_FILTROS_PAINEL
-const PADRAO: Filtros = { periodo: '12m', vendedor: '', uf: '' }
+const PADRAO: Filtros = FILTROS_PADRAO
 
 function lerFiltros(): Filtros {
   try { return filtrosValidos(JSON.parse(window.localStorage.getItem(CHAVE_FILTROS) ?? '{}'), PADRAO) } catch { return PADRAO }
@@ -23,17 +23,20 @@ const mil = (v: number) => (Math.abs(v) >= 1e6 ? `${(v / 1e6).toLocaleString('pt
 const reais = (v: number) => `R$ ${mil(v)}`
 
 /**
- * Painel único: um filtro para tudo, KPIs das quatro áreas e gráficos lado a
- * lado. Qualquer KPI ou gráfico abre o detalhe numa gaveta, sem trocar de tela.
+ * Painel único: um filtro (ano, mês, vendedor, UF) para tudo, painéis em rosca por
+ * área, KPIs e gráficos no tempo. Qualquer KPI ou gráfico abre o detalhe numa
+ * gaveta, sem trocar de tela.
  */
 const SEMAFORO_USINAS = { 'Dentro do esperado': 'ok', Atenção: 'risco', Crítico: 'atrasado' } as const
 const SEMAFORO_PRAZO = { 'No prazo': 'ok', 'Em risco': 'risco', Atrasado: 'atrasado' } as const
+const MOMENTO_DE: Record<string, string> = { 'Pré-venda': 'pre', Implantação: 'imp', 'Gestão da usina': 'usi' }
 
 export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void; onAba: (k: string) => void }) {
   const [filtros, setFiltrosState] = useState<Filtros>(lerFiltros)
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
   const setFiltro = <K extends keyof Filtros>(k: K, v: Filtros[K]) => {
     const novo = { ...filtros, [k]: v }
+    if (k === 'ano' && !anoEspecifico(String(v))) novo.mes = ''
     setFiltrosState(novo)
     try { window.localStorage.setItem(CHAVE_FILTROS, JSON.stringify(novo)) } catch { /* sem armazenamento local */ }
   }
@@ -56,18 +59,31 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
   const carregando = [vendas, propostas, projetos, tarefas, usinas].filter((x) => x.loading).length + (eng.carregando ? 1 : 0)
   const erros = [vendas.error, propostas.error, projetos.error, tarefas.error, usinas.error, eng.erro].filter(Boolean)
   const { kpis, series } = painel
-  const periodoTxt = PERIODOS.find((p) => p.k === filtros.periodo)?.rotulo.toLowerCase()
+  const periodoTxt = textoPeriodo(filtros.ano, filtros.mes)
   const escopo = [filtros.vendedor, filtros.uf].filter(Boolean).join(' · ')
+  const sufixoEscopo = escopo ? ` · ${escopo}` : ''
+  const notaPosicao = filtros.ano !== 'tudo' ? 'O período não se aplica: é a posição de hoje.' : undefined
+  const notaUfProposta = filtros.uf ? 'UF não se aplica a propostas.' : undefined
   const select = 'rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-2.5 py-1.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none'
+  const situacaoDe = (nome: string) => SEMAFORO_PRAZO[nome as keyof typeof SEMAFORO_PRAZO]
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       {/* Filtro único, acima de tudo o que ele recorta */}
       <div className="sticky top-0 z-20 -mx-6 flex flex-wrap items-end gap-3 border-b border-[var(--border)] bg-[var(--bg)]/95 px-6 py-3 backdrop-blur md:-mx-10 md:px-10">
         <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
-          Período
-          <select className={select} value={filtros.periodo} onChange={(e) => setFiltro('periodo', e.target.value as PeriodoKey)}>
-            {PERIODOS.map((p) => <option key={p.k} value={p.k}>{p.rotulo}</option>)}
+          Ano
+          <select className={select} value={filtros.ano} onChange={(e) => setFiltro('ano', e.target.value)}>
+            <option value="12m">Últimos 12 meses</option>
+            <option value="tudo">Todos os anos</option>
+            {opcoes.anos.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
+          Mês
+          <select className={`${select} disabled:opacity-50`} value={filtros.mes} disabled={!anoEspecifico(filtros.ano)} onChange={(e) => setFiltro('mes', e.target.value)} title={anoEspecifico(filtros.ano) ? undefined : 'Escolha um ano para filtrar por mês'}>
+            <option value="">Todos</option>
+            {NOMES_MESES.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
           </select>
         </label>
         <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
@@ -84,7 +100,7 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
             {opcoes.ufs.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
         </label>
-        {(filtros.vendedor || filtros.uf || filtros.periodo !== PADRAO.periodo) && (
+        {(filtros.vendedor || filtros.uf || filtros.ano !== PADRAO.ano || filtros.mes) && (
           <button type="button" onClick={() => { setFiltrosState(PADRAO); try { window.localStorage.removeItem(CHAVE_FILTROS) } catch { /* */ } }} className="rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:border-icf-green">
             Limpar filtros
           </button>
@@ -100,7 +116,138 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
         </p>
       )}
 
+      {/* Painéis por área: partes de um todo em rosca, todas recortadas pelos filtros */}
+      <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">Painéis por área</h2>
+
+      <BlocoArea area="Comercial" subtitulo={`Vendas e propostas · ${periodoTxt}${sufixoEscopo}`}>
+        <CartaoRosca
+          titulo="Participação por vendedor"
+          subtitulo={`R$ vendido · ${periodoTxt} · clique para ver as vendas`}
+          dados={series.vendedores}
+          formatar={reais}
+          formatarTabela={(v) => currency.format(v)}
+          colunaValor="Vendido"
+          rotuloTotal="vendido"
+          onClicar={(nome) => setDetalhe({ tipo: 'vendas', titulo: `Vendas de ${nome}`, vendedor: nome })}
+          onDetalhe={() => onAba('vendas')}
+        />
+        <CartaoRosca
+          titulo="Vendas por origem do lead"
+          subtitulo={`Quantidade de vendas · ${periodoTxt}`}
+          dados={series.origens}
+          colunaValor="Vendas"
+          rotuloTotal="vendas"
+          onClicar={(origem) => setDetalhe({ tipo: 'vendas', titulo: `Vendas · origem ${origem}`, origem })}
+        />
+        <CartaoRosca
+          titulo="Propostas aceitas e não aceitas"
+          subtitulo={`Propostas criadas · ${periodoTxt}`}
+          nota={notaUfProposta}
+          dados={series.propostasAceitacao}
+          colunaValor="Propostas"
+          rotuloTotal="propostas"
+          onClicar={(nome) => setDetalhe({ tipo: 'propostas', titulo: `Propostas ${nome.toLowerCase()}`, grupo: nome === 'Aceitas' ? 'aceitas' : 'nao-aceitas' })}
+        />
+        <CartaoRosca
+          titulo="Funil comercial"
+          subtitulo="Projetos por etapa do funil · posição atual"
+          nota={notaPosicao}
+          dados={series.funil}
+          colunaValor="Projetos"
+          rotuloTotal="projetos"
+          onDetalhe={() => setDetalhe({ tipo: 'analise', titulo: 'Visão geral do funil', pagina: 'geral' })}
+        />
+      </BlocoArea>
+
+      <BlocoArea area="Engenharia" subtitulo={`Cards do quadro de engenharia · posição atual${sufixoEscopo}`}>
+        <CartaoRosca
+          titulo="Cards por momento"
+          subtitulo="Pré-venda, implantação e gestão da usina"
+          nota={notaPosicao}
+          dados={series.engMomento}
+          colunaValor="Cards"
+          rotuloTotal="cards"
+          onClicar={(nome) => setDetalhe({ tipo: 'engenharia', titulo: `Engenharia · ${nome}`, momento: MOMENTO_DE[nome] })}
+          onDetalhe={() => onAba('engenharia')}
+        />
+        <CartaoRosca
+          titulo="Cards por situação"
+          subtitulo="Prazo de cada card ativo"
+          nota={notaPosicao}
+          dados={series.engSituacao}
+          semaforo={SEMAFORO_PRAZO}
+          colunaValor="Cards"
+          rotuloTotal="cards"
+          onClicar={(nome) => setDetalhe({ tipo: 'engenharia', titulo: `Engenharia · ${nome.toLowerCase()}`, situacao: situacaoDe(nome) })}
+          onDetalhe={() => onAba('engenharia')}
+        />
+        <CartaoRosca
+          titulo="Cards por marco"
+          subtitulo="Os 5 marcos com mais cards; o resto em Outros"
+          nota={notaPosicao}
+          dados={series.engMarcosRosca}
+          colunaValor="Cards"
+          rotuloTotal="cards"
+          onClicar={(nome) => { const marco = nome.split(' · ')[0]; setDetalhe({ tipo: 'engenharia', titulo: `Engenharia · marco ${marco}`, marco }) }}
+        />
+        <CartaoRosca
+          titulo="Homologação por concessionária"
+          subtitulo="Cards entre protocolo e vistoria (marcos 5 a 12)"
+          nota={notaPosicao}
+          dados={series.concessionarias}
+          colunaValor="Cards"
+          rotuloTotal="cards"
+          onClicar={(c) => setDetalhe({ tipo: 'engenharia', titulo: `Homologação · ${c}`, concessionaria: c })}
+        />
+      </BlocoArea>
+
+      <BlocoArea area="Financeiro" subtitulo={`Valor vendido, status e propostas · ${periodoTxt}${sufixoEscopo}`}>
+        <CartaoRosca
+          titulo="Composição do valor vendido"
+          subtitulo={`Lucro, comissão e demais custos · ${periodoTxt}`}
+          nota={`Demais custos = valor − lucro − comissão; negativos = 0. Lucro em ${painel.vendas.filter((v) => Number(v.lucro) > 0).length} de ${painel.vendas.length} vendas.`}
+          dados={series.finComposicao}
+          formatar={reais}
+          formatarTabela={(v) => currency.format(v)}
+          colunaValor="R$"
+          rotuloTotal="vendido"
+          onDetalhe={() => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${periodoTxt}` })}
+        />
+        <CartaoRosca
+          titulo="Vendas por status"
+          subtitulo={`R$ vendido · ${periodoTxt} · clique para ver as vendas`}
+          dados={series.finStatus}
+          formatar={reais}
+          formatarTabela={(v) => currency.format(v)}
+          colunaValor="Vendido"
+          rotuloTotal="vendido"
+          onClicar={(status) => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${status}`, status })}
+        />
+        <CartaoRosca
+          titulo="Projetos no funil Financeiro"
+          subtitulo="Por etapa do funil 07. FINANCEIRO · posição atual"
+          nota={notaPosicao}
+          dados={series.finFunil}
+          colunaValor="Projetos"
+          rotuloTotal="projetos"
+          onClicar={(etapa) => setDetalhe({ tipo: 'projetos', titulo: `Financeiro · ${etapa}`, etapa })}
+          onDetalhe={() => setDetalhe({ tipo: 'projetos', titulo: 'Funil Financeiro' })}
+        />
+        <CartaoRosca
+          titulo="Propostas aceitas: vendidas e não vendidas"
+          subtitulo={`R$ das propostas aceitas · ${periodoTxt}`}
+          nota={`Vendida = projeto com valor de venda ou do funil 06. Contrato em diante.${filtros.uf ? ' UF não se aplica a propostas.' : ''}`}
+          dados={series.finPropostas}
+          formatar={reais}
+          formatarTabela={(v) => currency.format(v)}
+          colunaValor="R$"
+          rotuloTotal="aceitas"
+          onClicar={(nome) => setDetalhe({ tipo: 'propostas', titulo: `Propostas aceitas · ${nome.toLowerCase()}`, grupo: nome === 'Já vendidas' ? 'vendidas' : 'nao-vendidas' })}
+        />
+      </BlocoArea>
+
       {/* KPIs das quatro áreas */}
+      <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">Indicadores</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi area="Comercial" rotulo={`Vendido · ${periodoTxt}`} valor={reais(kpis.vendido)} variacao={kpis.vendidoVar} contexto={kpis.vendidoVar != null ? 'contra o período anterior' : escopo || undefined} onAbrir={() => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${periodoTxt}` })} />
         <Kpi area="Comercial" rotulo="Vendas e ticket médio" valor={number.format(kpis.qtdVendas)} variacao={kpis.qtdVendasVar} contexto={`ticket médio ${currency.format(kpis.ticket)}`} onAbrir={() => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${periodoTxt}` })} />
@@ -112,53 +259,19 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
         <Kpi area="Engenharia" rotulo="Carteira em implantação" valor={`${mil(eng.dados?.painel.porMomento.imp.kwp ?? 0)} kWp`} contexto={`${eng.dados?.painel.porMomento.imp.n ?? 0} obras · total ativo ${mil(eng.dados?.painel.kwpAtivo ?? 0)} kWp`} onAbrir={onModoReuniao} />
       </div>
 
-      {/* Gráficos: séries no tempo em barras/linha; partes de um todo em rosca */}
+      {/* Séries no tempo e demais áreas */}
+      <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">Evolução e acompanhamento</h2>
       <div className="grid gap-4 lg:grid-cols-12">
         <Cartao
           className="lg:col-span-8"
           titulo={`Vendido por ${painel.intervalo.porDia ? 'dia' : 'mês'}`}
-          subtitulo={`R$ · ${periodoTxt}${escopo ? ` · ${escopo}` : ''}`}
+          subtitulo={`R$ · ${periodoTxt}${sufixoEscopo}`}
           colunas={['Período', 'Valor', 'Vendas']}
           linhas={series.vendasTempo.map((b) => ({ nome: b.nome, valores: [currency.format(b.valor), b.extra ?? 0] }))}
           onDetalhe={() => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${periodoTxt}` })}
         >
           <BarrasVerticais dados={series.vendasTempo} formatar={reais} rotuloValor="Vendido" altura={300} />
         </Cartao>
-        <CartaoRosca
-          className="lg:col-span-4"
-          titulo="Funil comercial"
-          subtitulo="Projetos por etapa do funil · posição atual"
-          nota={filtros.periodo !== 'tudo' ? 'O período não se aplica: é a posição de hoje.' : undefined}
-          dados={series.funil}
-          colunaValor="Projetos"
-          rotuloTotal="projetos"
-          onDetalhe={() => setDetalhe({ tipo: 'analise', titulo: 'Visão geral do funil', pagina: 'geral' })}
-        />
-
-        <Cartao
-          className="lg:col-span-8"
-          titulo="Engenharia · cards por marco"
-          subtitulo="16 marcos, do criar projeto ao dossiê · clique numa barra para ver os cards"
-          nota={filtros.periodo !== 'tudo' ? 'O período não se aplica: é a situação de hoje.' : undefined}
-          colunas={['Marco', 'Atrasado', 'Em risco', 'No prazo']}
-          linhas={series.engMarcos.filter((m) => m.atrasado + m.risco + m.ok > 0).map((m) => ({ nome: m.titulo, valores: [m.atrasado, m.risco, m.ok] }))}
-          onDetalhe={() => onAba('engenharia')}
-        >
-          <EmpilhadoStatus dados={series.engMarcos} onClicar={(marco) => setDetalhe({ tipo: 'engenharia', titulo: `Engenharia · marco ${marco}`, marco })} />
-        </Cartao>
-        <CartaoRosca
-          className="lg:col-span-4"
-          titulo="Participação por vendedor"
-          subtitulo={`R$ vendido · ${periodoTxt} · clique para ver as vendas`}
-          dados={series.vendedores}
-          formatar={reais}
-          formatarTabela={(v) => currency.format(v)}
-          colunaValor="Vendido"
-          rotuloTotal="vendido"
-          onClicar={(nome) => setDetalhe({ tipo: 'vendas', titulo: `Vendas de ${nome}`, vendedor: nome })}
-          onDetalhe={() => onAba('vendas')}
-        />
-
         <CartaoRosca
           className="lg:col-span-4"
           titulo="Vendas por UF"
@@ -170,15 +283,18 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
           rotuloTotal="vendido"
           onClicar={(uf) => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${uf}`, uf })}
         />
-        <CartaoRosca
-          className="lg:col-span-4"
-          titulo="Homologação por concessionária"
-          subtitulo="Cards entre protocolo e vistoria (marcos 5 a 12)"
-          dados={series.concessionarias}
-          colunaValor="Cards"
-          rotuloTotal="cards"
-          onClicar={(c) => setDetalhe({ tipo: 'engenharia', titulo: `Homologação · ${c}`, concessionaria: c })}
-        />
+
+        <Cartao
+          className="lg:col-span-8"
+          titulo="Engenharia · cards por marco"
+          subtitulo="16 marcos, do criar projeto ao dossiê · clique numa barra para ver os cards"
+          nota={notaPosicao}
+          colunas={['Marco', 'Atrasado', 'Em risco', 'No prazo']}
+          linhas={series.engMarcos.filter((m) => m.atrasado + m.risco + m.ok > 0).map((m) => ({ nome: m.titulo, valores: [m.atrasado, m.risco, m.ok] }))}
+          onDetalhe={() => onAba('engenharia')}
+        >
+          <EmpilhadoStatus dados={series.engMarcos} onClicar={(marco) => setDetalhe({ tipo: 'engenharia', titulo: `Engenharia · marco ${marco}`, marco })} />
+        </Cartao>
         <CartaoRosca
           className="lg:col-span-4"
           titulo="Tarefas atrasadas por responsável"
@@ -214,17 +330,7 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
         />
 
         <CartaoRosca
-          className="lg:col-span-6"
-          titulo="Cards de engenharia por situação"
-          subtitulo="Prazo de cada card ativo · posição atual"
-          dados={series.engSituacao}
-          semaforo={SEMAFORO_PRAZO}
-          colunaValor="Cards"
-          rotuloTotal="cards"
-          onDetalhe={() => onAba('engenharia')}
-        />
-        <CartaoRosca
-          className="lg:col-span-6"
+          className="lg:col-span-4"
           titulo="Tarefas por status"
           subtitulo="Todas as tarefas · estado atual"
           dados={series.tarefasStatus}

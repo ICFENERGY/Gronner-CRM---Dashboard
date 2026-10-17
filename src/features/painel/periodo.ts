@@ -1,22 +1,25 @@
-/** Períodos do filtro único do painel. Datas em AAAA-MM-DD no fuso de São Paulo. */
+/**
+ * Período do filtro do painel: Ano ('12m' = últimos 12 meses, 'tudo' = todos os
+ * anos ou um ano como '2026') e Mês opcional ('01'..'12', só com ano específico).
+ * Datas em AAAA-MM-DD no fuso de São Paulo.
+ */
 
-export type PeriodoKey = '30d' | 'mes' | '3m' | '12m' | 'ano' | 'tudo'
+export type Ano = '12m' | 'tudo' | string
 
-export const PERIODOS: { k: PeriodoKey; rotulo: string }[] = [
-  { k: '30d', rotulo: 'Últimos 30 dias' },
-  { k: 'mes', rotulo: 'Este mês' },
-  { k: '3m', rotulo: 'Últimos 3 meses' },
-  { k: '12m', rotulo: 'Últimos 12 meses' },
-  { k: 'ano', rotulo: 'Este ano' },
-  { k: 'tudo', rotulo: 'Todo o histórico' },
-]
+export const ANO_PADRAO: Ano = '12m'
+
+export const NOMES_MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
+export const anoEspecifico = (ano: string) => /^\d{4}$/.test(ano)
+export const anoValido = (ano: unknown): ano is Ano => ano === '12m' || ano === 'tudo' || (typeof ano === 'string' && anoEspecifico(ano))
+export const mesValido = (mes: unknown): mes is string => typeof mes === 'string' && /^(0[1-9]|1[0-2])$/.test(mes)
 
 export interface Intervalo {
   inicio: string | null
   fim: string
-  /** Mesmo tamanho, imediatamente antes — base da variação dos KPIs. */
+  /** Mesmo tamanho (ou o mesmo trecho do ano/mês anterior), imediatamente antes — base da variação dos KPIs. */
   anterior: { inicio: string; fim: string } | null
-  /** Agrupar a série temporal por dia (períodos curtos) ou por mês. */
+  /** Agrupar a série temporal por dia (quando há um mês escolhido) ou por mês. */
   porDia: boolean
 }
 
@@ -33,19 +36,43 @@ const somaMeses = (iso: string, meses: number) => {
   return d.toISOString().slice(0, 10)
 }
 const diasEntre = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000)
+const ultimoDiaDoMes = (primeiroDia: string) => somaDias(somaMeses(primeiroDia, 1), -1)
+const menor = (a: string, b: string) => (a < b ? a : b)
 
-export function intervalo(k: PeriodoKey, hoje = hojeSP()): Intervalo {
-  let inicio: string | null
-  if (k === '30d') inicio = somaDias(hoje, -29)
-  else if (k === 'mes') inicio = `${hoje.slice(0, 7)}-01`
-  else if (k === '3m') inicio = somaMeses(hoje, -2)
-  else if (k === '12m') inicio = somaMeses(hoje, -11)
-  else if (k === 'ano') inicio = `${hoje.slice(0, 4)}-01-01`
-  else inicio = null
-  if (!inicio) return { inicio: null, fim: hoje, anterior: null, porDia: false }
-  const tamanho = diasEntre(inicio, hoje) + 1
-  const fimAnterior = somaDias(inicio, -1)
-  return { inicio, fim: hoje, anterior: { inicio: somaDias(fimAnterior, -(tamanho - 1)), fim: fimAnterior }, porDia: tamanho <= 45 }
+/**
+ * Intervalo do filtro Ano + Mês. O mês só vale com ano específico.
+ * Ano ou mês em curso termina hoje; o período anterior tem então o mesmo número de
+ * dias (mês → mês anterior; ano → mesmo trecho do ano anterior; 12 meses → 12 meses
+ * anteriores; todos os anos → sem comparação).
+ */
+export function intervalo(ano: Ano, mes = '', hoje = hojeSP()): Intervalo {
+  if (anoEspecifico(ano) && mesValido(mes)) {
+    const inicio = `${ano}-${mes}-01`
+    const fimMes = ultimoDiaDoMes(inicio)
+    const fim = hoje >= inicio && hoje < fimMes ? hoje : fimMes
+    const inicioAnt = somaMeses(inicio, -1)
+    const fimAnt = menor(ultimoDiaDoMes(inicioAnt), somaDias(inicioAnt, diasEntre(inicio, fim)))
+    return { inicio, fim, anterior: { inicio: inicioAnt, fim: fimAnt }, porDia: true }
+  }
+  if (anoEspecifico(ano)) {
+    const inicio = `${ano}-01-01`
+    const fimAno = `${ano}-12-31`
+    const fim = hoje >= inicio && hoje < fimAno ? hoje : fimAno
+    const inicioAnt = `${Number(ano) - 1}-01-01`
+    const fimAnt = fim === fimAno ? `${Number(ano) - 1}-12-31` : menor(`${Number(ano) - 1}-12-31`, somaDias(inicioAnt, diasEntre(inicio, fim)))
+    return { inicio, fim, anterior: { inicio: inicioAnt, fim: fimAnt }, porDia: false }
+  }
+  if (ano === '12m') {
+    const inicio = somaMeses(hoje, -11)
+    return { inicio, fim: hoje, anterior: { inicio: somaMeses(inicio, -12), fim: somaDias(inicio, -1) }, porDia: false }
+  }
+  return { inicio: null, fim: hoje, anterior: null, porDia: false }
+}
+
+/** Texto curto do período, em minúsculas onde cabe numa frase: "2026 · março", "últimos 12 meses". */
+export function textoPeriodo(ano: Ano, mes = ''): string {
+  if (anoEspecifico(ano)) return mesValido(mes) ? `${ano} · ${NOMES_MESES[Number(mes) - 1].toLowerCase()}` : ano
+  return ano === 'tudo' ? 'todos os anos' : 'últimos 12 meses'
 }
 
 /** Data (qualquer formato ISO do Groner) dentro do intervalo, comparando só o dia. */

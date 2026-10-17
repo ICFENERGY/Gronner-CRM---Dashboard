@@ -3,13 +3,16 @@ import { MARCOS } from '../../../shared/engenharia.js'
 import { currency, number } from '../../lib/palette'
 import { dma } from '../engenharia/formato'
 import { Selo } from '../engenharia/componentes/Selo'
-import type { Painel } from './calculos'
+import { textoDe, type Painel } from './calculos'
+
+export type GrupoProposta = 'aceitas' | 'nao-aceitas' | 'vendidas' | 'nao-vendidas'
 
 /** O que a gaveta mostra: uma lista, já recortada pelo que foi clicado. */
 export type Detalhe =
-  | { tipo: 'vendas'; titulo: string; vendedor?: string; uf?: string; chave?: string }
-  | { tipo: 'propostas'; titulo: string }
-  | { tipo: 'engenharia'; titulo: string; marco?: string; concessionaria?: string; somenteAtrasados?: boolean; alemDaMeta?: boolean }
+  | { tipo: 'vendas'; titulo: string; vendedor?: string; uf?: string; chave?: string; origem?: string; status?: string }
+  | { tipo: 'propostas'; titulo: string; grupo?: GrupoProposta }
+  | { tipo: 'projetos'; titulo: string; etapa?: string }
+  | { tipo: 'engenharia'; titulo: string; marco?: string; concessionaria?: string; somenteAtrasados?: boolean; alemDaMeta?: boolean; momento?: string; situacao?: string }
   | { tipo: 'tarefas'; titulo: string; responsavel?: string }
   | { tipo: 'usinas'; titulo: string; status?: string }
   | { tipo: 'analise'; titulo: string; pagina: 'geral' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento' | 'pieta' }
@@ -40,7 +43,9 @@ const NOME_MARCO = Object.fromEntries(MARCOS.map((m) => [m.k, m.nome]))
 export function ConteudoDetalhe({ detalhe, painel, onModoReuniao }: { detalhe: Detalhe; painel: Painel; onModoReuniao: () => void }) {
   if (detalhe.tipo === 'vendas') {
     const linhas = painel.vendas
-      .filter((v) => (!detalhe.vendedor || v.vendedor === detalhe.vendedor) && (!detalhe.uf || (v.estado ?? 'Não informado') === detalhe.uf) && (!detalhe.chave || v.dataVenda.startsWith(detalhe.chave)))
+      .filter((v) => (!detalhe.vendedor || v.vendedor === detalhe.vendedor) && (!detalhe.uf || (v.estado ?? 'Não informado') === detalhe.uf) && (!detalhe.chave || v.dataVenda.startsWith(detalhe.chave))
+        && (!detalhe.origem || (textoDe(v.origemNome).trim() || 'Não informado') === detalhe.origem)
+        && (!detalhe.status || (textoDe(v.statusNome).trim() || 'Não informado') === detalhe.status))
       .sort((a, b) => b.dataVenda.localeCompare(a.dataVenda))
     const total = linhas.reduce((a, v) => a + (v.valorTotal || 0), 0)
     return (
@@ -59,7 +64,8 @@ export function ConteudoDetalhe({ detalhe, painel, onModoReuniao }: { detalhe: D
   }
 
   if (detalhe.tipo === 'propostas') {
-    const linhas = [...painel.propostas].sort((a, b) => b.dataInclusao.localeCompare(a.dataInclusao))
+    const base = detalhe.grupo === 'vendidas' ? painel.propostasVendidas : detalhe.grupo === 'nao-vendidas' ? painel.propostasNaoVendidas : painel.propostas
+    const linhas = base.filter((p) => detalhe.grupo !== 'aceitas' && detalhe.grupo !== 'nao-aceitas' ? true : (detalhe.grupo === 'aceitas') === p.aceita).sort((a, b) => b.dataInclusao.localeCompare(a.dataInclusao))
     return (
       <>
         <Resumo>{number.format(linhas.length)} propostas no período · {number.format(linhas.filter((p) => p.aceita).length)} aceitas</Resumo>
@@ -76,11 +82,29 @@ export function ConteudoDetalhe({ detalhe, painel, onModoReuniao }: { detalhe: D
     )
   }
 
+  if (detalhe.tipo === 'projetos') {
+    const linhas = painel.projetosFinanceiro.filter((p) => !detalhe.etapa || (textoDe(p.etapa).trim() || 'Não informado') === detalhe.etapa)
+    return (
+      <>
+        <Resumo>{number.format(linhas.length)} projetos no funil financeiro</Resumo>
+        <Tabela linhas={linhas} chave={(p) => p.id} colunas={[
+          { rotulo: 'Projeto', render: (p) => p.nome },
+          { rotulo: 'Vendedor', render: (p) => textoDe(p.vendedorResponsavel) || '—' },
+          { rotulo: 'Etapa', render: (p) => p.etapa ?? '—' },
+          { rotulo: 'Local', render: (p) => [p.cidade, textoDe(p.estado)].filter(Boolean).join('/') || '—' },
+          { rotulo: 'Valor da venda', dir: true, render: (p) => (p.valorVenda ? currency.format(p.valorVenda) : '—') },
+        ]} />
+      </>
+    )
+  }
+
   if (detalhe.tipo === 'engenharia') {
     const meta = painel.kpis.meta
     const linhas = painel.cards.filter((c) =>
       (!detalhe.marco || c.marco === detalhe.marco)
       && (!detalhe.concessionaria || (c.concessionaria ?? 'Não informado') === detalhe.concessionaria)
+      && (!detalhe.momento || c.momento === detalhe.momento)
+      && (!detalhe.situacao || c.cor === detalhe.situacao)
       && (!detalhe.somenteAtrasados || c.cor === 'atrasado')
       && (!detalhe.alemDaMeta || (c.diasDesdeVenda ?? 0) > meta))
     return (
