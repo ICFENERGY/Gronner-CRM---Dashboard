@@ -3,7 +3,7 @@ import { MARCOS } from '../../../shared/engenharia.js'
 import type { ProjetoRaw, PropostaRaw, TarefaRaw, UsinaRaw, VendaRaw } from '../../api/types'
 import { buildPorCategoria, buildPorFunil } from '../../lib/funilAggregations'
 import type { CardEngenharia, Engenharia } from '../engenharia/tipos'
-import { chavesDoIntervalo, dentro, intervalo, rotuloChave, type PeriodoKey } from './periodo'
+import { chavesDoIntervalo, dentro, intervalo, PERIODOS, rotuloChave, type PeriodoKey } from './periodo'
 
 export interface Filtros {
   periodo: PeriodoKey
@@ -20,17 +20,34 @@ export interface Fontes {
   engenharia: Engenharia | null
 }
 
+/** Filtros lidos do armazenamento local: aceita só período conhecido e texto em vendedor/UF. */
+export function filtrosValidos(lido: unknown, padrao: Filtros): Filtros {
+  if (!lido || typeof lido !== 'object' || Array.isArray(lido)) return padrao
+  const o = lido as Record<string, unknown>
+  return {
+    periodo: PERIODOS.some((p) => p.k === o.periodo) ? (o.periodo as PeriodoKey) : padrao.periodo,
+    vendedor: typeof o.vendedor === 'string' ? o.vendedor : padrao.vendedor,
+    uf: typeof o.uf === 'string' ? o.uf : padrao.uf,
+  }
+}
+
 export interface Barra { nome: string; valor: number; extra?: number }
 
 const MESES_2026 = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
-const igual = (a: string | null | undefined, b: string) => !b || (a ?? '').trim().toLowerCase() === b.trim().toLowerCase()
+/**
+ * Nome em texto. Os dados vêm do armazenamento sincronizado e já chegaram com o
+ * vendedor como objeto do usuário ({ nome, … }) em vez de texto: aceita os dois
+ * e ignora o resto, para um registro estranho não derrubar o painel.
+ */
+export const textoDe = (v: unknown): string => (typeof v === 'string' ? v : v && typeof v === 'object' && typeof (v as { nome?: unknown }).nome === 'string' ? (v as { nome: string }).nome : '')
+export const igual = (a: unknown, b: string) => !b || textoDe(a).trim().toLowerCase() === b.trim().toLowerCase()
 const soma = <T,>(xs: T[], f: (x: T) => number | null | undefined) => xs.reduce((a, x) => a + (Number(f(x)) || 0), 0)
 const top = (m: Map<string, Barra>, n: number) => [...m.values()].sort((a, b) => b.valor - a.valor).slice(0, n)
 
 function agrupar<T>(xs: T[], chave: (x: T) => string | null | undefined, valor: (x: T) => number, extra?: (x: T) => number) {
   const m = new Map<string, Barra>()
   for (const x of xs) {
-    const k = chave(x) || 'Não informado'
+    const k = textoDe(chave(x)).trim() || 'Não informado'
     const b = m.get(k) ?? { nome: k, valor: 0, extra: 0 }
     b.valor += valor(x)
     if (extra) b.extra = (b.extra ?? 0) + extra(x)
@@ -152,8 +169,8 @@ export type Painel = ReturnType<typeof calcularPainel>
 export function opcoesFiltros(f: Fontes) {
   const nomes = new Set<string>()
   const ufs = new Set<string>()
-  f.vendas?.forEach((v) => { if (v.vendedor) nomes.add(v.vendedor.trim()); if (v.estado) ufs.add(v.estado.trim().toUpperCase()) })
-  f.projetos?.forEach((p) => { if (p.estado) ufs.add(p.estado.trim().toUpperCase()) })
+  f.vendas?.forEach((v) => { const nome = textoDe(v.vendedor).trim(); const uf = textoDe(v.estado).trim(); if (nome) nomes.add(nome); if (uf) ufs.add(uf.toUpperCase()) })
+  f.projetos?.forEach((p) => { const uf = textoDe(p.estado).trim(); if (uf) ufs.add(uf.toUpperCase()) })
   const ordena = (s: Set<string>) => [...s].filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'))
   return { vendedores: ordena(nomes), ufs: ordena(ufs) }
 }

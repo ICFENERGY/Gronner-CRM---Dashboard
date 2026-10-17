@@ -3,19 +3,20 @@ import { api } from '../../api/client'
 import { Dashboard } from '../../pages/Dashboard'
 import { useRawData } from '../../api/useRawData'
 import { currency, number } from '../../lib/palette'
+import { CHAVE_FILTROS_PAINEL, ErrorBoundary } from '../../components/ErrorBoundary'
 import { useEngenharia } from '../engenharia/useEngenharia'
-import { calcularPainel, opcoesFiltros, type Filtros } from './calculos'
+import { calcularPainel, filtrosValidos, opcoesFiltros, type Filtros } from './calculos'
 import { ConteudoDetalhe, type Detalhe } from './detalhes'
 import { PERIODOS, type PeriodoKey } from './periodo'
 import { Cartao, Gaveta, Kpi } from './ui/base'
 import { BarrasVerticais, EmpilhadoStatus, GeracaoPrognostico } from './ui/graficos'
 import { CartaoRosca } from './ui/Rosca'
 
-const CHAVE_FILTROS = 'painel:filtros'
+const CHAVE_FILTROS = CHAVE_FILTROS_PAINEL
 const PADRAO: Filtros = { periodo: '12m', vendedor: '', uf: '' }
 
 function lerFiltros(): Filtros {
-  try { return { ...PADRAO, ...JSON.parse(window.localStorage.getItem(CHAVE_FILTROS) ?? '{}') } } catch { return PADRAO }
+  try { return filtrosValidos(JSON.parse(window.localStorage.getItem(CHAVE_FILTROS) ?? '{}'), PADRAO) } catch { return PADRAO }
 }
 
 const mil = (v: number) => (Math.abs(v) >= 1e6 ? `${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi` : Math.abs(v) >= 1e3 ? `${Math.round(v / 1e3).toLocaleString('pt-BR')} mil` : number.format(Math.round(v)))
@@ -235,7 +236,9 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
 
       {detalhe && detalhe.tipo !== 'analise' && (
         <Gaveta titulo={detalhe.titulo} onFechar={fechar}>
-          <ConteudoDetalhe detalhe={detalhe} painel={painel} onModoReuniao={() => { fechar(); onModoReuniao() }} />
+          <ErrorBoundary variante="cartao">
+            <ConteudoDetalhe detalhe={detalhe} painel={painel} onModoReuniao={() => { fechar(); onModoReuniao() }} />
+          </ErrorBoundary>
         </Gaveta>
       )}
       {detalhe?.tipo === 'analise' && <AnaliseCompleta titulo={detalhe.titulo} onFechar={fechar} />}

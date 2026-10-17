@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ErrorBoundary } from '../../../components/ErrorBoundary'
 
 /** Cor da faixa do KPI por área (decorativa; o semáforo é só para estado). */
 const FAIXA: Record<string, string> = { Comercial: 'var(--cat-1)', Engenharia: 'var(--cat-2)', Tarefas: 'var(--cat-5)', Usinas: 'var(--cat-6)' }
@@ -103,6 +104,8 @@ export function Cartao({
           )}
         </div>
       </header>
+      {/* Um gráfico quebrado mostra um aviso no próprio cartão e não derruba a página. */}
+      <ErrorBoundary variante="cartao">
       {linhas.length === 0 ? (
         <p className="flex flex-1 items-center justify-center py-10 text-xs text-[var(--text-muted)]">Sem dados para os filtros escolhidos.</p>
       ) : tabela ? (
@@ -124,6 +127,7 @@ export function Cartao({
       ) : (
         <div className="min-w-0 flex-1">{children}</div>
       )}
+      </ErrorBoundary>
     </section>
   )
 }

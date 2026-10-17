@@ -12,7 +12,7 @@
  *   prazos dos marcos seguintes até a troca do relógio (marco 12).
  */
 import { LIMITES_PARADO, MARCOS, META_ENTREGA_PADRAO, MOMENTOS, momentoDoMarco } from '../shared/engenharia.js'
-import { marcoDoStatus, normalizarDataGroner } from './mappers.js'
+import { marcoDoStatus, nomeDePessoa, normalizarDataGroner } from './mappers.js'
 
 const DIA = 86_400_000
 const RANK = { ok: 0, risco: 1, atrasado: 2 }
@@ -133,7 +133,7 @@ export function classificarCard(projeto, { prazos, acao, hoje }) {
     concessionaria: projeto.concessionaria ?? null,
     kwp: projeto.kwp ?? null,
     dono: projeto.donoNominal ?? null,
-    vendedor: projeto.vendedorResponsavel ?? null,
+    vendedor: nomeDePessoa(projeto.vendedorResponsavel),
     dataVenda: projeto.dataVenda ?? null,
     dataUltimaAtualizacao: projeto.dataUltimaAtualizacao ?? null,
     diasSemAtualizacao: projeto.diasSemAtualizacao ?? null,

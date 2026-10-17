@@ -71,6 +71,24 @@ function pessoa(nome, id) {
   return texto && !/^sem\s/i.test(texto) ? texto : null
 }
 
+/**
+ * Nome (texto) de um usuário do Groner. A listagem do /Projeto manda o nome como
+ * texto, mas o detalhe (usado pela sincronização) manda o objeto completo do
+ * usuário (com cpf, e-mail, celular…). Só o nome pode seguir para o navegador.
+ */
+export function nomeDePessoa(value) {
+  if (typeof value === 'string') return value
+  if (value && typeof value === 'object' && typeof value.nome === 'string') return value.nome
+  return null
+}
+
+/** Corrige projeto já gravado no armazenamento com o vendedor em objeto. */
+export function normalizarProjetoLido(projeto) {
+  if (!projeto || typeof projeto !== 'object') return projeto
+  const v = projeto.vendedorResponsavel
+  return v == null || typeof v === 'string' ? projeto : { ...projeto, vendedorResponsavel: nomeDePessoa(v) }
+}
+
 export function normalizarDataGroner(value) {
   if (typeof value !== 'string' || !value.trim()) return value ?? null
   const texto = value.trim()
@@ -166,7 +184,7 @@ export function mapProjeto(p, enriquecimento) {
     marco,
     corEtapa: p.corEtapa,
     origemLead: p.origemLead?.nome ?? null,
-    vendedorResponsavel: p.vendedorResponsavel,
+    vendedorResponsavel: nomeDePessoa(p.vendedorResponsavel),
     dataInclusao: normalizarDataGroner(p.dataInclusao),
     dataUltimaAtualizacao: dataAtualizacao,
     dataUltimoStatus: normalizarDataGroner(p.dataUltimoStatus),

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api/client'
 import { useRawData } from './api/useRawData'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout, type AbaItem } from './components/Layout'
 import { PainelPage } from './features/painel/PainelPage'
 import { useTheme } from './hooks/useTheme'
@@ -89,14 +90,17 @@ export default function App() {
       theme={theme}
       onToggleTheme={toggleTheme}
     >
-      {aba === 'geral' && <PainelPage onModoReuniao={abrirReuniao} onAba={irParaAba} />}
-      {/* Com a reunião aberta, a Engenharia só monta dentro dela (evita duas buscas em paralelo). */}
-      {aba === 'engenharia' && !reuniao && <EngenhariaPage base="engenharia" />}
-      {aba === 'vendas' && <VendasPage />}
-      {aba === 'cadastro' && <ValidacaoCadastroPage />}
-      {aba === 'tarefas' && <IndicadorTarefasPage />}
-      {aba === 'monitoramento' && <MonitoramentoSolarPage />}
-      {aba === 'pieta' && <PietaPage />}
+      {/* Um erro de renderização numa aba mostra um aviso, nunca a tela em branco. */}
+      <ErrorBoundary key={aba}>
+        {aba === 'geral' && <PainelPage onModoReuniao={abrirReuniao} onAba={irParaAba} />}
+        {/* Com a reunião aberta, a Engenharia só monta dentro dela (evita duas buscas em paralelo). */}
+        {aba === 'engenharia' && !reuniao && <EngenhariaPage base="engenharia" />}
+        {aba === 'vendas' && <VendasPage />}
+        {aba === 'cadastro' && <ValidacaoCadastroPage />}
+        {aba === 'tarefas' && <IndicadorTarefasPage />}
+        {aba === 'monitoramento' && <MonitoramentoSolarPage />}
+        {aba === 'pieta' && <PietaPage />}
+      </ErrorBoundary>
 
 
 
@@ -109,7 +113,9 @@ export default function App() {
             </button>
           </div>
           <div className="px-6 py-5 md:px-10">
-            <EngenhariaPage base="reuniao" />
+            <ErrorBoundary>
+              <EngenhariaPage base="reuniao" />
+            </ErrorBoundary>
           </div>
         </div>
       )}

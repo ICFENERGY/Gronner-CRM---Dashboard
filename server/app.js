@@ -3,7 +3,7 @@ import cors from 'cors'
 import { gronerGet, gronerGetAll } from './gronerClient.js'
 import { cached, invalidate } from './cache.js'
 import { gronerFunis } from '../shared/gronerFunis.js'
-import { mapVenda, mapProjeto, mapProposta, mapTarefa, mapUsina, mesclarUsinasComRelatorio, mapPietaResumo, mapPietaProjetoDetalhe } from './mappers.js'
+import { mapVenda, mapProjeto, normalizarProjetoLido, mapProposta, mapTarefa, mapUsina, mesclarUsinasComRelatorio, mapPietaResumo, mapPietaProjetoDetalhe } from './mappers.js'
 import { stripSensitive } from './sanitize.js'
 import { dealsEnriquecido, salesEnriquecido, usinasRelatorio } from './enrichment.js'
 import { solarzListarUsinas } from './solarzClient.js'
@@ -188,11 +188,15 @@ async function preferirSincronizado(entity, fallback) {
 }
 
 export function loadProjetosDados() {
-  return cached('projetos-dados', TTL_MS, () => preferirSincronizado('projetos', async () => {
-    const raw = await loadProjetosBrutos()
-    const items = stripSensitive(raw.items.map((item) => mapProjeto(item, dealsEnriquecido)))
-    return { items, totalItems: raw.totalItems }
-  }))
+  return cached('projetos-dados', TTL_MS, async () => {
+    const dados = await preferirSincronizado('projetos', async () => {
+      const raw = await loadProjetosBrutos()
+      const items = stripSensitive(raw.items.map((item) => mapProjeto(item, dealsEnriquecido)))
+      return { items, totalItems: raw.totalItems }
+    })
+    // Registros sincronizados antes da correção guardam o vendedor como objeto do usuário.
+    return { ...dados, items: dados.items.map(normalizarProjetoLido) }
+  })
 }
 
 export function loadVendasDados() {
