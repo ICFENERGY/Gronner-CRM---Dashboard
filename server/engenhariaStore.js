@@ -1,13 +1,16 @@
 /**
  * Armazenamento da Engenharia: ações combinadas na reunião (uma ativa por card,
- * com histórico curto) e prazos por marco. Fica no mesmo Upstash da
- * sincronização, com prefixo próprio.
+ * com histórico curto) e prazos por marco. Fica no Supabase (tabela
+ * "DASHBOARD-GRONNER-CRM") ou, se só o Upstash estiver configurado, no Redis
+ * da sincronização, com prefixo próprio.
  *
- * Sem Upstash configurado, usa memória só fora da Vercel (desenvolvimento
+ * Sem nenhum dos dois configurado, usa memória só fora da Vercel (desenvolvimento
  * local); em produção as escritas respondem 503, para nunca fingir que salvou.
  */
 import { MARCOS } from '../shared/engenharia.js'
-import { getRedis } from './syncStore.js'
+import { armazenamentoSync, getRedis } from './syncStore.js'
+import { getSupabaseRest } from './supabaseRest.js'
+import { createSupabaseEngenhariaStore } from './supabaseEngenhariaStore.js'
 
 const PREFIX = 'groner-dashboard:engenharia:v1'
 const K = {
@@ -88,8 +91,11 @@ function redisStore(redis) {
 
 let memoriaLocal
 
+/** Supabase (se SUPABASE_URL + SUPABASE_SECRET_KEY) -> Redis (Upstash) -> memória (só fora da Vercel) -> null. */
 export function engenhariaStore() {
-  const redis = getRedis()
+  const armazenamento = armazenamentoSync()
+  if (armazenamento === 'supabase') return createSupabaseEngenhariaStore(getSupabaseRest())
+  const redis = armazenamento === 'redis' ? getRedis() : null
   if (redis) return redisStore(redis)
   if (process.env.VERCEL) return null
   memoriaLocal ??= memoria()

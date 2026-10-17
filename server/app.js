@@ -10,6 +10,7 @@ import { solarzListarUsinas } from './solarzClient.js'
 import { pietaResumo, pietaDetalheProjeto } from './pietaClient.js'
 import { createSyncRouter } from './syncRoutes.js'
 import { createEngenhariaRouter } from './engenhariaRoutes.js'
+import { createDealsRouter } from './dealsRoutes.js'
 import { getSyncStatuses, loadSyncedEntity } from './syncStore.js'
 
 const app = express()
@@ -161,19 +162,19 @@ function buildPorCategoria(porFunil) {
 // /api/raw/* para não bater na API do Groner mais de uma vez por TTL.
 
 export function loadProjetosBrutos() {
-  return cached('projetos-brutos', TTL_MS, () => gronerGetAll('Projeto', {}, { pageSize: 500, maxPages: 40 }))
+  return cached('projetos-brutos', TTL_MS, () => gronerGetAll('Projeto', {}, { pageSize: 500, maxPages: 40, concurrency: 12 }))
 }
 
 export function loadVendasBrutas() {
-  return cached('vendas-brutas', TTL_MS, () => gronerGetAll('Venda', {}, { pageSize: 500 }))
+  return cached('vendas-brutas', TTL_MS, () => gronerGetAll('Venda', {}, { pageSize: 500, concurrency: 12 }))
 }
 
 export function loadPropostasBrutas() {
-  return cached('propostas-brutas', TTL_MS, () => gronerGetAll('PreProposta', {}, { pageSize: 500, maxPages: 40 }))
+  return cached('propostas-brutas', TTL_MS, () => gronerGetAll('PreProposta', {}, { pageSize: 500, maxPages: 40, concurrency: 12 }))
 }
 
 export function loadTarefasBrutas() {
-  return cached('tarefas-brutas', TTL_MS, () => gronerGetAll('Tarefa', {}, { pageSize: 500, maxPages: 20 }))
+  return cached('tarefas-brutas', TTL_MS, () => gronerGetAll('Tarefa', {}, { pageSize: 500, maxPages: 20, concurrency: 12 }))
 }
 
 async function preferirSincronizado(entity, fallback) {
@@ -250,6 +251,9 @@ app.use('/api/engenharia', createEngenhariaRouter({
     return s.configured ? (s.entities.projetos ?? null) : null
   },
 }))
+
+// Download do Deals em .xlsx (link assinado emitido pela ferramenta MCP deals_exportar).
+app.use('/api/deals', createDealsRouter({ get: gronerGet }))
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 

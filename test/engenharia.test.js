@@ -122,9 +122,17 @@ test('validação de ação e de prazos', () => {
   assert.throws(() => validarPrazos({ sla: { ...prazos.sla, 6: 0 }, metaEntrega: 60 }), /marco 6/)
 })
 
+/** Salva as variáveis de ambiente usadas, aplica `vars` (sem o resto) e devolve a função que restaura. */
+function isolarAmbiente(vars) {
+  const chaves = ['ENGENHARIA_EQUIPE_TOKEN', 'ENGENHARIA_ADMIN_TOKEN', 'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'DASHBOARD_STORAGE', 'VERCEL']
+  const salvo = Object.fromEntries(chaves.map((k) => [k, process.env[k]]))
+  for (const k of chaves) delete process.env[k]
+  Object.assign(process.env, vars)
+  return () => { for (const k of chaves) { if (salvo[k] === undefined) delete process.env[k]; else process.env[k] = salvo[k] } }
+}
+
 test('rotas: leitura aberta, escrita exige o código certo e prazos exigem o de administração', async () => {
-  process.env.ENGENHARIA_EQUIPE_TOKEN = 'equipe-teste'
-  process.env.ENGENHARIA_ADMIN_TOKEN = 'admin-teste'
+  const restaurar = isolarAmbiente({ ENGENHARIA_EQUIPE_TOKEN: 'equipe-teste', ENGENHARIA_ADMIN_TOKEN: 'admin-teste' })
   const app = express()
   app.use(express.json())
   app.use('/api/engenharia', createEngenhariaRouter({ carregarProjetos: async () => ({ items: [projeto({ id: 1 })] }), agora: () => AGORA }))
@@ -158,7 +166,6 @@ test('rotas: leitura aberta, escrita exige o código certo e prazos exigem o de 
     assert.equal((await fetch(`${base}/acoes/1`, { method: 'PUT', headers: { ...json, 'X-Engenharia-Token': 'equipe-teste' }, body: corpo })).status, 403)
   } finally {
     server.close()
-    delete process.env.ENGENHARIA_EQUIPE_TOKEN
-    delete process.env.ENGENHARIA_ADMIN_TOKEN
+    restaurar()
   }
 })

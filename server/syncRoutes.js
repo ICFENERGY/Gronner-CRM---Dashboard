@@ -54,6 +54,11 @@ function publicError(err) {
   return 'Não foi possível processar a sincronização'
 }
 
+/** Só invalida o cache do dashboard quando algo foi gravado (poupa releitura completa do armazenamento). */
+function houveMudanca(result) {
+  return !result.skipped && (Number(result.inserted) || 0) + (Number(result.updated) || 0) > 0
+}
+
 /** Busca no Groner, carregada só quando usada (o cliente exige as variáveis do Groner). */
 async function buscarGronerPadrao(recurso, params) {
   const { gronerGet } = await import('./gronerClient.js')
@@ -67,7 +72,7 @@ export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {
   router.all('/projetos/tick', authenticateTick, async (_req, res) => {
     try {
       const result = await sincronizarAlteracoes({ store, normalize: (item) => stripSensitive(normalizers.projetos(item)), buscar: buscarGroner })
-      if (!result.skipped) onChanged('projetos')
+      if (houveMudanca(result)) onChanged('projetos')
       console.info('[sync] tick', { runId: result.runId, alterados: result.alterados, processados: result.processados, detalhes: result.detalhes, pendente: result.pendente, skipped: result.skipped })
       res.json({ ok: true, runId: result.runId, skipped: Boolean(result.skipped), alterados: result.alterados, processados: result.processados, detalhes: result.detalhes, pendente: result.pendente, inserted: result.inserted, updated: result.updated, unchanged: result.unchanged })
     } catch (err) {
@@ -118,7 +123,7 @@ export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {
     try {
       const entity = entityFrom(req)
       const result = await store.upsertChanges(req.body, (item) => stripSensitive(normalizers[entity](item)))
-      if (!result.skipped) onChanged(entity)
+      if (houveMudanca(result)) onChanged(entity)
       console.info('[sync] alterações aceitas', { entity, runId: result.runId, received: result.received, updated: result.updated, skipped: result.skipped })
       res.json(result)
     } catch (err) {

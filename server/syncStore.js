@@ -1,5 +1,7 @@
 import crypto from 'node:crypto'
 import { Redis } from '@upstash/redis'
+import { getSupabaseRest, supabaseConfigured } from './supabaseRest.js'
+import { createSupabaseSyncStore } from './supabaseSyncStore.js'
 
 const PREFIX = 'groner-dashboard:sync:v1'
 const RUN_TTL_SECONDS = 2 * 24 * 60 * 60
@@ -8,12 +10,13 @@ const ENTITIES = new Set(['projetos', 'tarefas', 'propostas', 'vendas'])
 
 let redisSingleton
 
+/** Há onde guardar a sincronização: Supabase ou Upstash. */
 export function syncStorageConfigured() {
-  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+  return armazenamentoSync() !== null
 }
 
 function defaultRedis() {
-  if (!syncStorageConfigured()) return null
+  if (!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)) return null
   if (!redisSingleton) {
     redisSingleton = new Redis({
       url: process.env.UPSTASH_REDIS_REST_URL,
@@ -30,7 +33,7 @@ export function getRedis() {
   return defaultRedis()
 }
 
-function assertEntity(entity) {
+export function assertEntity(entity) {
   if (!ENTITIES.has(entity)) throw Object.assign(new Error('Entidade de sincronização desconhecida'), { status: 400 })
 }
 
@@ -65,7 +68,7 @@ function keys(entity, runId) {
   }
 }
 
-function validateChanges(input) {
+export function validateChanges(input) {
   assertEntity(input.entity)
   if (!/^[a-z]+-[0-9TZ]+$/i.test(input.runId || '')) throw Object.assign(new Error('runId inválido'), { status: 400 })
   asTimestamp(input.runStartedAt, 'runStartedAt')
@@ -83,7 +86,7 @@ function asTimestamp(value, field) {
   return timestamp
 }
 
-function validateBatch(input) {
+export function validateBatch(input) {
   assertEntity(input.entity)
   if (!/^[a-z]+-[0-9TZ]+$/i.test(input.runId || '')) throw Object.assign(new Error('runId inválido'), { status: 400 })
   asTimestamp(input.runStartedAt, 'runStartedAt')
@@ -98,7 +101,7 @@ function validateBatch(input) {
   }
 }
 
-function validateFinalize(input) {
+export function validateFinalize(input) {
   assertEntity(input.entity)
   if (!/^[a-z]+-[0-9TZ]+$/i.test(input.runId || '')) throw Object.assign(new Error('runId inválido'), { status: 400 })
   asTimestamp(input.runStartedAt, 'runStartedAt')
@@ -107,6 +110,46 @@ function validateFinalize(input) {
       throw Object.assign(new Error(`${field} inválido`), { status: 400 })
     }
   }
+}
+
+/** Normaliza os itens de um lote exigindo id numérico e sem repetição. Usado por todos os armazenamentos. */
+export function normalizarItens(items, normalize) {
+  const normalized = items.map((item) => {
+    const record = normalize(item)
+    const sourceId = record?.id ?? record?.Id
+    if (sourceId == null || !Number.isFinite(Number(sourceId))) throw Object.assign(new Error('Registro sem id numérico'), { status: 400 })
+    return { ...record, id: Number(sourceId) }
+  })
+  const ids = normalized.map((record) => String(record.id))
+  if (new Set(ids).size !== ids.length) throw Object.assign(new Error('IDs duplicados no lote'), { status: 400 })
+  return { normalized, ids }
+}
+
+/** Etapa de um registro (a mesma regra do histórico de status). */
+export const etapaDoRegistro = (registro) => registro?.etapa ?? registro?.status ?? null
+
+/** Acrescenta ao histórico quando a etapa mudou; devolve o histórico novo ou null se nada mudou. */
+export function historicoComMudanca(historicoAtual, anterior, registro, em) {
+  const statusAnterior = etapaDoRegistro(anterior)
+  const statusNovo = etapaDoRegistro(registro)
+  if (statusAnterior === statusNovo) return null
+  return [...(historicoAtual ?? []), { id: Number(registro.id), statusAnterior, statusNovo, em }]
+}
+
+/** Junta histórico de status e data de entrada no marco a cada item carregado. */
+export function enriquecerComHistorico(items, historicoPorId) {
+  return items.map((item) => {
+    const raw = historicoPorId?.[String(item.id)]
+    const historicoStatus = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : []
+    const last = historicoStatus[historicoStatus.length - 1]
+    const entrouNaEtapa = Boolean(last) && last.statusNovo === item.etapa
+    return {
+      ...item,
+      historicoStatus,
+      dataEntradaMarco: entrouNaEtapa ? last.em : item.dataUltimoStatus ?? null,
+      dataEntradaMarcoEstimada: !entrouNaEtapa,
+    }
+  })
 }
 
 export function createSyncStore(redis = defaultRedis()) {
@@ -382,17 +425,7 @@ export function createSyncStore(redis = defaultRedis()) {
       }
       if (activeIds.length && items.length !== activeIds.length) throw Object.assign(new Error('Registros ativos incompletos'), { status: 503 })
       const history = items.length ? (await client.hmget(baseKeys.history, ...items.map((item) => String(item.id))) || {}) : {}
-      const withHistory = items.map((item) => {
-        const raw = history?.[String(item.id)]
-        const historicoStatus = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : []
-        const last = historicoStatus[historicoStatus.length - 1]
-        return {
-          ...item,
-          historicoStatus,
-          dataEntradaMarco: last?.statusNovo === item.etapa ? last.em : item.dataUltimoStatus ?? null,
-          dataEntradaMarcoEstimada: !(last?.statusNovo === item.etapa),
-        }
-      })
+      const withHistory = enriquecerComHistorico(items, history)
       return { items: withHistory, totalItems: withHistory.length, sync: manifest }
     },
 
@@ -404,8 +437,38 @@ export function createSyncStore(redis = defaultRedis()) {
   }
 }
 
+/**
+ * Qual armazenamento usar: 'supabase' (SUPABASE_URL + SUPABASE_SECRET_KEY), 'redis'
+ * (Upstash) ou null. DASHBOARD_STORAGE=supabase|redis|memoria força a escolha
+ * (se faltar configuração do escolhido, vale null; 'memoria' só vale na Engenharia).
+ */
+export function armazenamentoSync(env = process.env) {
+  const supabase = supabaseConfigured(env)
+  const redis = Boolean(env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN)
+  const forcado = String(env.DASHBOARD_STORAGE ?? '').trim().toLowerCase()
+  if (forcado === 'supabase') return supabase ? 'supabase' : null
+  if (forcado === 'redis') return redis ? 'redis' : null
+  if (forcado === 'memoria') return null
+  if (supabase) return 'supabase'
+  return redis ? 'redis' : null
+}
+
 export function getSyncStore() {
-  return createSyncStore()
+  if (armazenamentoSync() === 'supabase') return supabaseSyncStore()
+  return createSyncStore(armazenamentoSync() === 'redis' ? defaultRedis() : null)
+}
+
+let supabaseStoreSingleton
+let supabaseStoreRest
+
+// Uma instância por cliente REST: preserva o cache de versão do load() entre chamadas.
+function supabaseSyncStore() {
+  const rest = getSupabaseRest()
+  if (!supabaseStoreSingleton || supabaseStoreRest !== rest) {
+    supabaseStoreSingleton = createSupabaseSyncStore(rest)
+    supabaseStoreRest = rest
+  }
+  return supabaseStoreSingleton
 }
 
 export async function loadSyncedEntity(entity) {

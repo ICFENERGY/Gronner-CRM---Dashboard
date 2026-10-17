@@ -135,10 +135,22 @@ test('recusa IDs duplicados entre lotes na finalização', async () => {
   await assert.rejects(() => store.finalize(primeiro), /IDs duplicados entre lotes/)
 })
 
+/** Salva as variáveis de ambiente usadas, aplica `vars` (sem o resto) e devolve a função que restaura. */
+function isolarAmbiente(vars) {
+  const chaves = ['GRONER_SYNC_TOKEN', 'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'DASHBOARD_STORAGE', 'VERCEL']
+  const salvo = Object.fromEntries(chaves.map((k) => [k, process.env[k]]))
+  for (const k of chaves) delete process.env[k]
+  Object.assign(process.env, vars)
+  return () => { for (const k of chaves) { if (salvo[k] === undefined) delete process.env[k]; else process.env[k] = salvo[k] } }
+}
+
 test('protege escrita com token exclusivo e valida a entidade', async (t) => {
-  process.env.GRONER_SYNC_TOKEN = 'segredo-de-teste'
-  process.env.UPSTASH_REDIS_REST_URL = 'https://example.upstash.io'
-  process.env.UPSTASH_REDIS_REST_TOKEN = 'token-de-teste'
+  const restaurar = isolarAmbiente({
+    GRONER_SYNC_TOKEN: 'segredo-de-teste',
+    UPSTASH_REDIS_REST_URL: 'https://example.upstash.io',
+    UPSTASH_REDIS_REST_TOKEN: 'token-de-teste',
+  })
+  t.after(restaurar)
   const calls = []
   const stubStore = {
     upsertBatch: async (body, normalize) => {

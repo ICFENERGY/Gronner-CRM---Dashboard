@@ -69,10 +69,21 @@ test('edição em massa: para no limite de detalhes e avança o cursor só até 
   assert.equal(loja.chamadas[0].nextCursor, new Date('2026-10-05T16:57:00.00-03:00').toISOString())
 })
 
+/** Salva as variáveis de ambiente usadas, aplica `vars` (sem o resto) e devolve a função que restaura. */
+function isolarAmbiente(vars) {
+  const chaves = ['GRONER_SYNC_TOKEN', 'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'DASHBOARD_STORAGE', 'VERCEL']
+  const salvo = Object.fromEntries(chaves.map((k) => [k, process.env[k]]))
+  for (const k of chaves) delete process.env[k]
+  Object.assign(process.env, vars)
+  return () => { for (const k of chaves) { if (salvo[k] === undefined) delete process.env[k]; else process.env[k] = salvo[k] } }
+}
+
 test('rota do tick exige a chave (cabeçalho ou ?key=) e responde só o resumo', async () => {
-  process.env.GRONER_SYNC_TOKEN = 'segredo-teste'
-  process.env.UPSTASH_REDIS_REST_URL ||= 'https://exemplo.upstash.io'
-  process.env.UPSTASH_REDIS_REST_TOKEN ||= 'x'
+  const restaurar = isolarAmbiente({
+    GRONER_SYNC_TOKEN: 'segredo-teste',
+    UPSTASH_REDIS_REST_URL: 'https://exemplo.upstash.io',
+    UPSTASH_REDIS_REST_TOKEN: 'x',
+  })
   const loja = lojaFalsa(null)
   const app = express()
   app.use(express.json())
@@ -91,5 +102,6 @@ test('rota do tick exige a chave (cabeçalho ou ?key=) e responde só o resumo',
     assert.equal((await fetch(base, { method: 'POST', headers: { 'X-Groner-Sync-Token': 'segredo-teste' } })).status, 200)
   } finally {
     server.close()
+    restaurar()
   }
 })

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import axios from "axios";
+import { assinarLink, LIMITE_MAXIMO } from "../server/deals.js";
 
 const TENANT = process.env.GRONER_TENANT ?? "";
 const BASE_URL = `https://${TENANT}.api.groner.app/api`;
@@ -68,6 +69,11 @@ const TOOLS = [
   { name: "budgets_create", description: "Cria um novo orçamento para um projeto.", inputSchema: { type: "object", properties: { ProjetoId: { type: "number" }, Descricao: { type: "string" }, DataValidade: { type: "string" } }, required: ["ProjetoId"] } },
   { name: "custom_fields_by_project", description: "Lista campos personalizados de um projeto.", inputSchema: { type: "object", properties: { projetoId: { type: "number" } }, required: ["projetoId"] } },
   { name: "custom_fields_list", description: "Lista todos os campos personalizados cadastrados.", inputSchema: { type: "object", properties: { pagina: { type: "number" }, tamanhoPagina: { type: "number" } } } },
+  {
+    name: "deals_exportar",
+    description: "Gera link temporário (15 min) para baixar o Deals do Groner em .xlsx (71 colunas, com contatos). Não devolve linhas.",
+    inputSchema: { type: "object", properties: { etapas: { type: "array", items: { type: "string" }, description: "Funis/etapas por nome (ex.: \"17. SEGURO\") ou id numérico" }, status: { type: "array", items: { type: "string" }, description: "Nomes de status" }, atualizadoDesde: { type: "string", description: "AAAA-MM-DD" }, limite: { type: "number", description: `Máx. de cards, mais recentes primeiro (até ${LIMITE_MAXIMO})` } } },
+  },
 ];
 
 // ─── Execução das ferramentas ─────────────────────────────────────────────────
@@ -130,7 +136,14 @@ async function executeTool(name, args, http) {
 
 // ─── Processador JSON-RPC ─────────────────────────────────────────────────────
 
-async function handleMessage(msg) {
+/** Link do Deals: não consulta o Groner, só valida os filtros e assina o link. */
+function dealsExportar(args, ctx) {
+  const segredo = process.env.MCP_ACCESS_TOKEN;
+  const { link, expiraEm, filtros } = assinarLink({ baseUrl: ctx.baseUrl, filtros: args, segredo });
+  return { link, expiraEm, filtros, aviso: `Abra o link no navegador em até 15 min; o arquivo (.xlsx, aba Deals) é gerado ao abrir. Máx. ${LIMITE_MAXIMO} cards; se passar, o link avisa para estreitar o filtro. Tem dados pessoais: não repasse.` };
+}
+
+async function handleMessage(msg, ctx = {}) {
   const { jsonrpc, id, method, params } = msg;
 
   // Notificações não geram resposta
@@ -161,6 +174,9 @@ async function handleMessage(msg) {
   if (method === "tools/call") {
     const { name, arguments: args } = params ?? {};
     try {
+      if (name === "deals_exportar") {
+        return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify(dealsExportar(args ?? {}, ctx)) }] } };
+      }
       const token = await getToken();
       const http = makeHttp(token);
       const result = await executeTool(name, args ?? {}, http);
@@ -217,6 +233,13 @@ function autorizado(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+function baseUrlPublica(req) {
+  const fixa = process.env.PUBLIC_BASE_URL;
+  if (fixa) return fixa;
+  const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "");
+  return /^[a-z0-9.-]+(:\d+)?$/i.test(host) ? `https://${host}` : "https://groner-crm-dashboard-ten.vercel.app";
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
@@ -248,14 +271,15 @@ export default async function handler(req, res) {
   }
 
   const body = req.body;
+  const ctx = { baseUrl: baseUrlPublica(req) };
 
   try {
     if (Array.isArray(body)) {
-      const responses = (await Promise.all(body.map(handleMessage))).filter(Boolean);
+      const responses = (await Promise.all(body.map((m) => handleMessage(m, ctx)))).filter(Boolean);
       return res.status(200).json(responses);
     }
 
-    const response = await handleMessage(body);
+    const response = await handleMessage(body, ctx);
 
     // Notificação sem id (ex: notifications/initialized) → 202 sem corpo
     if (response === null) {

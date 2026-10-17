@@ -18,6 +18,24 @@ async function chamar({ headers = {}, query = {}, body = { jsonrpc: '2.0', id: 1
   return res
 }
 
+test('link do Deals: host com porta é aceito; porta não numérica cai no endereço padrão', async () => {
+  const anterior = { token: process.env.MCP_ACCESS_TOKEN, base: process.env.PUBLIC_BASE_URL }
+  process.env.MCP_ACCESS_TOKEN = 'chave-certa-123'
+  delete process.env.PUBLIC_BASE_URL
+  const body = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'deals_exportar', arguments: { limite: 1 } } }
+  const linkPara = async (host) => {
+    const r = await chamar({ headers: { authorization: 'Bearer chave-certa-123', host }, body })
+    return JSON.parse(r.corpo.result.content[0].text).link
+  }
+  try {
+    assert.ok((await linkPara('meu-host.exemplo.com:3000')).startsWith('https://meu-host.exemplo.com:3000/api/deals/download'))
+    assert.ok(!(await linkPara('meu-host.exemplo.com:ddd')).includes('meu-host'))
+  } finally {
+    if (anterior.token === undefined) delete process.env.MCP_ACCESS_TOKEN; else process.env.MCP_ACCESS_TOKEN = anterior.token
+    if (anterior.base !== undefined) process.env.PUBLIC_BASE_URL = anterior.base
+  }
+})
+
 test('MCP exige a chave: sem ela, com chave errada ou sem variável no servidor responde 401', async () => {
   delete process.env.MCP_ACCESS_TOKEN
   assert.equal((await chamar({ headers: { authorization: 'Bearer qualquer' } })).statusCode, 401)
