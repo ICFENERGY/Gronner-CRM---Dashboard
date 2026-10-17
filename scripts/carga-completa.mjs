@@ -22,6 +22,9 @@ const ENTIDADES = {
 }
 const TAMANHO_LOTE = 50
 const CONCORRENCIA = 12
+const OPC = { timeoutMs: 60000, retries: 4, retryDelayMs: 2000 }
+let falhasDetalhe = 0
+const tolerante = () => { falhasDetalhe++; return {} }
 
 async function emLotes(itens, n, fn) {
   const saida = new Array(itens.length)
@@ -37,8 +40,8 @@ async function detalharProjetos(itens) {
   const detalhados = await emLotes(itens, CONCORRENCIA, async (item) => {
     if (marcoDoStatus(item.status?.nome ?? item.etapa) == null) return item
     const [detalhe, campos] = await Promise.all([
-      gronerGet(`Projeto/${item.id}`).catch(() => ({})),
-      gronerGet(`CampoPersonalizado/Projeto/${item.id}/Agrupado`).catch(() => ({})),
+      gronerGet(`Projeto/${item.id}`, {}, OPC).catch(tolerante),
+      gronerGet(`CampoPersonalizado/Projeto/${item.id}/Agrupado`, {}, OPC).catch(tolerante),
     ])
     return { ...item, ...(detalhe ?? {}), camposPersonalizados: campos ?? {} }
   })
@@ -58,7 +61,7 @@ for (const entity of nomes) {
   const runId = `${entity}-${runStartedAt.replace(/[-:.]/g, '')}`
   const normalize = (item) => stripSensitive(def.normalizar(item))
 
-  let { items } = await gronerGetAll(def.recurso, {}, { pageSize: 500, maxItems: 100000, concurrency: CONCORRENCIA })
+  let { items } = await gronerGetAll(def.recurso, {}, { pageSize: 500, maxItems: 100000, concurrency: CONCORRENCIA, timeoutMs: 60000, retries: 4, retryDelayMs: 2000 })
   let comDetalhe = 0
   if (entity === 'projetos') ({ itens: items, comDetalhe } = await detalharProjetos(items))
   const tBusca = Date.now() - t0
@@ -76,8 +79,8 @@ for (const entity of nomes) {
   const fim = await store.finalize({ entity, runId, runStartedAt, batchCount, expectedTotal })
   const { entity: _e, runId: _r, ...resumoFim } = fim ?? {}
   console.log(JSON.stringify({
-    entity, total: expectedTotal, ...soma, comDetalhe,
-    removidos: fim?.removed ?? fim?.deleted ?? fim?.removidos ?? null,
+    entity, total: expectedTotal, ...soma, comDetalhe, falhasDetalhe,
+    removidos: fim?.softDeleted ?? fim?.removed ?? fim?.deleted ?? fim?.removidos ?? null,
     buscaMs: tBusca, totalMs: Date.now() - t0, finalize: resumoFim,
   }))
 }
