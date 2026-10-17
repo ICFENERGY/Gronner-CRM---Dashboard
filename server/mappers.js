@@ -68,9 +68,17 @@ const ANOS_FUTURO_MAXIMO = 10
  */
 export function dataGronerValida(value, agora = new Date()) {
   if (typeof value !== 'string' || !value.trim()) return null
-  const texto = value.trim()
-  const ano = Number(texto.slice(0, 4))
-  if (!/^\d{4}-\d{2}-\d{2}/.test(texto) || !(ano >= ANO_MINIMO) || ano > agora.getUTCFullYear() + ANOS_FUTURO_MAXIMO) return null
+  let texto = value.trim()
+  // dd/mm/aaaa e dd/mm/aaaa hh:mm[:ss] (campos personalizados preenchidos à mão) viram ISO.
+  const br = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (br) texto = `${br[3]}-${br[2]}-${br[1]}${br[4] ? `T${br[4]}:${br[5]}:${br[6] ?? '00'}` : ''}`
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!iso) return null
+  const [ano, mes, dia] = [Number(iso[1]), Number(iso[2]), Number(iso[3])]
+  if (!(ano >= ANO_MINIMO) || ano > agora.getUTCFullYear() + ANOS_FUTURO_MAXIMO) return null
+  // Dia/mês impossíveis (2026-02-30, 13º mês) não são data.
+  const conferida = new Date(Date.UTC(ano, mes - 1, dia))
+  if (conferida.getUTCFullYear() !== ano || conferida.getUTCMonth() !== mes - 1 || conferida.getUTCDate() !== dia) return null
   const normalizada = normalizarDataGroner(texto)
   const t = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(normalizada) ? `${normalizada}T12:00:00-03:00` : normalizada)
   return Number.isFinite(t) ? normalizada : null
@@ -88,7 +96,7 @@ const SIGLAS_UF = new Set(Object.values(UF_POR_NOME))
 /** Sigla da UF ("São Paulo" e "sp" viram "SP"); qualquer outra coisa vira null. */
 export function siglaUF(value) {
   if (typeof value !== 'string') return null
-  const t = semAcentos(value)
+  const t = semAcentos(value.replace(/-/g, ' '))
   if (SIGLAS_UF.has(t)) return t
   return UF_POR_NOME[t] ?? null
 }
@@ -214,7 +222,8 @@ const objeto = (value) => (value && typeof value === 'object' && !Array.isArray(
  * contato), nunca de `lead.responsavel` nem de `loja`.
  */
 export function resumirDetalheProjeto(det) {
-  const d = objeto(det)
+  // O n8n entrega o detalhe embrulhado em { Content } (o fluxo de alterações também desembrulha).
+  const d = objeto(det?.Content) ?? objeto(det?.content) ?? objeto(det)
   if (!d) return null
   if (d.resumoDetalhe === true) return d
   const lead = objeto(d.lead) ?? {}

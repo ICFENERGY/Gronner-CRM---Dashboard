@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Buscar uma página",
   "nodes": [
     {
-      "id": "f19fb674-5329-4c93-9673-19d83fa9c764",
+      "id": "05a450ed-9eac-480b-90e3-e490d7e7a91a",
       "name": "Detalhar projeto?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -20,7 +20,7 @@
           },
           "conditions": [
             {
-              "id": "946b4929-7949-4614-a230-f3e9a8d296f8",
+              "id": "0124247d-fcc6-4efa-851b-bfe51c657553",
               "leftValue": "={{ $json.detalharProjeto }}",
               "rightValue": true,
               "operator": {
@@ -35,7 +35,7 @@
       }
     },
     {
-      "id": "b80d5d15-641c-4ab0-bbf7-99a7ada8211e",
+      "id": "52bd06c8-7fbc-4d59-aa45-e28bdd98b043",
       "name": "Chamado pela rotina",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -48,7 +48,7 @@
       }
     },
     {
-      "id": "c6496e01-3f6a-462b-909d-c537a0543824",
+      "id": "baeb3f11-4ff6-4413-b2b5-73fa516d6159",
       "name": "Buscar página no Groner",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -87,7 +87,7 @@
       }
     },
     {
-      "id": "c31351e3-0311-4a67-a667-1cd9c22cb104",
+      "id": "eb8147c0-bbc7-41e1-ad9d-514a5070a07a",
       "name": "Extrair página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -101,7 +101,7 @@
       }
     },
     {
-      "id": "fbbe6432-0270-4e18-a088-205b13944539",
+      "id": "727453a9-56fd-47cd-81ce-849a718c0ffe",
       "name": "Expandir projetos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "34f72e38-a8d1-4016-98f1-3b417e719ffd",
+      "id": "cf08d65a-0494-4b14-b0d7-3a9fc0658946",
       "name": "Buscar detalhe do projeto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "de07fc14-4a29-456c-9dde-34dfda710c5c",
+      "id": "e4a3344e-ab79-45fc-ab49-d3bc9549724c",
       "name": "Buscar campos personalizados",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -167,7 +167,7 @@
       }
     },
     {
-      "id": "82e124cd-693f-45b9-9af3-18ad42ac431d",
+      "id": "71bafcf5-24ca-4482-a8e8-05cfbd08e5d9",
       "name": "Consolidar detalhes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -177,11 +177,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const pagina = $('Extrair página').first().json\nconst selecionados = $('Expandir projetos').all()\nconst detalhes = $('Buscar detalhe do projeto').all()\nconst campos = $input.all()\nconst idDoItem = (item, fallback) => String(item.json?.id ?? item.json?.projetoId ?? item.json?.projeto?.id ?? (item.pairedItem?.item != null ? selecionados[item.pairedItem.item]?.json?.registro?.id : fallback) ?? '')\nconst porId = new Map()\nfor (const [indice, item] of selecionados.entries()) {\n  const id = String(item.json.registro.id ?? item.json.registro.Id)\n  const detalhe = detalhes.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}\n  const campo = campos.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}\n  // O detalhe vai inteiro no campo detalhe: espalhado, ele sobrescrevia datas e cidade da listagem.\n  porId.set(id, { detalhe, camposPersonalizados: campo })\n}\nreturn [{ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registros: pagina.registros.map((registro) => ({ ...registro, ...(porId.get(String(registro.id ?? registro.Id)) ?? {}) })) } }]"
+        "jsCode": "const pagina = $('Extrair página').first().json\nconst selecionados = $('Expandir projetos').all()\nconst detalhes = $('Buscar detalhe do projeto').all()\nconst campos = $input.all()\nconst idDoItem = (item, fallback) => String(item.json?.id ?? item.json?.projetoId ?? item.json?.projeto?.id ?? (item.pairedItem?.item != null ? selecionados[item.pairedItem.item]?.json?.registro?.id : fallback) ?? '')\nconst porId = new Map()\nfor (const [indice, item] of selecionados.entries()) {\n  const id = String(item.json.registro.id ?? item.json.registro.Id)\n  const corpo = (json) => json?.Content || json?.content || json || {}\n  const detalhe = corpo(detalhes.find((resposta) => idDoItem(resposta, null) === id)?.json)\n  const campo = corpo(campos.find((resposta) => idDoItem(resposta, null) === id)?.json)\n  // O detalhe vai inteiro no campo detalhe: espalhado, ele sobrescrevia datas e cidade da listagem.\n  porId.set(id, { detalhe, camposPersonalizados: campo })\n}\nreturn [{ json: { pageNumber: pagina.pageNumber, totalItems: pagina.totalItems, registros: pagina.registros.map((registro) => ({ ...registro, ...(porId.get(String(registro.id ?? registro.Id)) ?? {}) })) } }]"
       }
     },
     {
-      "id": "0e92ec8a-1344-494d-a451-f26539f4a6e5",
+      "id": "a01b385a-e8ee-4e3c-8cf6-448a77476703",
       "name": "Saída da página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -195,7 +195,7 @@
       }
     },
     {
-      "id": "cb0ff1b1-3cf1-44a0-b8f4-69f98b966cb8",
+      "id": "bfc67a13-fc3e-4aed-8b66-5d73eef957d9",
       "name": "Processar lotes da página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -209,7 +209,7 @@
       }
     },
     {
-      "id": "9ab75d62-a5c8-4585-8060-b626440187a8",
+      "id": "0bae8347-af37-485b-97b6-3a1760d4c7ee",
       "name": "Enviar lote da página",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -239,7 +239,7 @@
       }
     },
     {
-      "id": "f32f65fe-3474-43ca-8682-1aba64a2c165",
+      "id": "e77ac6ce-7c4a-49c3-87b9-1325d48d9869",
       "name": "Validar lote da página",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -253,7 +253,7 @@
       }
     },
     {
-      "id": "7c768f29-e016-456d-a5c0-ecfba52ff9ea",
+      "id": "22063e7c-65f5-47a2-baf5-959b32958974",
       "name": "Contar página processada",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

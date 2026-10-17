@@ -79,8 +79,8 @@ test('filtro Ano e Mês: intervalo e período anterior', () => {
   assert.deepEqual(intervalo('2025', '', hoje), { inicio: '2025-01-01', fim: '2025-12-31', anterior: { inicio: '2024-01-01', fim: '2024-12-31' }, porDia: false })
   // ano em curso: até hoje contra o mesmo trecho do ano anterior
   assert.deepEqual(intervalo('2026', '', hoje), { inicio: '2026-01-01', fim: '2026-10-17', anterior: { inicio: '2025-01-01', fim: '2025-10-17' }, porDia: false })
-  // 12 meses: contra os 12 meses anteriores
-  assert.deepEqual(intervalo('12m', '', hoje), { inicio: '2025-11-01', fim: hoje, anterior: { inicio: '2024-11-01', fim: '2025-10-31' }, porDia: false })
+  // 12 meses: período anterior com o mesmo número de dias, terminando na véspera do início
+  assert.deepEqual(intervalo('12m', '', hoje), { inicio: '2025-11-01', fim: hoje, anterior: { inicio: '2024-11-15', fim: '2025-10-31' }, porDia: false })
   // todos os anos: sem variação; mês sem ano específico é ignorado
   assert.deepEqual(intervalo('tudo', '05', hoje), { inicio: null, fim: hoje, anterior: null, porDia: false })
   assert.equal(textoPeriodo('2026', '03'), '2026 · março')
@@ -159,4 +159,44 @@ test('servidor entrega só o nome do vendedor do projeto (sem dados pessoais do 
   assert.equal(normalizarProjetoLido({ id: 1, vendedorResponsavel: usuario('Bruno Lima') }).vendedorResponsavel, 'Bruno Lima')
   const intacto = { id: 2, vendedorResponsavel: 'Ana' }
   assert.equal(normalizarProjetoLido(intacto), intacto)
+})
+
+test('12 meses: período anterior tem o mesmo número de dias do atual', () => {
+  const dias = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
+  for (const hoje of ['2026-10-17', '2026-03-31', '2028-02-29']) {
+    const iv = intervalo('12m', '', hoje)
+    assert.equal(dias(iv.anterior.inicio, iv.anterior.fim), dias(iv.inicio, iv.fim), hoje)
+    assert.equal(dias(iv.anterior.fim, iv.inicio), 1, hoje)
+  }
+})
+
+test('ano específico: período anterior pelo mesmo MM-DD (29/02 vira 28/02)', () => {
+  assert.deepEqual(intervalo('2024', '', '2024-03-01').anterior, { inicio: '2023-01-01', fim: '2023-03-01' })
+  assert.deepEqual(intervalo('2024', '', '2024-02-29').anterior, { inicio: '2023-01-01', fim: '2023-02-28' })
+  assert.deepEqual(intervalo('2026', '', '2026-10-17').anterior, { inicio: '2025-01-01', fim: '2025-10-17' })
+})
+
+test('mês ou ano futuro: sem comparação com período anterior', () => {
+  const hoje = '2026-10-17'
+  assert.equal(intervalo('2026', '12', hoje).anterior, null)
+  assert.equal(intervalo('2026', '11', hoje).anterior, null)
+  assert.equal(intervalo('2027', '', hoje).anterior, null)
+  assert.notEqual(intervalo('2026', '10', hoje).anterior, null)
+  const p = calcularPainel(fontes(), { ano: '2026', mes: '12', vendedor: '', uf: '' })
+  assert.ok(p)
+})
+
+test('projeto com duas propostas aceitas conta uma vez, pela alterada por último', () => {
+  const f = fontes()
+  f.propostas = [
+    { id: 1, projetoId: 10, aceita: true, preco: 1000, vendedorNome: 'Ana', dataInclusao: '2026-03-02', dataAlteracao: '2026-03-10' },
+    { id: 2, projetoId: 10, aceita: true, preco: 5000, vendedorNome: 'Ana', dataInclusao: '2026-03-03', dataAlteracao: '2026-03-20' },
+  ]
+  f.projetos = [{ id: 10, funil: '04. FUNIL DE VENDAS SOLAR', etapa: 'GANHO', valorVenda: 900 }]
+  const p = calcularPainel(f, { ano: '2026', mes: '03', vendedor: '', uf: '' })
+  const [vendidas, nao] = p.series.finPropostas
+  assert.equal(vendidas.extra, 1)
+  assert.equal(vendidas.valor, 5000)
+  assert.equal(nao.extra, 0)
+  assert.deepEqual(p.propostasVendidas.map((x) => x.id), [2])
 })

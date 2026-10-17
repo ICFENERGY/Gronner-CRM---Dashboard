@@ -227,8 +227,9 @@ const idDoItem = (item, fallback) => String(item.json?.id ?? item.json?.projetoI
 const porId = new Map()
 for (const [indice, item] of selecionados.entries()) {
   const id = String(item.json.registro.id ?? item.json.registro.Id)
-  const detalhe = detalhes.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}
-  const campo = campos.find((resposta) => idDoItem(resposta, null) === id)?.json ?? {}
+  const corpo = (json) => json?.Content || json?.content || json || {}
+  const detalhe = corpo(detalhes.find((resposta) => idDoItem(resposta, null) === id)?.json)
+  const campo = corpo(campos.find((resposta) => idDoItem(resposta, null) === id)?.json)
   // O detalhe vai inteiro no campo detalhe: espalhado, ele sobrescrevia datas e cidade da listagem.
   porId.set(id, { detalhe, camposPersonalizados: campo })
 }

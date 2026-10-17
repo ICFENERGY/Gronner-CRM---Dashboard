@@ -7,7 +7,7 @@ import { CHAVE_FILTROS_PAINEL, ErrorBoundary } from '../../components/ErrorBound
 import { useEngenharia } from '../engenharia/useEngenharia'
 import { calcularPainel, FILTROS_PADRAO, filtrosValidos, opcoesFiltros, type Filtros } from './calculos'
 import { ConteudoDetalhe, type Detalhe } from './detalhes'
-import { anoEspecifico, NOMES_MESES, textoPeriodo } from './periodo'
+import { anoEspecifico, hojeSP, NOMES_MESES, textoPeriodo } from './periodo'
 import { BlocoArea, Cartao, Gaveta, Kpi } from './ui/base'
 import { BarrasVerticais, EmpilhadoStatus, GeracaoPrognostico } from './ui/graficos'
 import { CartaoRosca } from './ui/Rosca'
@@ -54,6 +54,9 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
   }), [vendas.data, propostas.data, projetos.data, tarefas.data, usinas.data, eng.dados])
   const painel = useMemo(() => calcularPainel(fontes, filtros), [fontes, filtros])
   const opcoes = useMemo(() => opcoesFiltros(fontes), [fontes])
+  const hoje = hojeSP()
+  // Ano salvo no navegador que não está nos dados também aparece no seletor.
+  const anosDoSelect = anoEspecifico(filtros.ano) && !opcoes.anos.includes(filtros.ano) ? [...opcoes.anos, filtros.ano].sort().reverse() : opcoes.anos
   const fechar = useCallback(() => setDetalhe(null), [])
 
   const carregando = [vendas, propostas, projetos, tarefas, usinas].filter((x) => x.loading).length + (eng.carregando ? 1 : 0)
@@ -76,14 +79,14 @@ export function PainelPage({ onModoReuniao, onAba }: { onModoReuniao: () => void
           <select className={select} value={filtros.ano} onChange={(e) => setFiltro('ano', e.target.value)}>
             <option value="12m">Últimos 12 meses</option>
             <option value="tudo">Todos os anos</option>
-            {opcoes.anos.map((a) => <option key={a} value={a}>{a}</option>)}
+            {anosDoSelect.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </label>
         <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
           Mês
           <select className={`${select} disabled:opacity-50`} value={filtros.mes} disabled={!anoEspecifico(filtros.ano)} onChange={(e) => setFiltro('mes', e.target.value)} title={anoEspecifico(filtros.ano) ? undefined : 'Escolha um ano para filtrar por mês'}>
             <option value="">Todos</option>
-            {NOMES_MESES.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
+            {NOMES_MESES.map((m, i) => { const v = String(i + 1).padStart(2, '0'); return <option key={m} value={v} disabled={`${filtros.ano}-${v}` > hoje.slice(0, 7)}>{m}</option> })}
           </select>
         </label>
         <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">

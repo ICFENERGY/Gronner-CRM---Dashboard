@@ -117,7 +117,17 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
   // Comercial: propostas aceitas x não aceitas é derivado de `propostas`.
   // Financeiro: proposta aceita vira "vendida" quando o projeto dela tem valor de venda ou já passou do contrato.
   const projetoPorId = new Map((f.projetos ?? []).map((p) => [p.id, p]))
-  const aceitasLista = propostas.filter((p) => p.aceita)
+  // Um projeto com várias propostas aceitas conta uma vez: vale a alterada por último.
+  const quandoProposta = (p: PropostaRaw) => { const t = Date.parse(p.dataAlteracao ?? p.dataInclusao ?? ''); return Number.isFinite(t) ? t : -Infinity }
+  const ultimaPorProjeto = new Map<unknown, PropostaRaw>()
+  const aceitasSemProjeto: PropostaRaw[] = []
+  for (const p of propostas) {
+    if (!p.aceita) continue
+    if (p.projetoId == null) { aceitasSemProjeto.push(p); continue }
+    const atual = ultimaPorProjeto.get(p.projetoId)
+    if (!atual || quandoProposta(p) > quandoProposta(atual)) ultimaPorProjeto.set(p.projetoId, p)
+  }
+  const aceitasLista = [...ultimaPorProjeto.values(), ...aceitasSemProjeto]
   const vendidaPorProjeto = (p: PropostaRaw) => projetoVendido(projetoPorId.get(p.projetoId))
   const propostasVendidas = aceitasLista.filter(vendidaPorProjeto)
   const propostasNaoVendidas = aceitasLista.filter((p) => !vendidaPorProjeto(p))

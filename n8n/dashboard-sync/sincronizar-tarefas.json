@@ -2,7 +2,7 @@
   "name": "Groner Dashboard - Sincronizar Tarefas",
   "nodes": [
     {
-      "id": "0597c8d3-ef58-4d4e-b125-bdb0137f1078",
+      "id": "495c5cd8-f531-417e-a86e-2c26b369a691",
       "name": "Executar manualmente",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "bd750167-3177-4dd7-aeec-a88bb41a889d",
+      "id": "8bba7dea-0571-4a8c-9b1b-bf7d51cfb4bb",
       "name": "Agenda 08h e 18h (aguarda ativação)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -35,7 +35,7 @@
       "notes": "Horários escalonados em 5 minutos para não sobrecarregar os workers nem a API do Groner."
     },
     {
-      "id": "bf115d68-d381-49e2-96d7-50d2ee312ce0",
+      "id": "159b90fb-e35d-4161-bc78-28ba3c4fb267",
       "name": "Entidade",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -49,7 +49,7 @@
       }
     },
     {
-      "id": "8598a2d0-1a21-4d7b-9048-0a77770ac532",
+      "id": "eed8a241-ec09-408e-b784-77b61a4c4c20",
       "name": "Configuração",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -63,7 +63,7 @@
       }
     },
     {
-      "id": "b60036cf-cd0b-4ea4-ba21-a5ec888c5210",
+      "id": "558c67e7-40e0-4aae-9b51-d91cbbe0bf33",
       "name": "Consultar total",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -102,7 +102,7 @@
       }
     },
     {
-      "id": "40395f7b-6f5e-4074-8d41-b5108405d66c",
+      "id": "53adf17f-b462-4e15-bd3e-3d682e8f9049",
       "name": "Gerar páginas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -116,7 +116,7 @@
       }
     },
     {
-      "id": "d69ed104-b5fa-4a7b-a1b8-d97732eaca92",
+      "id": "c6a193ee-21ca-4dda-9ec8-df7eb633e995",
       "name": "Buscar páginas separadamente",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -146,7 +146,7 @@
       }
     },
     {
-      "id": "60191db7-2d31-4cc8-89f5-dc9a632be12a",
+      "id": "90dffb1c-e029-42d9-a139-39354c6486a5",
       "name": "Somar e validar paginas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -160,7 +160,7 @@
       }
     },
     {
-      "id": "aaf14d57-b148-4a0d-8ad1-49b4de2169ef",
+      "id": "30f52500-b33c-4261-ad95-6d76c9117c3b",
       "name": "Finalizar carga completa",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

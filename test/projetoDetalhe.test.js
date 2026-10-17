@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { classificarCard, entradaNoMarco, prazosEfetivos } from '../server/engenharia.js'
 import {
-  dataGronerValida, mapProjeto, mapProjetoParaArmazenar, mesclarProjetoComDetalhe, normalizarProjetoLido, siglaUF,
+  dataGronerValida, mapProjeto, mapProjetoParaArmazenar, mesclarProjetoComDetalhe, normalizarProjetoLido, resumirDetalheProjeto, siglaUF,
 } from '../server/mappers.js'
 import { canonicalHash } from '../server/syncStore.js'
 
@@ -131,4 +131,32 @@ test('registro gravado não depende do relógio: mesmo hash em dias diferentes',
   assert.equal(canonicalHash(registro), canonicalHash(mapProjetoParaArmazenar(item, {})))
   // A leitura repõe os dias.
   assert.equal(typeof normalizarProjetoLido(registro).diasSemAtualizacao, 'number')
+})
+
+test('detalhe embrulhado em { Content } produz cidade, concessionária, kWp e UC', () => {
+  const d = detalhe()
+  const r = resumirDetalheProjeto({ Content: d })
+  assert.equal(r.cidade, 'Ibiúna')
+  assert.equal(r.concessionaria, 'ENEL SP')
+  assert.equal(r.kwp, 6.6)
+  assert.equal(r.uc, '123')
+  assert.deepEqual(resumirDetalheProjeto({ content: d }), r)
+  assert.deepEqual(resumirDetalheProjeto(d), r)
+})
+
+test('datas dd/mm/aaaa e dd/mm/aaaa hh:mm viram ISO; datas impossíveis são vazias', () => {
+  assert.equal(dataGronerValida('17/10/2026'), '2026-10-17')
+  assert.equal(dataGronerValida('05/03/2026 14:30'), '2026-03-05T14:30:00-03:00')
+  assert.equal(dataGronerValida('2026-02-30'), null)
+  assert.equal(dataGronerValida('30/02/2026'), null)
+  assert.equal(dataGronerValida('2026-13-01'), null)
+  assert.equal(dataGronerValida('29/02/2024'), '2024-02-29')
+  assert.equal(dataGronerValida('29/02/2026'), null)
+  const p = mapProjeto({ ...listagem(), camposPersonalizados: [{ campos: [{ campo: { titulo: 'Data de início da instalação' }, resposta: '12/10/2026' }] }] })
+  assert.equal(p.dataInicioInstalacao, '2026-10-12')
+})
+
+test('siglaUF aceita hífen no lugar de espaço', () => {
+  assert.equal(siglaUF('Distrito-Federal'), 'DF')
+  assert.equal(siglaUF('Rio-Grande-do-Sul'), 'RS')
 })
