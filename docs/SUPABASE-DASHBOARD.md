@@ -24,6 +24,40 @@ Verificado em 09/10/2026 (somente leitura, `GET /rest/v1/` com a chave
 secreta): PostgREST 14.5; o schema exposto tem só as 7 tabelas do GronerZap; a
 tabela do dashboard ainda não existe.
 
+## Neon (Postgres)
+
+O Supabase foi trocado pelo **Neon** (Postgres serverless). A tabela única e as
+funções `dashboard_crm_*` são as mesmas; só muda o caminho de acesso:
+
+- **Por que o Neon**: é Postgres puro, com plano grátis, sem a API pública de
+  dados (PostgREST) e sem RLS/roles do Supabase. O acesso é só pela string de
+  conexão do servidor, e o driver `@neondatabase/serverless` fala HTTP, o que cabe
+  nas funções de até 60 s da Vercel Hobby sem manter conexões abertas.
+- **SQL**: `neon/dashboard-gronner-crm.sql` (idempotente; validado no PGlite,
+  rodando duas vezes). Aplicar com
+  `DATABASE_URL="postgresql://…" node scripts/aplicar-sql-neon.mjs`, que roda o
+  arquivo, confere a tabela e as 6 funções e imprime só nomes e contagens.
+- **Código**: `server/pgSql.js` (consultas parametrizadas, timeout, 3 tentativas
+  nas leituras, nenhuma nas funções), `server/pgSyncStore.js` e
+  `server/pgEngenhariaStore.js` (mesma interface dos adaptadores Supabase e
+  Redis). Erros SQLSTATE `PT409`/`PT400` viram `{ status, message }`; qualquer
+  outra falha vira 503 genérico, sem expor a conexão.
+- **Variáveis**:
+  - `DATABASE_URL` (ou `NEON_DATABASE_URL`): string `postgresql://…` do **pooler**
+    (host com `-pooler`), com `sslmode=require`. Só no servidor/Vercel, nunca no
+    cliente nem no repositório.
+  - `DASHBOARD_STORAGE` (opcional): `postgres` | `supabase` | `redis` | `memoria`
+    força a escolha. Sem ela, a ordem é postgres > supabase > redis; sem nenhum, a
+    sincronização fica desligada (e a Engenharia usa memória só fora da Vercel).
+- **Leitura**: os ~5.900 projetos vêm em páginas de 1000 por chave (keyset) e só
+  com `chave, dados`; antes disso, uma consulta única de versão decide se a carga
+  em memória ainda vale. Registros com hash igual não são regravados.
+- **Testes**: `test/pgStore.test.js` roda o SQL real no PGlite (`@electric-sql/pglite`,
+  devDependency), sem rede.
+
+O restante deste documento descreve o desenho original no Supabase; o modelo da
+tabela, as travas e as funções valem igualmente para o Neon.
+
 ## Nome com hífen no PostgREST
 
 `DASHBOARD-GRONNER-CRM` tem hífen e maiúsculas, então no SQL é sempre um

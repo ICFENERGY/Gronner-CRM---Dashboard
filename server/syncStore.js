@@ -2,6 +2,8 @@ import crypto from 'node:crypto'
 import { Redis } from '@upstash/redis'
 import { getSupabaseRest, supabaseConfigured } from './supabaseRest.js'
 import { createSupabaseSyncStore } from './supabaseSyncStore.js'
+import { getPgSql, pgConfigured } from './pgSql.js'
+import { createPgSyncStore } from './pgSyncStore.js'
 
 const PREFIX = 'groner-dashboard:sync:v1'
 const RUN_TTL_SECONDS = 2 * 24 * 60 * 60
@@ -10,7 +12,7 @@ const ENTITIES = new Set(['projetos', 'tarefas', 'propostas', 'vendas'])
 
 let redisSingleton
 
-/** Há onde guardar a sincronização: Supabase ou Upstash. */
+/** Há onde guardar a sincronização: Postgres (Neon), Supabase ou Upstash. */
 export function syncStorageConfigured() {
   return armazenamentoSync() !== null
 }
@@ -438,28 +440,36 @@ export function createSyncStore(redis = defaultRedis()) {
 }
 
 /**
- * Qual armazenamento usar: 'supabase' (SUPABASE_URL + SUPABASE_SECRET_KEY), 'redis'
- * (Upstash) ou null. DASHBOARD_STORAGE=supabase|redis|memoria força a escolha
- * (se faltar configuração do escolhido, vale null; 'memoria' só vale na Engenharia).
+ * Qual armazenamento usar: 'postgres' (DATABASE_URL ou NEON_DATABASE_URL, Neon), 'supabase'
+ * (SUPABASE_URL + SUPABASE_SECRET_KEY), 'redis' (Upstash) ou null. Ordem de prioridade:
+ * postgres > supabase > redis. DASHBOARD_STORAGE=postgres|supabase|redis|memoria força a
+ * escolha (se faltar configuração do escolhido, vale null; 'memoria' só vale na Engenharia).
  */
 export function armazenamentoSync(env = process.env) {
+  const postgres = pgConfigured(env)
   const supabase = supabaseConfigured(env)
   const redis = Boolean(env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN)
   const forcado = String(env.DASHBOARD_STORAGE ?? '').trim().toLowerCase()
+  if (forcado === 'postgres' || forcado === 'neon') return postgres ? 'postgres' : null
   if (forcado === 'supabase') return supabase ? 'supabase' : null
   if (forcado === 'redis') return redis ? 'redis' : null
   if (forcado === 'memoria') return null
+  if (postgres) return 'postgres'
   if (supabase) return 'supabase'
   return redis ? 'redis' : null
 }
 
 export function getSyncStore() {
-  if (armazenamentoSync() === 'supabase') return supabaseSyncStore()
-  return createSyncStore(armazenamentoSync() === 'redis' ? defaultRedis() : null)
+  const armazenamento = armazenamentoSync()
+  if (armazenamento === 'postgres') return pgSyncStore()
+  if (armazenamento === 'supabase') return supabaseSyncStore()
+  return createSyncStore(armazenamento === 'redis' ? defaultRedis() : null)
 }
 
 let supabaseStoreSingleton
 let supabaseStoreRest
+let pgStoreSingleton
+let pgStoreCliente
 
 // Uma instância por cliente REST: preserva o cache de versão do load() entre chamadas.
 function supabaseSyncStore() {
@@ -469,6 +479,16 @@ function supabaseSyncStore() {
     supabaseStoreRest = rest
   }
   return supabaseStoreSingleton
+}
+
+// Idem para o Postgres: uma instância por cliente, para manter o cache de versão do load().
+function pgSyncStore() {
+  const pg = getPgSql()
+  if (!pgStoreSingleton || pgStoreCliente !== pg) {
+    pgStoreSingleton = createPgSyncStore(pg)
+    pgStoreCliente = pg
+  }
+  return pgStoreSingleton
 }
 
 export async function loadSyncedEntity(entity) {

@@ -1,6 +1,6 @@
 /**
  * Armazenamento da Engenharia: ações combinadas na reunião (uma ativa por card,
- * com histórico curto) e prazos por marco. Fica no Supabase (tabela
+ * com histórico curto) e prazos por marco. Fica no Postgres/Neon ou no Supabase (tabela
  * "DASHBOARD-GRONNER-CRM") ou, se só o Upstash estiver configurado, no Redis
  * da sincronização, com prefixo próprio.
  *
@@ -11,6 +11,8 @@ import { MARCOS } from '../shared/engenharia.js'
 import { armazenamentoSync, getRedis } from './syncStore.js'
 import { getSupabaseRest } from './supabaseRest.js'
 import { createSupabaseEngenhariaStore } from './supabaseEngenhariaStore.js'
+import { getPgSql } from './pgSql.js'
+import { createPgEngenhariaStore } from './pgEngenhariaStore.js'
 
 const PREFIX = 'groner-dashboard:engenharia:v1'
 const K = {
@@ -91,9 +93,10 @@ function redisStore(redis) {
 
 let memoriaLocal
 
-/** Supabase (se SUPABASE_URL + SUPABASE_SECRET_KEY) -> Redis (Upstash) -> memória (só fora da Vercel) -> null. */
+/** Postgres/Neon (se DATABASE_URL) -> Supabase (se SUPABASE_URL + SUPABASE_SECRET_KEY) -> Redis (Upstash) -> memória (só fora da Vercel) -> null. */
 export function engenhariaStore() {
   const armazenamento = armazenamentoSync()
+  if (armazenamento === 'postgres') return createPgEngenhariaStore(getPgSql())
   if (armazenamento === 'supabase') return createSupabaseEngenhariaStore(getSupabaseRest())
   const redis = armazenamento === 'redis' ? getRedis() : null
   if (redis) return redisStore(redis)

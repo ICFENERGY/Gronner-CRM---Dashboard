@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@neondatabase/serverless": "^1.2.0",
     "@upstash/redis": "^1.39.0",
     "axios": "^1.7.0",
     "cors": "^2.8.5",
@@ -28,6 +29,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.9",
     "@types/react": "^18.3.3",
