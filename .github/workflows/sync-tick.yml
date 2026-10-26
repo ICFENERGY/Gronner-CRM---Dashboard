@@ -1,0 +1,28 @@
+name: sync-tick
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+concurrency:
+  group: sync-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Chamar o tick da sincronização
+        env:
+          TOKEN: ${{ secrets.GRONER_SYNC_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "segredo GRONER_SYNC_TOKEN não configurado"
+            exit 0
+          fi
+          curl -fsS -X POST \
+            -H "X-Groner-Sync-Token: $TOKEN" \
+            https://groner-crm-dashboard-ten.vercel.app/api/sync/groner/projetos/tick
+          echo

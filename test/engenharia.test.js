@@ -214,3 +214,13 @@ test('Funil 11: finalizado sai dos ativos mas posRelogio/monitoradas usam o marc
   assert.equal(r.painel.monitoramento.relogioSemMonitoramento, 1)
   assert.equal(r.painel.monitoramento.pct, 50)
 })
+
+test('"Instalação Concluída" no Funil 11 recebe o marco 11 e conta como encerrado', () => {
+  const p = mapProjeto({ id: 901, nome: 'X', funil: '11. INSTALAÇÃO', status: { nome: 'Instalação CONCLUIDA' } })
+  assert.equal(p.marco, '11')
+  assert.equal(p.noFluxoEngenharia, true)
+  const r = montarEngenharia({ projetos: [p], agora: AGORA })
+  assert.equal(r.cards.length, 0)
+  assert.equal(r.painel.ativos, 0)
+  assert.equal(r.painel.encerrados, 1)
+})
