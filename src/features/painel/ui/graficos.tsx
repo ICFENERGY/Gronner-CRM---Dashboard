@@ -8,7 +8,7 @@ import type { Barra } from '../calculos'
 
 const eixo = { stroke: 'var(--viz-axis)', fontSize: 11, tickLine: false }
 const dica = {
-  contentStyle: { background: 'var(--surface-solid)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 },
+  contentStyle: { background: 'var(--surface-solid)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, boxShadow: '0 4px 14px rgba(0,0,0,0.18)' },
   labelStyle: { color: 'var(--text-primary)', fontWeight: 600 },
   itemStyle: { color: 'var(--text-secondary)' },
   cursor: { fill: 'var(--surface-hover)' },
@@ -20,7 +20,7 @@ export function BarrasVerticais({ dados, formatar, altura = 240, rotuloValor = '
   return (
     <ResponsiveContainer width="100%" height={altura}>
       <BarChart data={dados} margin={{ top: 8, right: 4, left: 4, bottom: 0 }} barCategoryGap={muitas ? 1 : '22%'}>
-        <CartesianGrid vertical={false} stroke="var(--viz-grid)" />
+        <CartesianGrid vertical={false} stroke="var(--viz-grid)" strokeDasharray="3 3" />
         <XAxis dataKey="nome" {...eixo} interval={muitas ? 'preserveStartEnd' : 0} minTickGap={8} />
         <YAxis {...eixo} axisLine={false} width={64} tickFormatter={formatar} />
         <Tooltip {...dica} formatter={(v: number) => [formatar(v), rotuloValor]} />
@@ -35,7 +35,7 @@ export function BarrasHorizontais({ dados, formatar, rotuloValor = 'Valor', onCl
   return (
     <ResponsiveContainer width="100%" height={Math.max(160, dados.length * 30 + 24)}>
       <BarChart data={dados} layout="vertical" margin={{ top: 0, right: 12, left: 0, bottom: 0 }} barCategoryGap={4}>
-        <CartesianGrid horizontal={false} stroke="var(--viz-grid)" />
+        <CartesianGrid horizontal={false} stroke="var(--viz-grid)" strokeDasharray="3 3" />
         <XAxis type="number" {...eixo} axisLine={false} tickFormatter={formatar} />
         <YAxis type="category" dataKey="nome" {...eixo} width={150} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
         <Tooltip {...dica} formatter={(v: number) => [formatar(v), rotuloValor]} />
@@ -60,7 +60,7 @@ export function EmpilhadoStatus({ dados, onClicar, altura = 330 }: { dados: Pont
   return (
     <ResponsiveContainer width="100%" height={altura}>
       <BarChart data={dados} margin={{ top: 8, right: 4, left: 4, bottom: 0 }} barCategoryGap="18%">
-        <CartesianGrid vertical={false} stroke="var(--viz-grid)" />
+        <CartesianGrid vertical={false} stroke="var(--viz-grid)" strokeDasharray="3 3" />
         <XAxis dataKey="nome" {...eixo} interval={0} />
         <YAxis {...eixo} axisLine={false} width={32} allowDecimals={false} />
         <Tooltip {...dica} labelFormatter={(_, p) => (p?.[0]?.payload as PontoStatus | undefined)?.titulo ?? ''} />
@@ -100,7 +100,7 @@ export function GeracaoPrognostico({ dados, formatar }: { dados: Barra[]; format
   return (
     <ResponsiveContainer width="100%" height={240}>
       <ComposedChart data={dados} margin={{ top: 8, right: 4, left: 4, bottom: 0 }} barCategoryGap="22%">
-        <CartesianGrid vertical={false} stroke="var(--viz-grid)" />
+        <CartesianGrid vertical={false} stroke="var(--viz-grid)" strokeDasharray="3 3" />
         <XAxis dataKey="nome" {...eixo} interval={0} />
         <YAxis {...eixo} axisLine={false} width={64} tickFormatter={formatar} />
         <Tooltip {...dica} formatter={(v: number, n: string) => [formatar(v), n]} />

@@ -102,8 +102,8 @@ export function Cartao({
     <section className={`flex min-w-0 flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm ${className}`}>
       <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">{titulo}</h3>
-          {subtitulo && <p className="text-xs text-[var(--text-muted)]">{subtitulo}</p>}
+          <h3 className="text-[15px] font-bold leading-snug text-[var(--text-primary)]">{titulo}</h3>
+          {subtitulo && <p className="mt-0.5 text-xs text-[var(--text-muted)]">{subtitulo}</p>}
           {nota && <p className="text-xs italic text-[var(--text-muted)]">{nota}</p>}
         </div>
         <div className="flex gap-1">
