@@ -58,7 +58,7 @@ export function PainelEngenharia({ dados }: { dados: Engenharia }) {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-      <Secao titulo="A base mostra onde cada card está; os prazos vêm do histórico que começou a ser gravado" subtitulo={`${p.universo} cards no fluxo da Engenharia (${p.ativos} ativos, ${p.encerrados} encerrados). Fora: ${p.historicoContrato} vendas antigas paradas em 06. CONTRATO.`}>
+      <Secao titulo="A base mostra onde cada card está; os prazos vêm do histórico que começou a ser gravado" subtitulo={`${p.universo} cards no fluxo da Engenharia (${p.ativos} ativos, ${p.encerrados} encerrados, incluindo os já entregues no Funil 11). Fora: ${p.historicoContrato} vendas antigas paradas em 06. CONTRATO.`}>
         <div className="grid gap-5 md:grid-cols-[1.4fr_1fr]">
           <p className="max-w-[62ch] text-sm text-[var(--text-secondary)]">
             O Groner guarda só a posição atual (etapa e status). A sincronização do n8n agora grava a data de cada mudança de status, então os indicadores de prazo (entrega da solução, homologação, instalação, encerramento) passam a ser calculados à medida que os cards percorrem os marcos. O resto depende de campos que já existem no Groner e estão vazios.

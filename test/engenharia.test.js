@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import express from 'express'
 import { classificarCard, completarComPropostas, entradaNoMarco, montarEngenharia, prazosEfetivos } from '../server/engenharia.js'
+import { STATUS_FINALIZADOS_INSTALACAO, estaFinalizadoNaInstalacao } from '../shared/engenharia.js'
 import { createEngenhariaRouter } from '../server/engenhariaRoutes.js'
 import { validarAcao, validarPrazos } from '../server/engenhariaStore.js'
 import { mapProjeto } from '../server/mappers.js'
@@ -168,4 +169,48 @@ test('rotas: leitura aberta, escrita exige o código certo e prazos exigem o de 
     server.close()
     restaurar()
   }
+})
+
+test('Funil 11: status já entregues são finalizados (fora da Pauta, contam como encerrados)', () => {
+  const base = { funil: '11. INSTALAÇÃO', noFluxoEngenharia: true, dataUltimoStatus: '2026-09-01T10:00:00-03:00', dataUltimaAtualizacao: '2026-09-01T10:00:00-03:00' }
+  const finalizados = [
+    ['INSTALAÇÃO CONCLUÍDA', null], ['INSTALAÇÃO APP MONITORAMENTO', '13'], ['APP MONITOR INSTALADO', '14'], ['TERMO DE ACEITE', '15'],
+  ].map(([etapa, marco], i) => ({ ...base, id: 100 + i, etapa, marco: marco ?? '13' }))
+  const ativo = { ...base, id: 200, etapa: 'PENDENCIA DE OBRA', marco: '11' }
+  const r = montarEngenharia({ projetos: [...finalizados, ativo], agora: AGORA })
+  assert.deepEqual(r.cards.map((c) => c.id), [200])
+  assert.equal(r.painel.ativos, 1)
+  assert.equal(r.painel.encerrados, 4)
+  assert.equal(r.painel.fila.n, 0)
+  assert.equal(r.painel.obra.n, 0)
+})
+
+test('Funil 11: variações de acento e caixa também são finalizadas; outros funis mantêm a regra anterior', () => {
+  assert.equal(STATUS_FINALIZADOS_INSTALACAO.length, 4)
+  assert.equal(estaFinalizadoNaInstalacao('11. INSTALAÇÃO', 'Instalacao Concluida'), true)
+  assert.equal(estaFinalizadoNaInstalacao('11. INSTALAÇÃO', 'termo  de aceite'), true)
+  assert.equal(estaFinalizadoNaInstalacao('11. INSTALAÇÃO', 'PENDENCIA DE OBRA'), false)
+  assert.equal(estaFinalizadoNaInstalacao('11. INSTALAÇÃO', 'TERMO DE ACEITE ASSINADO'), false)
+  assert.equal(estaFinalizadoNaInstalacao('12. PÓS-VENDA', 'TERMO DE ACEITE'), false)
+  const outro = { id: 300, funil: '10. VISTORIA', etapa: 'TERMO DE ACEITE', marco: '15', noFluxoEngenharia: true, dataUltimoStatus: '2026-10-01T10:00:00-03:00', dataUltimaAtualizacao: '2026-10-04T10:00:00-03:00' }
+  const r = montarEngenharia({ projetos: [outro], agora: AGORA })
+  assert.equal(r.cards.length, 1)
+  assert.equal(r.painel.ativos, 1)
+  assert.equal(r.painel.encerrados, 0)
+})
+
+test('Funil 11: finalizado sai dos ativos mas posRelogio/monitoradas usam o marco original', () => {
+  const base = { funil: '11. INSTALAÇÃO', noFluxoEngenharia: true, dataUltimoStatus: '2026-09-01T10:00:00-03:00', dataUltimaAtualizacao: '2026-09-01T10:00:00-03:00' }
+  const projetos = [
+    { ...base, id: 1, etapa: 'INSTALAÇÃO APP MONITORAMENTO', marco: '13' }, // relógio trocado, sem monitoramento
+    { ...base, id: 2, etapa: 'APP MONITOR INSTALADO', marco: '14' }, // monitorado
+    { ...base, id: 3, etapa: 'PENDENCIA DE OBRA', marco: '11' }, // ativo, fora do pós-relógio
+  ]
+  const r = montarEngenharia({ projetos, agora: AGORA })
+  assert.deepEqual(r.cards.map((c) => c.id), [3])
+  assert.equal(r.painel.ativos, 1)
+  assert.equal(r.painel.encerrados, 2)
+  assert.equal(r.painel.monitoramento.base, 2)
+  assert.equal(r.painel.monitoramento.relogioSemMonitoramento, 1)
+  assert.equal(r.painel.monitoramento.pct, 50)
 })

@@ -11,7 +11,7 @@
  * - Projeção de entrega: dias desde a venda + o que falta do marco atual + os
  *   prazos dos marcos seguintes até a troca do relógio (marco 12).
  */
-import { LIMITES_PARADO, MARCOS, META_ENTREGA_PADRAO, MOMENTOS, momentoDoMarco } from '../shared/engenharia.js'
+import { LIMITES_PARADO, MARCOS, META_ENTREGA_PADRAO, MOMENTOS, estaFinalizadoNaInstalacao, momentoDoMarco } from '../shared/engenharia.js'
 import { marcoDoStatus, nomeDePessoa, normalizarDataGroner } from './mappers.js'
 
 const DIA = 86_400_000
@@ -224,9 +224,11 @@ export function montarPainel(universo, todos, hoje) {
   const fila = ativos.filter((p) => ['1', '2', '3'].includes(p.marco))
   const comProposta = universo.filter((p) => Number(p.qtdPrePropostas) >= 1)
   const obras = ativos.filter((p) => momentoDoMarco(p.marco) === 'imp' && p.dataVenda)
-  const posRelogio = universo.filter((p) => ['13', '14', '15', '16', 'FIM'].includes(p.marco))
-  const monitoradas = posRelogio.filter((p) => p.marco !== '13')
-  const usinas = universo.filter((p) => ['13', '14', '15', '16', 'FIM'].includes(p.marco))
+  // Finalizados do Funil 11 viram FIM, mas posRelogio/monitoradas usam o marco ORIGINAL (ex.: "INSTALAÇÃO APP MONITORAMENTO" é o 13, ainda sem monitoramento).
+  const marcoReal = (p) => p.marcoOriginal ?? p.marco
+  const posRelogio = universo.filter((p) => ['13', '14', '15', '16', 'FIM'].includes(marcoReal(p)))
+  const monitoradas = posRelogio.filter((p) => marcoReal(p) !== '13')
+  const usinas = posRelogio
   const comDono = ativos.filter((p) => p.donoNominal)
   const prazoFuturo = ativos.filter((p) => p.previsaoFechamento && diasEntre(p.previsaoFechamento, hoje) >= 0)
   const prazoVencido = ativos.filter((p) => p.previsaoFechamento && diasEntre(p.previsaoFechamento, hoje) < 0)
@@ -309,7 +311,10 @@ export function montarEngenharia({ projetos: brutos, propostas = [], acoes = {},
   const hoje = hojeSP(agora)
   const prazos = prazosEfetivos(config)
   const projetos = completarComPropostas(brutos, propostas)
-  const universo = projetos.filter((p) => p.noFluxoEngenharia && p.marco)
+  // Funil 11 com status já entregue (ver STATUS_FINALIZADOS_INSTALACAO): finalizado, tratado como FIM.
+  const universo = projetos
+    .filter((p) => p.noFluxoEngenharia && p.marco)
+    .map((p) => (estaFinalizadoNaInstalacao(p.funil, p.etapa) ? { ...p, marcoOriginal: p.marco, finalizado: true, marco: 'FIM', momento: 'encerrado' } : p))
   const cards = universo
     .filter((p) => p.marco !== 'FIM' && MK[p.marco])
     .map((p) => classificarCard(p, { prazos, acao: acoes[String(p.id)], hoje }))

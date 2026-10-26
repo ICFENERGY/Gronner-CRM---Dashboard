@@ -75,7 +75,7 @@ test('edição em massa: para no limite de detalhes e avança o cursor só até 
 
 /** Salva as variáveis de ambiente usadas, aplica `vars` (sem o resto) e devolve a função que restaura. */
 function isolarAmbiente(vars) {
-  const chaves = ['GRONER_SYNC_TOKEN', 'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'DASHBOARD_STORAGE', 'VERCEL']
+  const chaves = ['GRONER_SYNC_TOKEN', 'CRON_SECRET', 'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'DASHBOARD_STORAGE', 'VERCEL']
   const salvo = Object.fromEntries(chaves.map((k) => [k, process.env[k]]))
   for (const k of chaves) delete process.env[k]
   Object.assign(process.env, vars)
@@ -108,4 +108,174 @@ test('rota do tick exige a chave (cabeçalho ou ?key=) e responde só o resumo',
     server.close()
     restaurar()
   }
+})
+
+/** Groner que devolve no máximo 20 itens por página, com totalPages, como o real. */
+function gronerPaginado20(lista) {
+  const pedidos = []
+  return {
+    pedidos,
+    async buscar(recurso, params) {
+      if (recurso !== 'Projeto') return {}
+      pedidos.push(params.pageNumber)
+      const ini = (params.pageNumber - 1) * 20
+      return { totalItems: lista.length, totalPages: Math.ceil(lista.length / 20), list: lista.slice(ini, ini + 20) }
+    },
+  }
+}
+
+const minutos = (m) => `2026-10-05T${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00.00`
+
+test('usa o tamanho real da página (20): percorre as páginas até o cursor', async () => {
+  const loja = lojaFalsa('2026-10-05T19:00:00.000Z') // 16:00 SP
+  // 100 alterados nos últimos 100 min (16:00–17:39), mais novos primeiro, sem marco (sem detalhe)
+  const lista = Array.from({ length: 100 }, (_, i) => ({ id: 1000 - i, dataUltimaAtualizacao: minutos(16 * 60 + 99 - i), status: { nome: 'OUTRO' } }))
+  const groner = gronerPaginado20(lista)
+  const r = await sincronizarAlteracoes({ store: loja, normalize: (x) => x, buscar: groner.buscar, agora: new Date('2026-10-05T20:40:00.000Z') })
+  assert.equal(r.alterados, 100)
+  assert.equal(r.pendente, false)
+  assert.equal(r.truncado, false)
+})
+
+test('alterações demais: não falha, processa as mais antigas e avança o cursor só até o último processado', async () => {
+  const loja = lojaFalsa('2026-10-05T10:00:00.000Z')
+  const lista = Array.from({ length: 100 }, (_, i) => ({ id: 1000 - i, dataUltimaAtualizacao: minutos(8 * 60 + 99 - i), status: { nome: 'OUTRO' } }))
+  const r = await sincronizarAlteracoes({ store: loja, normalize: (x) => x, buscar: gronerPaginado20(lista).buscar, agora: AGORA, limites: { maxPaginas: 3 } })
+  assert.equal(r.truncado, true)
+  assert.equal(r.pendente, true)
+  assert.equal(r.alterados, 60)
+  assert.equal(loja.chamadas[0].items.length, 60)
+  assert.equal(loja.chamadas[0].nextCursor, undefined) // truncado: o cursor NÃO avança
+})
+
+test('ids repetidos nos alterados são removidos antes de gravar', async () => {
+  const loja = lojaFalsa('2026-10-05T19:00:00.000Z')
+  const lista = [proj(2, '16:59', 'OUTRO'), proj(1, '16:58', 'OUTRO'), proj(2, '16:57', 'OUTRO')]
+  const r = await sincronizarAlteracoes({ store: loja, normalize: (x) => x, buscar: gronerFalso(lista).buscar, agora: AGORA })
+  assert.equal(r.alterados, 2)
+  assert.deepEqual(loja.chamadas[0].items.map((i) => i.id).sort(), [1, 2])
+})
+
+test('página lenta: para de iniciar ondas novas depois do orçamento e não avança o cursor', async () => {
+  const loja = lojaFalsa('2026-10-05T10:00:00.000Z')
+  const lista = Array.from({ length: 200 }, (_, i) => ({ id: 1000 - i, dataUltimaAtualizacao: minutos(8 * 60 + 199 - i), status: { nome: 'OUTRO' } }))
+  const base = gronerPaginado20(lista)
+  const buscar = async (recurso, params) => { await new Promise((r) => setTimeout(r, 40)); return base.buscar(recurso, params) }
+  const r = await sincronizarAlteracoes({ store: loja, normalize: (x) => x, buscar, agora: AGORA, limites: { orcamentoBuscaMs: 60 } })
+  assert.equal(r.truncado, true)
+  assert.ok(base.pedidos.length <= 13, `pediu páginas demais: ${base.pedidos.length}`)
+  assert.equal(loja.chamadas[0].nextCursor, undefined)
+  assert.ok(loja.chamadas[0].items.length > 0)
+})
+
+test('prazo dos detalhes: não inicia detalhes novos depois do prazo e continua gravando o que processou', async () => {
+  const loja = lojaFalsa('2026-10-05T19:00:00.000Z')
+  const lista = Array.from({ length: 10 }, (_, i) => proj(20 - i, `16:${50 + (9 - i)}`, 'PENDENCIA ICF'))
+  const g = gronerFalso(lista)
+  const buscar = async (recurso, params) => { if (recurso.startsWith('Projeto/')) await new Promise((r) => setTimeout(r, 30)); return g.buscar(recurso, params) }
+  const r = await sincronizarAlteracoes({ store: loja, normalize: (x) => x, buscar, agora: AGORA, limites: { prazoDetalhesMs: 10 } })
+  assert.equal(r.pendente, true)
+  assert.ok(loja.chamadas[0].items.length < 10)
+  assert.ok(loja.chamadas[0].nextCursor === undefined || Date.parse(loja.chamadas[0].nextCursor) < AGORA.getTime())
+})
+
+function lojaCompleta() {
+  const lotes = []
+  const finalizados = []
+  return {
+    lotes, finalizados,
+    async cursor() { return null },
+    async upsertBatch(input, normalize) {
+      lotes.push({ ...input, items: input.items.map(normalize) })
+      return { inserted: input.items.length, updated: 0, unchanged: 0 }
+    },
+    async finalize(input) { finalizados.push(input); return { softDeleted: 2 } },
+  }
+}
+
+test('rota da carga completa: autenticação, entidade inválida e carga em lotes de 50', async () => {
+  const restaurar = isolarAmbiente({
+    GRONER_SYNC_TOKEN: 'segredo-teste',
+    CRON_SECRET: 'segredo-cron',
+    UPSTASH_REDIS_REST_URL: 'https://exemplo.upstash.io',
+    UPSTASH_REDIS_REST_TOKEN: 'x',
+  })
+  const loja = lojaCompleta()
+  const pedidos = []
+  const buscarTudo = async (recurso) => { pedidos.push(recurso); return Array.from({ length: 120 }, (_, i) => ({ id: i + 1, titulo: `T${i}` })) }
+  const app = express()
+  app.use(express.json())
+  app.use('/api/sync/groner', createSyncRouter({ store: loja, buscarGroner: async () => ({}), buscarTudo }))
+  const server = app.listen(0, '127.0.0.1')
+  await new Promise((r) => server.once('listening', r))
+  const base = `http://127.0.0.1:${server.address().port}/api/sync/groner/completa`
+  try {
+    assert.equal((await fetch(`${base}/vendas`)).status, 401)
+    assert.equal((await fetch(`${base}/vendas`, { headers: { Authorization: 'Bearer errado' } })).status, 401)
+    assert.equal((await fetch(`${base}/projetos?key=segredo-teste`)).status, 404)
+    assert.equal((await fetch(`${base}/inexistente?key=segredo-teste`)).status, 404)
+    assert.equal(pedidos.length, 0)
+    const r = await fetch(`${base}/vendas`, { headers: { Authorization: 'Bearer segredo-cron' } })
+    assert.equal(r.status, 200)
+    const corpo = await r.json()
+    assert.equal(corpo.total, 120)
+    assert.equal(corpo.inserted, 120)
+    assert.equal(corpo.removidos, 2)
+    assert.deepEqual(pedidos, ['Venda'])
+    assert.deepEqual(loja.lotes.map((l) => l.items.length), [50, 50, 20])
+    assert.equal(loja.lotes[0].batchCount, 3)
+    assert.equal(loja.finalizados.length, 1)
+    assert.equal((await fetch(`${base}/propostas?key=segredo-teste`, { method: 'POST' })).status, 200)
+    assert.equal(pedidos[1], 'PreProposta')
+    const todas = await (await fetch(`${base}?key=segredo-teste`)).json()
+    assert.deepEqual(todas.resultados.map((x) => x.entity), ['propostas', 'tarefas', 'vendas'])
+  } finally {
+    server.close()
+    restaurar()
+  }
+})
+
+async function chamarCompleta(buscarTudo, loja) {
+  const restaurar = isolarAmbiente({
+    GRONER_SYNC_TOKEN: 'segredo-teste',
+    UPSTASH_REDIS_REST_URL: 'https://exemplo.upstash.io',
+    UPSTASH_REDIS_REST_TOKEN: 'x',
+  })
+  const app = express()
+  app.use(express.json())
+  app.use('/api/sync/groner', createSyncRouter({ store: loja, buscarGroner: async () => ({}), buscarTudo }))
+  const server = app.listen(0, '127.0.0.1')
+  await new Promise((r) => server.once('listening', r))
+  try {
+    const r = await fetch(`http://127.0.0.1:${server.address().port}/api/sync/groner/completa/vendas?key=segredo-teste`, { method: 'POST' })
+    return { status: r.status, corpo: await r.json() }
+  } finally {
+    server.close()
+    restaurar()
+  }
+}
+
+const itensN = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1 }))
+
+test('carga completa aborta SEM gravar: total diferente, id repetido, lista vazia e menos de 90% dos ativos', async () => {
+  const casos = [
+    ['total diferente', async () => ({ items: itensN(10), totalItems: 12 }), {}, /informa 12/],
+    ['id repetido', async () => ({ items: [{ id: 1 }, { id: 1 }, { id: 2 }], totalItems: 3 }), {}, /repetidos/],
+    ['lista vazia', async () => ({ items: [], totalItems: 0 }), {}, /vazia/],
+    ['menos de 90% dos ativos', async () => ({ items: itensN(80), totalItems: 80 }), { status: async () => ({ activeTotal: 100 }) }, /90%/],
+  ]
+  for (const [nome, buscarTudo, extra, msg] of casos) {
+    const loja = { ...lojaCompleta(), ...extra }
+    const { status, corpo } = await chamarCompleta(buscarTudo, loja)
+    assert.equal(status, 502, nome)
+    assert.equal(loja.lotes.length, 0, `${nome}: não pode gravar lotes`)
+    assert.equal(loja.finalizados.length, 0, `${nome}: não pode finalizar`)
+    assert.ok(corpo.error, nome)
+  }
+  // 90% exatos ou mais passa
+  const loja = { ...lojaCompleta(), status: async () => ({ activeTotal: 100 }) }
+  const { status, corpo } = await chamarCompleta(async () => ({ items: itensN(90), totalItems: 90 }), loja)
+  assert.equal(status, 200)
+  assert.equal(corpo.total, 90)
+  assert.ok('msBusca' in corpo && 'msGravacao' in corpo)
 })

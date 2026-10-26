@@ -45,3 +45,25 @@ export function momentoDoMarco(marco) {
   if (marco === 'FIM') return 'fim'
   return MARCOS.find((m) => m.k === marco)?.mom ?? null
 }
+
+/**
+ * Regra de negócio (Fabio, ICF Energy): no Funil "11. INSTALAÇÃO", os status abaixo
+ * já foram entregues. Não são cards rolando: são FINALIZADOS e contam como encerrados
+ * (igual ao marco FIM), ficando fora da Pauta Diária, dos ativos, do semáforo e das
+ * métricas de fila/obra. Os mesmos status em outros funis (ex.: 12. PÓS-VENDA)
+ * seguem a regra normal dos marcos. Comparação sem acento, sem caixa e sem espaços repetidos.
+ */
+export const STATUS_FINALIZADOS_INSTALACAO = [
+  'INSTALAÇÃO CONCLUÍDA',
+  'INSTALAÇÃO APP MONITORAMENTO',
+  'APP MONITOR INSTALADO',
+  'TERMO DE ACEITE',
+]
+
+const normalizarTexto = (v) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
+const FINALIZADOS_NORMALIZADOS = new Set(STATUS_FINALIZADOS_INSTALACAO.map(normalizarTexto))
+
+/** True se o card (funil + status) está finalizado pela regra do Funil 11. */
+export function estaFinalizadoNaInstalacao(funil, status) {
+  return /^11\./.test(normalizarTexto(funil)) && FINALIZADOS_NORMALIZADOS.has(normalizarTexto(status))
+}
