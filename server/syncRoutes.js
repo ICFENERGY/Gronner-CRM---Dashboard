@@ -120,15 +120,45 @@ async function buscarGronerPadrao(recurso, params) {
   return gronerGet(recurso, params, { timeoutMs: 10000, retries: 1, retryDelayMs: 300 })
 }
 
-/** Carga dos detalhes da Pieta, carregada só quando usada. Sem credencial ou sem Postgres não grava nada. */
-async function sincronizarPietaPadrao() {
+/**
+ * Carga gradual dos detalhes da Pieta, carregada só quando usada. Sem credencial ou sem Postgres não grava nada.
+ * Cada chamada à Pieta é feita uma vez só (sem nova tentativa): a API cai com chamadas seguidas.
+ * @param opcoes repassadas a sincronizarPieta (orcamentoMs, reaproveitarResumoMs)
+ */
+async function sincronizarPietaPadrao(opcoes = {}) {
   const { pietaConfigurada, pietaResumo, pietaDetalheProjeto } = await import('./pietaClient.js')
   if (!pietaConfigurada()) return { ok: false, motivo: 'sem credencial' }
   const { getPgSql } = await import('./pgSql.js')
   const pg = getPgSql()
   if (!pg) return { ok: false, motivo: 'sem armazenamento Postgres' }
   const { sincronizarPieta } = await import('./pietaSync.js')
-  return sincronizarPieta({ pg, resumo: () => pietaResumo(), detalhe: (id) => pietaDetalheProjeto(id) })
+  return sincronizarPieta({
+    pg,
+    resumo: (o) => pietaResumo({ ...o, tentativas: 1 }),
+    detalhe: (id, o) => pietaDetalheProjeto(id, { ...o, tentativas: 1 }),
+    ...opcoes,
+  })
+}
+
+/** Orçamento total do tick (Groner + Pieta), com folga para os 60 s da função da Vercel. */
+export const ORCAMENTO_TICK_MS = 50000
+/** A Pieta só entra no tick se sobrar pelo menos isso (resumo ou 1 detalhe + gravação). */
+export const MIN_PIETA_NO_TICK_MS = 10000
+const VALIDADE_RESUMO_PIETA_TICK_MS = 30 * 60 * 1000
+
+/**
+ * Execução leve da carga da Pieta dentro do tick, isolada: qualquer erro vira { ok:false, erro } e nunca
+ * derruba o tick do Groner. Sem tempo sobrando, é pulada.
+ */
+export async function pietaNoTick(sincronizar, decorridoMs) {
+  const sobra = ORCAMENTO_TICK_MS - decorridoMs
+  if (sobra < MIN_PIETA_NO_TICK_MS) return { ok: false, motivo: 'sem tempo no tick' }
+  try {
+    return await sincronizar({ orcamentoMs: sobra, reaproveitarResumoMs: VALIDADE_RESUMO_PIETA_TICK_MS })
+  } catch (err) {
+    console.error('[sync] pieta no tick falhou (tick do Groner segue ok):', err.message)
+    return { ok: false, erro: err.status && err.status < 500 ? err.message : 'Não foi possível sincronizar a Pieta' }
+  }
 }
 
 /** Carga diária da SolarZ (Open API), carregada só quando usada. Sem credencial ou sem Postgres não grava nada. */
@@ -145,9 +175,9 @@ async function sincronizarSolarzPadrao() {
     energia: (id, ano) => c.solarzEnergiaAno(id, ano),
     desempenho: (id) => c.solarzDesempenho(id),
     relatorio: (id, ini, fim) => c.solarzRelatorioPeriodo(id, ini, fim),
-    unidades: () => c.solarzListarUnidades(),
-    tickets: () => c.solarzListarTicketsAbertos(),
-    simples: () => c.solarzListarSimples(),
+    unidades: (o) => c.solarzListarUnidades(o),
+    tickets: (o) => c.solarzListarTicketsAbertos(o),
+    simples: (o) => c.solarzListarSimples(o),
   })
 }
 
@@ -236,12 +266,17 @@ export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {
   })
 
   // Atualização de 5 minutos dentro do dashboard, chamada por um agendador externo.
+  // Depois do Groner, se sobrar tempo, uma execução leve da carga da Pieta (resultado no campo pieta).
   router.all('/projetos/tick', authenticateTick, async (_req, res) => {
+    const t0 = Date.now()
     try {
       const result = await sincronizarAlteracoes({ store, normalize: (item) => stripSensitive(normalizers.projetos(item)), buscar: buscarGroner })
       if (houveMudanca(result)) onChanged('projetos')
       console.info('[sync] tick', { runId: result.runId, alterados: result.alterados, processados: result.processados, detalhes: result.detalhes, pendente: result.pendente, truncado: result.truncado, skipped: result.skipped })
-      res.json({ ok: true, runId: result.runId, skipped: Boolean(result.skipped), alterados: result.alterados, processados: result.processados, detalhes: result.detalhes, pendente: result.pendente, truncado: Boolean(result.truncado), inserted: result.inserted, updated: result.updated, unchanged: result.unchanged })
+      const pieta = await pietaNoTick(sincronizarPieta, Date.now() - t0)
+      if (pieta.ok && (pieta.buscados || pieta.removidos)) onChanged('pieta')
+      if (pieta.ok && !pieta.pulado && pieta.planejados) console.info('[sync] pieta no tick', pieta)
+      res.json({ ok: true, runId: result.runId, skipped: Boolean(result.skipped), alterados: result.alterados, processados: result.processados, detalhes: result.detalhes, pendente: result.pendente, truncado: Boolean(result.truncado), inserted: result.inserted, updated: result.updated, unchanged: result.unchanged, pieta })
     } catch (err) {
       console.error('[sync] tick falhou:', err.message)
       res.status(err.status || 500).json({ error: publicError(err) })

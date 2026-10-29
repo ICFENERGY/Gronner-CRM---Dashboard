@@ -200,3 +200,25 @@ test('projeto com duas propostas aceitas conta uma vez, pela alterada por últim
   assert.equal(nao.extra, 0)
   assert.deepEqual(p.propostasVendidas.map((x) => x.id), [2])
 })
+
+test('serieGeracaoUsinas: na virada do ano não soma jan/27 (SolarZ) com jan/26 (relatório)', async () => {
+  const { serieGeracaoUsinas } = await tsImport('../src/features/painel/calculos.ts', import.meta.url)
+  const mes = (geracaoKwh, extra = {}) => ({ mes: 'x', geracaoKwh, desempenhoPct: null, ...extra })
+  const usinas = [
+    { anoMensal: 2027, mensal: [mes(100, { prognosticoKwh: 200, parcial: true })], prognosticoKwhMes: 300 },
+    { anoMensal: 2026, mensal: [mes(5000), mes(4000)], mensal2026: null, prognosticoKwhMes: 50 },
+    { mensal2026: [mes(7000)], prognosticoKwhMes: 50 }, // relatório antigo, sem anoMensal (2026)
+  ]
+  assert.deepEqual(serieGeracaoUsinas(usinas), [{ nome: 'jan/27 (parcial)', valor: 100, extra: 200 }])
+  // tudo no mesmo ano: soma normalmente
+  assert.deepEqual(serieGeracaoUsinas(usinas.slice(1)).map((b) => b.valor), [12000, 4000])
+})
+
+test('dataCurtaBr: data sem hora não volta um dia no fuso de Brasília', async () => {
+  const { dataCurtaBr } = await tsImport('../src/lib/datas.ts', import.meta.url)
+  assert.equal(dataCurtaBr('2026-04-09'), '09/04/2026')
+  assert.equal(dataCurtaBr('2026-09-11T18:14:00-03:00'), '11/09/2026')
+  assert.equal(dataCurtaBr('2026-01-01T01:00:00Z'), '31/12/2025') // 22h do dia 31 em Brasília
+  assert.equal(dataCurtaBr(null), '—')
+  assert.equal(dataCurtaBr('lixo'), '—')
+})

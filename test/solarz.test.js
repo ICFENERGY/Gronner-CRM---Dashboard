@@ -338,3 +338,38 @@ test('rota /solarz: exige chave e, sem credencial, devolve 200 ok:false', async 
   const cron = await chamarRota({ sincronizarSolarz: async () => ({ ok: true, buscadas: 3 }) }, { Authorization: 'Bearer cron' })
   assert.deepEqual(cron.corpo, { ok: true, buscadas: 3 })
 })
+
+// --- correções da revisão ---
+test('privacidade: coordenadas (latitude/longitude) da usina não saem para o front', () => {
+  const u = mapUsina(usinaBruta())
+  assert.equal('latitude' in u, false)
+  assert.equal('longitude' in u, false)
+  const us = mesclarUsinasComRelatorio([u, mapUsina(usinaBruta({ id: 77, name: 'FORA DO RELATORIO' }))], relatorio, { registros: [registro()], agora: AGORA })
+  assert.ok(us.every((x) => !('latitude' in x) && !('longitude' in x)))
+})
+
+test('mesclagem: campos do mês de referência andam juntos (nulo ao vivo não herda valor de outro mês do relatório)', () => {
+  // setembro ao vivo sem prognóstico: geração vale, desempenho do mês fica em branco, sem o 100% de agosto do relatório
+  const reg = registro({ meses: meses([['2026-07', 50, 100], ['2026-08', 60, 100], ['2026-09', 90, null]]) })
+  const a = mesclarUsinasComRelatorio([], relatorio, { registros: [reg], agora: AGORA }).find((u) => u.nome === 'USINA A')
+  assert.equal(a.mesAnoRecente, 'setembro/2026')
+  assert.equal(a.geracaoKwhMes, 90)
+  assert.equal(a.prognosticoKwhMes, null)
+  assert.equal(a.desempenhoMesPct, null)
+})
+
+test('carga: listas complementares respeitam o orçamento e recebem o prazo restante', async () => {
+  const { pg } = await criarBanco()
+  let relogio = 1_000_000
+  const prazos = []
+  const d = dados({
+    unidades: async (o) => { prazos.push(o?.prazoMs); relogio += 36000; return dados().unidades() }, // lista lenta: gasta 36 s
+    tickets: async () => { throw new Error('não deveria ser chamada sem tempo') },
+    simples: async () => { throw new Error('não deveria ser chamada sem tempo') },
+  })
+  const r = await sincronizarSolarz({ pg, ...d, agora: () => relogio, orcamentoMs: 40000 })
+  assert.ok(prazos[0] > 0 && prazos[0] <= 15000)
+  assert.equal(r.complementos.unidades, 'ok')
+  assert.equal(r.complementos.tickets, 'sem tempo')
+  assert.equal(r.complementos.simples, 'sem tempo')
+})

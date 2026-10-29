@@ -9,6 +9,7 @@ import { KpiCard } from '../components/KpiCard'
 import type { PietaProjetoDetalhe } from '../api/types'
 import { useFilters, uniqueSorted } from '../hooks/useFilters'
 import { currency, number } from '../lib/palette'
+import { dataCurtaBr } from '../lib/datas'
 import { Cartao, Kpi } from '../features/painel/ui/base'
 import { BarrasHorizontais } from '../features/painel/ui/graficos'
 import type { PietaMetricas } from '../api/types'
@@ -151,7 +152,7 @@ export function PietaPage() {
 
       <section className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
         <KpiCard label="Projetos (filtrado)" value={number.format(projetosFiltrados.length)} hint={`Total geral: ${number.format(resumo.projectsQuantity)}`} />
-        <KpiCard label="Último projeto" value={new Date(resumo.lastProject).toLocaleDateString('pt-BR')} />
+        <KpiCard label="Último projeto" value={dataCurtaBr(resumo.lastProject)} />
         <KpiCard label="Fases distintas" value={number.format(porFase.length)} />
       </section>
 
@@ -177,7 +178,7 @@ export function PietaPage() {
             { key: 'status', label: 'Status', render: (r) => r.status },
             { key: 'power', label: 'Potência (kWp)', align: 'right', render: (r) => (r.power != null ? r.power.toFixed(2) : '—') },
             { key: 'powerDistributor', label: 'Distribuidora', render: (r) => r.powerDistributor },
-            { key: 'createdAt', label: 'Criado em', render: (r) => new Date(r.createdAt).toLocaleDateString('pt-BR') },
+            { key: 'createdAt', label: 'Criado em', render: (r) => dataCurtaBr(r.createdAt) },
           ]}
         />
       </section>
@@ -194,7 +195,7 @@ export function PietaPage() {
                 <DetailRow label="Potência" value={detalhe.power != null ? `${detalhe.power.toFixed(2)} kWp` : '—'} />
                 <DetailRow label="Distribuidora" value={`${detalhe.powerDistributor} (${detalhe.powerDistributorState})`} />
                 <DetailRow label="Contato principal" value={detalhe.mainContact?.name ?? '—'} />
-                <DetailRow label="Criado em" value={new Date(detalhe.createdAt).toLocaleDateString('pt-BR')} />
+                <DetailRow label="Criado em" value={dataCurtaBr(detalhe.createdAt)} />
                 <DetailRow label="Dias desde a criação" value={detalhe.daysSinceCreated ?? '—'} />
                 <DetailRow label="Tempo total (dias)" value={detalhe.tempoTotalDias ?? '—'} />
                 <DetailRow label="Valor total" value={detalhe.totalValue != null ? currency.format(detalhe.totalValue) : '—'} />

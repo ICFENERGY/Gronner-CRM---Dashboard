@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import express from 'express'
 import { sincronizarAlteracoes } from '../server/syncTick.js'
-import { createSyncRouter } from '../server/syncRoutes.js'
+import { createSyncRouter, pietaNoTick } from '../server/syncRoutes.js'
 
 // 05/10 17:00 em Brasília = 20:00 UTC. Datas do Groner vêm sem offset (Brasília).
 const AGORA = new Date('2026-10-05T20:00:00.000Z')
@@ -278,4 +278,81 @@ test('carga completa aborta SEM gravar: total diferente, id repetido, lista vazi
   assert.equal(status, 200)
   assert.equal(corpo.total, 90)
   assert.ok('msBusca' in corpo && 'msGravacao' in corpo)
+})
+
+// --- Pieta encaixada no tick ---
+async function chamarTick(opcoes, ambienteExtra = {}) {
+  const pietaEnv = ['PIETA_USER', 'PIETA_PASSWORD']
+  const salvoPieta = Object.fromEntries(pietaEnv.map((k) => [k, process.env[k]]))
+  for (const k of pietaEnv) delete process.env[k]
+  const restaurar = isolarAmbiente({ GRONER_SYNC_TOKEN: 'segredo-teste', UPSTASH_REDIS_REST_URL: 'https://exemplo.upstash.io', UPSTASH_REDIS_REST_TOKEN: 'x', ...ambienteExtra })
+  const loja = lojaFalsa(null)
+  const app = express()
+  app.use('/api/sync/groner', createSyncRouter({ store: loja, buscarGroner: gronerFalso([proj(1, '16:59')]).buscar, ...opcoes }))
+  const server = app.listen(0, '127.0.0.1')
+  await new Promise((r) => server.once('listening', r))
+  try {
+    const r = await fetch(`http://127.0.0.1:${server.address().port}/api/sync/groner/projetos/tick?key=segredo-teste`)
+    return { status: r.status, corpo: await r.json(), loja }
+  } finally {
+    server.close()
+    restaurar()
+    for (const k of pietaEnv) { if (salvoPieta[k] === undefined) delete process.env[k]; else process.env[k] = salvoPieta[k] }
+  }
+}
+
+test('tick: Pieta falhando não derruba o tick do Groner; o erro vai no campo pieta', async () => {
+  let opcoesRecebidas = null
+  const { status, corpo, loja } = await chamarTick({
+    sincronizarPieta: async (o) => { opcoesRecebidas = o; throw Object.assign(new Error('Erro 500 ao consultar a Pieta'), { status: 500 }) },
+  })
+  assert.equal(status, 200)
+  assert.equal(corpo.ok, true)
+  assert.equal(loja.chamadas.length, 1) // o Groner gravou
+  assert.deepEqual(corpo.pieta, { ok: false, erro: 'Não foi possível sincronizar a Pieta' })
+  // execução leve: orçamento = sobra do tick; resumo reaproveitado por 30 min
+  assert.ok(opcoesRecebidas.orcamentoMs > 10000 && opcoesRecebidas.orcamentoMs <= 50000)
+  assert.equal(opcoesRecebidas.reaproveitarResumoMs, 30 * 60 * 1000)
+})
+
+test('tick: sem credencial da Pieta, a carga é pulada em silêncio (padrão real, sem rede)', async () => {
+  const { status, corpo } = await chamarTick({})
+  assert.equal(status, 200)
+  assert.equal(corpo.ok, true)
+  assert.deepEqual(corpo.pieta, { ok: false, motivo: 'sem credencial' })
+})
+
+test('tick: sem Postgres, a carga da Pieta é pulada', async () => {
+  const salvo = { u: process.env.PIETA_USER, p: process.env.PIETA_PASSWORD, n: process.env.NEON_DATABASE_URL, d: process.env.DATABASE_URL }
+  delete process.env.NEON_DATABASE_URL; delete process.env.DATABASE_URL
+  try {
+    const { corpo } = await chamarTick({
+      sincronizarPieta: undefined, // usa o padrão real
+    }, { PIETA_USER: 'u', PIETA_PASSWORD: 'p' })
+    assert.equal(corpo.ok, true)
+    assert.deepEqual(corpo.pieta, { ok: false, motivo: 'sem armazenamento Postgres' })
+  } finally {
+    for (const [k, v] of [['PIETA_USER', salvo.u], ['PIETA_PASSWORD', salvo.p], ['NEON_DATABASE_URL', salvo.n], ['DATABASE_URL', salvo.d]]) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v
+    }
+  }
+})
+
+test('tick: com a Pieta ok, o resultado vem no campo pieta', async () => {
+  const { corpo } = await chamarTick({ sincronizarPieta: async () => ({ ok: true, buscados: 2, planejados: 5, restantes: 3 }) })
+  assert.equal(corpo.ok, true)
+  assert.deepEqual(corpo.pieta, { ok: true, buscados: 2, planejados: 5, restantes: 3 })
+})
+
+test('tick: Groner demorado deixa a Pieta de fora (orçamento de 50 s com folga para os 60 s da função)', async () => {
+  let chamou = false
+  const r = await pietaNoTick(async () => { chamou = true; return { ok: true } }, 42000)
+  assert.equal(chamou, false)
+  assert.deepEqual(r, { ok: false, motivo: 'sem tempo no tick' })
+  let orcamento = null
+  await pietaNoTick(async (o) => { orcamento = o.orcamentoMs; return { ok: true } }, 5000)
+  assert.equal(orcamento, 45000)
+  // erro de cliente (ex.: 401) aparece com a mensagem; nenhum erro escapa
+  const e401 = await pietaNoTick(async () => { throw Object.assign(new Error('Credencial da Pieta inválida (401)'), { status: 401 }) }, 0)
+  assert.deepEqual(e401, { ok: false, erro: 'Credencial da Pieta inválida (401)' })
 })

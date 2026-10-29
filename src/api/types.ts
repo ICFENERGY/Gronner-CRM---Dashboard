@@ -109,8 +109,6 @@ export interface UsinaRaw {
   statusMonitoramento: string | null
   statusMonitoramentoEm: string | null
   energiaGeradaAcumuladaKwh: number | null
-  latitude: number | null
-  longitude: number | null
 }
 
 export interface EtapaContagem {

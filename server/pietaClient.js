@@ -63,20 +63,23 @@ async function tentarUmaVez(projectId, { timeoutMs, auth }) {
   }
 }
 
-function ehTransitorio(err) {
+/** 5xx, 429, timeout ou rede: instabilidade da API (não é problema do projeto pedido). */
+export function ehTransitorio(err) {
   if (err.status) return err.status === 429 || err.status >= 500
   return true // erro de rede ou timeout
 }
 
-async function pietaRequest(projectId, { timeoutMs = TIMEOUT_MS, esperaMs = ESPERA_RETRY_MS } = {}) {
+/** @param opcoes.tentativas 1 = sem nova tentativa (a carga gradual não insiste: a API cai com chamadas seguidas). */
+async function pietaRequest(projectId, { timeoutMs = TIMEOUT_MS, esperaMs = ESPERA_RETRY_MS, tentativas = MAX_TENTATIVAS } = {}) {
   const auth = getAuthHeader() // sem credencial falha já, sem tentar de novo
+  const maximo = Math.max(1, Math.min(MAX_TENTATIVAS, Math.floor(Number(tentativas)) || 1))
   let ultimo
-  for (let i = 1; i <= MAX_TENTATIVAS; i++) {
+  for (let i = 1; i <= maximo; i++) {
     try {
       return await tentarUmaVez(projectId, { timeoutMs, auth })
     } catch (err) {
       ultimo = err
-      if (!ehTransitorio(err) || i === MAX_TENTATIVAS) break // 401 e 404 não se repetem
+      if (!ehTransitorio(err) || i === maximo) break // 401 e 404 não se repetem
       await dormir(esperaMs * i)
     }
   }

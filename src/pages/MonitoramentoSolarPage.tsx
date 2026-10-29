@@ -12,6 +12,7 @@ import { GeracaoPrognostico } from '../features/painel/ui/graficos'
 import { serieGeracaoUsinas } from '../features/painel/calculos'
 import { useFilters, uniqueSorted } from '../hooks/useFilters'
 import { currency, decimal, number } from '../lib/palette'
+import { dataCurtaBr } from '../lib/datas'
 
 const STATUS_DESEMPENHO_COR: Record<string, string> = {
   Crítico: '#EF4444',
@@ -90,7 +91,7 @@ export function MonitoramentoSolarPage() {
       {origem.usinasSolarz > 0
         ? `Dados ao vivo da SolarZ (Open API) para ${origem.usinasSolarz} usinas, atualizados em ${dataBr(origem.solarzAtualizadoEm)}. `
         : 'Sem dados ao vivo da SolarZ no banco; exibindo o relatório importado. '}
-      {origem.usinasRelatorio > 0 && `As outras ${origem.usinasRelatorio} usinas (sem monitoramento premium) mantêm o último levantamento${origem.relatorioExtraidoEm ? ` de ${new Date(origem.relatorioExtraidoEm).toLocaleDateString('pt-BR')}` : ''}. `}
+      {origem.usinasRelatorio > 0 && `As outras ${origem.usinasRelatorio} usinas (sem monitoramento premium) mantêm o último levantamento${origem.relatorioExtraidoEm ? ` de ${dataCurtaBr(origem.relatorioExtraidoEm)}` : ''}. `}
       O mês de referência é o último mês fechado; o mês corrente aparece como parcial.
     </div>
   )
@@ -217,7 +218,7 @@ export function MonitoramentoSolarPage() {
             rows={farolHistorico.slice().reverse()}
             maxHeight={200}
             columns={[
-              { key: 'data', label: 'Data', render: (r) => new Date(`${r.data}T12:00:00`).toLocaleDateString('pt-BR') },
+              { key: 'data', label: 'Data', render: (r) => dataCurtaBr(r.data) },
               { key: 'n', label: 'Normal', align: 'right', render: (r) => number.format(r.contagens.Normal ?? 0) },
               { key: 'a', label: 'Com alerta', align: 'right', render: (r) => number.format(r.contagens['Com alerta'] ?? 0) },
               { key: 'c', label: 'Crítico', align: 'right', render: (r) => number.format(r.contagens['Crítico'] ?? 0) },
@@ -292,7 +293,7 @@ export function MonitoramentoSolarPage() {
             { key: 'd12', label: '12M', align: 'right', render: (r) => <span style={{ color: corDesempenho(r.desempenho12mPct) }}>{pct(r.desempenho12mPct)}</span> },
             { key: 'd3', label: 'Média 3M', align: 'right', render: (r) => <span style={{ color: corDesempenho(r.desempenhoMedio3mPct) }}>{pct(r.desempenhoMedio3mPct)}</span> },
             { key: 'st', label: 'Status (média 3M)', render: (r) => <span style={{ color: STATUS_DESEMPENHO_COR[r.statusDesempenho ?? ''] }}>{r.statusDesempenho ?? '—'}</span> },
-            { key: 'inst', label: 'Instalação', render: (r) => (r.dataInstalacao ? new Date(r.dataInstalacao).toLocaleDateString('pt-BR') : '—') },
+            { key: 'inst', label: 'Instalação', render: (r) => dataCurtaBr(r.dataInstalacao) },
             ...MESES.flatMap((mes, i) => [
               { key: `g${i}`, label: `Ger. ${mes}`, align: 'right' as const, render: (r: UsinaRaw) => { const m = serieMensal(r)[i]; return m?.geracaoKwh != null ? decimal.format(m.geracaoKwh) + (m.parcial ? '*' : '') : '' } },
               { key: `p${i}`, label: `Desemp. ${mes}`, align: 'right' as const, render: (r: UsinaRaw) => { const m = serieMensal(r)[i]; return <span style={{ color: corDesempenho(m?.desempenhoPct) }}>{m?.desempenhoPct != null ? pct(m.desempenhoPct) : ''}</span> } },
@@ -314,7 +315,7 @@ export function MonitoramentoSolarPage() {
               <DetailRow label="Total investido" value={usinaSelecionada.totalInvestido != null ? currency.format(usinaSelecionada.totalInvestido) : '—'} />
               <DetailRow label="Concessionária" value={usinaSelecionada.concessionaria} />
               <DetailRow label="Cidade/UF" value={usinaSelecionada.cidade ? `${usinaSelecionada.cidade}/${usinaSelecionada.estado}` : '—'} />
-              <DetailRow label="Data de instalação" value={usinaSelecionada.dataInstalacao ? new Date(usinaSelecionada.dataInstalacao).toLocaleDateString('pt-BR') : '—'} />
+              <DetailRow label="Data de instalação" value={dataCurtaBr(usinaSelecionada.dataInstalacao)} />
               <DetailRow
                 label="Status de monitoramento (tempo real)"
                 value={usinaSelecionada.statusMonitoramento ? STATUS_MONITORAMENTO_LABEL[usinaSelecionada.statusMonitoramento] ?? usinaSelecionada.statusMonitoramento : 'Sem monitoramento premium'}

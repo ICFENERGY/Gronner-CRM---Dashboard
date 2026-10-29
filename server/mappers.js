@@ -510,8 +510,6 @@ export function mapUsina(p) {
     concessionaria: p.cliente?.concessionaria ?? null,
     cidade: p.endereco?.cidade ?? null,
     estado: p.endereco?.siglaEstado ?? null,
-    latitude: p.endereco?.latitude ?? null,
-    longitude: p.endereco?.longitude ?? null,
   }
 }
 
@@ -556,8 +554,13 @@ function camposAoVivo(registro, agora) {
 /** Substitui, campo a campo, o que o relatório tem pelo que veio ao vivo (nulo ao vivo mantém o relatório). */
 function aplicarAoVivo(base, ao) {
   const out = { ...base }
-  for (const k of ['mesAnoRecente', 'geracaoKwhMes', 'prognosticoKwhMes', 'desempenhoMesPct', 'desempenho30dPct', 'desempenho12mPct', 'desempenhoMedio3mPct', 'statusDesempenho', 'totalInvestido']) {
+  for (const k of ['desempenho30dPct', 'desempenho12mPct', 'desempenhoMedio3mPct', 'statusDesempenho', 'totalInvestido']) {
     if (ao[k] != null) out[k] = ao[k]
+  }
+  // Os campos do mês de referência andam juntos: com mês ao vivo, um nulo ao vivo (ex.: sem prognóstico) fica nulo,
+  // em vez de herdar o valor do relatório, que é de outro mês.
+  if (ao.mesAnoRecente != null) {
+    for (const k of ['mesAnoRecente', 'geracaoKwhMes', 'prognosticoKwhMes', 'desempenhoMesPct']) out[k] = ao[k]
   }
   if (ao.mensal) { out.mensal = ao.mensal; out.anoMensal = ao.anoMensal }
   return out
@@ -648,8 +651,6 @@ export function mesclarUsinasComRelatorio(usinasAoVivo, relatorio, extra = {}) {
       statusMonitoramento: aoVivo?.status ?? registro?.statusMonitoramento ?? null,
       statusMonitoramentoEm: aoVivo?.statusEm ?? registro?.statusMonitoramentoEm ?? null,
       energiaGeradaAcumuladaKwh: aoVivo?.energiaGeradaKwh ?? registro?.energiaGeradaAcumuladaKwh ?? null,
-      latitude: aoVivo?.latitude ?? null,
-      longitude: aoVivo?.longitude ?? null,
     }
     const ao = registro ? camposAoVivo(registro, agora) : null
     const solarz = Boolean(ao?.temEnergia)
@@ -713,8 +714,6 @@ export function mesclarUsinasComRelatorio(usinasAoVivo, relatorio, extra = {}) {
       statusMonitoramento: u?.status ?? registro?.statusMonitoramento ?? null,
       statusMonitoramentoEm: u?.statusEm ?? registro?.statusMonitoramentoEm ?? null,
       energiaGeradaAcumuladaKwh: u?.energiaGeradaKwh ?? registro?.energiaGeradaAcumuladaKwh ?? null,
-      latitude: u?.latitude ?? null,
-      longitude: u?.longitude ?? null,
       fonte: dados ? 'solarz' : 'relatorio',
       dadoEm: dados ? registro.buscadoEm : null,
       ...complementos(idUsina, nome),
@@ -732,7 +731,7 @@ export function mesclarUsinasComRelatorio(usinasAoVivo, relatorio, extra = {}) {
       mesAnoRecente: null, prognosticoKwhMes: null, geracaoKwhMes: null, desempenhoMesPct: null, desempenho30dPct: null, desempenho12mPct: null,
       desempenhoMedio3mPct: null, statusDesempenho: 'Sem dado', dataInstalacao: null, anoMensal: null, mensal: null, mensal2026: null,
       observacao: s.premium ? OBS_COMPLEMENTAR : `${OBS_SEM_PREMIUM}; ${OBS_COMPLEMENTAR}`, statusMonitoramento: null, statusMonitoramentoEm: null,
-      energiaGeradaAcumuladaKwh: null, latitude: null, longitude: null, fonte: 'relatorio', dadoEm: null, ...complementos(s.id, s.nome),
+      energiaGeradaAcumuladaKwh: null, fonte: 'relatorio', dadoEm: null, ...complementos(s.id, s.nome),
     }))
   }
 

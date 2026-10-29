@@ -18,6 +18,8 @@ export const FALHAS_SEGUIDAS_MAX = 6
 export const ORCAMENTO_MS = 40000
 export const VALIDADE_MS = 20 * 60 * 60 * 1000
 const GRAVAR_A_CADA = 15
+const MIN_COMPLEMENTO_MS = 5000
+const PRAZO_COMPLEMENTO_MS = 15000
 const ROTA_MORTA_APOS = 3 // 3 respostas "indisponível" sem nenhum sucesso desligam a rota na execução
 
 /** Decide o que buscar e em que ordem: novas, depois as de outro ano, depois as mais velhas. */
@@ -67,8 +69,11 @@ export async function sincronizarSolarz({
     ['simples', simples, (itens) => ({ usinas: itens.filter((u) => u?.id != null).map((u) => ({ id: u.id, nome: u.denominacao ?? null, premium: Boolean(u.premium), arquivada: Boolean(u.arquivada) })) })],
   ]) {
     if (!buscar) continue
+    // Cada lista tem prazo próprio de até 25 s: sem orçamento, elas somadas passariam dos 60 s da função.
+    const restante = orcamentoMs - (agora() - inicio)
+    if (restante < MIN_COMPLEMENTO_MS) { complementos[nome] = 'sem tempo'; continue }
     try {
-      const r = await buscar()
+      const r = await buscar({ prazoMs: Math.min(restante, PRAZO_COMPLEMENTO_MS) })
       await gravarEstado(nome, { ...agrupar(Array.isArray(r?.itens) ? r.itens : []), completo: r?.completo !== false, atualizadoEm: new Date(agora()).toISOString() })
       complementos[nome] = 'ok'
     } catch (err) {

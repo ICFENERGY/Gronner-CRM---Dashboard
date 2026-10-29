@@ -241,6 +241,7 @@ const syncCacheKeys = {
   vendas: 'vendas-dados',
   propostas: 'propostas-dados',
   tarefas: 'tarefas-dados',
+  pieta: 'pieta-metricas',
 }
 app.use('/api/sync/groner', createSyncRouter({
   onFinalized: (entity) => {
@@ -482,6 +483,8 @@ app.get('/api/raw/pieta/resumo', async (_req, res) => {
 
 app.get('/api/raw/pieta/projeto/:projectId', async (req, res) => {
   try {
+    // Só id numérico: a rota é pública e cada id novo vira uma chamada à API da Pieta (que é frágil).
+    if (!/^\d{1,12}$/.test(req.params.projectId)) return res.status(400).json({ error: 'Projeto inválido' })
     const detalhe = await cached(`pieta-projeto-${req.params.projectId}`, TTL_MS, () => pietaDetalheProjeto(req.params.projectId))
     res.json(stripSensitive(mapPietaProjetoDetalhe(detalhe)))
   } catch (err) {
@@ -498,7 +501,7 @@ app.get('/api/raw/pieta/metricas', async (_req, res) => {
     if (!pg) return res.json(vazio('Armazenamento Postgres não configurado.'))
     const { registros, estado } = await cached('pieta-metricas', TTL_MS, () => lerPietaArmazenada(pg))
     if (!registros.length) {
-      return res.json(vazio(pietaConfigurada() ? 'Ainda não há detalhes carregados; a carga diária da Pieta roda às 06:40 UTC.' : 'Integração Pieta ainda não ativada (faltam PIETA_USER e PIETA_PASSWORD).'))
+      return res.json(vazio(pietaConfigurada() ? 'Ainda não há detalhes carregados; a carga da Pieta é gradual (alguns projetos a cada 5 minutos).' : 'Integração Pieta ainda não ativada (faltam PIETA_USER e PIETA_PASSWORD).'))
     }
     res.json(stripSensitive({
       vazio: false, aviso: null, atualizadoEm: estado?.concluidoEm ?? null,

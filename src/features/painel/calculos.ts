@@ -61,10 +61,14 @@ export function filtrosValidos(lido: unknown, padrao: Filtros, hoje = hojeSP()):
  */
 export function serieGeracaoUsinas(usinas: UsinaRaw[]): Barra[] {
   const meses = new Map<number, { geracao: number; prognostico: number; parcial: boolean }>()
-  let ano = 0
+  const serieDe = (u: UsinaRaw) => u.mensal ?? u.mensal2026 ?? []
+  const anoDe = (u: UsinaRaw) => u.anoMensal ?? 2026
+  // Na virada do ano as usinas da SolarZ já estão no ano novo e as do relatório ainda em 2026:
+  // só soma as séries do ano mais recente (somar jan/27 com jan/26 daria um mês inexistente).
+  const ano = usinas.reduce((max, u) => (serieDe(u).length ? Math.max(max, anoDe(u)) : max), 0)
   for (const u of usinas) {
-    const serie = u.mensal ?? u.mensal2026 ?? []
-    if (serie.length) ano = Math.max(ano, u.anoMensal ?? 2026)
+    const serie = serieDe(u)
+    if (!serie.length || anoDe(u) !== ano) continue
     serie.forEach((m, i) => {
       if (!m.geracaoKwh) return
       const atual = meses.get(i) ?? { geracao: 0, prognostico: 0, parcial: false }

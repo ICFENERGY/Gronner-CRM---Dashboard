@@ -6,7 +6,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { pietaResumo, pietaDetalheProjeto } from '../server/pietaClient.js'
 import { mapPietaProjetoDetalhe } from '../server/mappers.js'
 import { calcularMetricasPieta, normalizarPendencia, pietaRegistroParaArmazenar, ENTIDADE_PIETA } from '../server/pietaMetricas.js'
-import { planejarBusca, sincronizarPieta, lerPietaArmazenada } from '../server/pietaSync.js'
+import { planejarBusca, sincronizarPieta, lerPietaArmazenada, maxDetalhesDoAmbiente, pausaDoAmbiente } from '../server/pietaSync.js'
 import { createPgSql } from '../server/pgSql.js'
 import { createSyncRouter } from '../server/syncRoutes.js'
 
@@ -224,48 +224,164 @@ test('planejarBusca: novos, alterados e vencidos por idade; finalizado nao renov
   assert.deepEqual(planejarBusca(resumo, guardados, agoraMs).map((p) => p.project_id), [5, 2, 3])
 })
 
-test('sincronizarPieta grava so o que precisa, respeita o orcamento e roda na tabela real', async () => {
-  const { db, pg } = await criarBanco()
-  const resumoApi = { projects: [1, 2, 3, 4, 5, 6].map((id) => proj(id)) }
-  const buscados = []
-  let relogio = 1_000_000
-  const tempo = () => relogio
-  const detalhe = async (id) => { relogio += 10; buscados.push(id); return detalheBruto({ project_id: id }) }
-  // concorrencia 1 para ser deterministico: cada busca consome 10 ms do orcamento de 35 ms
-  const r1 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, agora: tempo, orcamentoMs: 35, concorrencia: 1 })
-  assert.equal(r1.buscados, 4)
-  assert.equal(r1.restantes, 2)
-  const r2 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, agora: tempo, orcamentoMs: 1000, concorrencia: 4 })
-  assert.equal(r2.buscados, 2) // so o que faltava
-  assert.deepEqual(buscados.slice(4).sort(), [5, 6])
-  const r3 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, agora: tempo, orcamentoMs: 1000 })
-  assert.equal(r3.buscados, 0) // nada mudou, tudo recente
+// Relógio e pausa falsos: a pausa entre detalhes avança o relógio, sem esperar de verdade.
+function relogioFalso(inicio = Date.parse('2026-10-29T12:00:00Z')) {
+  const r = { t: inicio, pausas: [] }
+  r.agora = () => r.t
+  r.dormir = async (ms) => { r.pausas.push(ms); r.t += ms }
+  return r
+}
+const base = (rel, extra = {}) => ({ agora: rel.agora, dormir: rel.dormir, maxDetalhes: 3, pausaMs: 3000, ...extra })
 
-  // last_status_change mudou -> busca de novo; projeto 6 sumiu do resumo -> desativado
-  const resumo2 = { projects: [1, 2, 3, 4, 5].map((id) => proj(id, id === 2 ? { last_status_change: '2026-10-01' } : {})) }
-  const r4 = await sincronizarPieta({ pg, resumo: async () => resumo2, detalhe, agora: tempo })
-  assert.equal(r4.buscados, 1)
-  assert.equal(r4.removidos, 1)
+test('carga gradual: 1 por vez, pausa de 3 s, no maximo 3 detalhes por execucao, grava na tabela real e sem dado pessoal', async () => {
+  const { db, pg } = await criarBanco()
+  const rel = relogioFalso()
+  const resumoApi = { projects: [1, 2, 3, 4, 5, 6, 7].map((id) => proj(id)) }
+  let emCurso = 0; let maxSimultaneo = 0
+  const buscados = []
+  const detalhe = async (id, o) => {
+    assert.ok(o.timeoutMs > 0 && o.timeoutMs <= 15000)
+    emCurso += 1; maxSimultaneo = Math.max(maxSimultaneo, emCurso)
+    await new Promise((ok) => setImmediate(ok))
+    emCurso -= 1; buscados.push(id); rel.t += 500
+    return detalheBruto({ project_id: id })
+  }
+  const r1 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, ...base(rel) })
+  assert.equal(r1.buscados, 3)
+  assert.equal(r1.restantes, 4)
+  assert.equal(maxSimultaneo, 1)
+  assert.deepEqual(rel.pausas, [3000, 3000]) // pausa entre detalhes, não depois do último
+  const r2 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, ...base(rel) })
+  const r3 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, ...base(rel) })
+  assert.equal(r2.buscados + r3.buscados, 4)
+  assert.deepEqual(buscados.sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7]) // cada um uma vez
+  const r4 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, ...base(rel) })
+  assert.equal(r4.buscados, 0) // nada mudou, tudo recente
+
+  // last_status_change mudou -> busca de novo; projeto 7 sumiu do resumo -> desativado
+  const resumo2 = { projects: [1, 2, 3, 4, 5, 6].map((id) => proj(id, id === 2 ? { last_status_change: '2026-10-01' } : {})) }
+  const r5 = await sincronizarPieta({ pg, resumo: async () => resumo2, detalhe, ...base(rel) })
+  assert.equal(r5.buscados, 1)
+  assert.equal(r5.removidos, 1)
   const { registros, estado } = await lerPietaArmazenada(pg)
-  assert.equal(registros.length, 5)
+  assert.equal(registros.length, 6)
   assert.equal(estado.buscados, 1)
+  assert.equal('falhasRecentes' in estado, false) // controle interno não vai para a rota pública
   const bruto = JSON.stringify((await db.query(`select dados from public."DASHBOARD-GRONNER-CRM" where entidade = '${ENTIDADE_PIETA}'`)).rows)
   assert.ok(!bruto.includes('11999990000') && !bruto.includes('segredo'))
 })
 
-test('falha em um projeto nao derruba a carga; 401 para tudo e nao grava', async () => {
+test('carga gradual: para no primeiro 5xx sem insistir; o projeto que falhou vai para o fim da fila', async () => {
   const { pg } = await criarBanco()
+  const rel = relogioFalso()
+  const resumoApi = { projects: [1, 2, 3, 4].map((id) => proj(id)) }
+  const pedidos = []
+  let falhar = true
+  const detalhe = async (id) => {
+    pedidos.push(id)
+    if (id === 1 && falhar) throw Object.assign(new Error('Erro 500 ao consultar a Pieta'), { status: 500 })
+    return detalheBruto({ project_id: id })
+  }
+  const r1 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, ...base(rel) })
+  assert.deepEqual(pedidos, [1]) // parou no primeiro erro
+  assert.equal(r1.falhas, 1)
+  assert.equal(r1.buscados, 0)
+  assert.match(r1.parada, /500/)
+  pedidos.length = 0
+  const r2 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, ...base(rel) })
+  assert.deepEqual(pedidos, [2, 3, 4]) // o 1 foi para o fim: não trava a fila
+  assert.equal(r2.buscados, 3)
+  pedidos.length = 0
+  falhar = false
+  rel.t += 7 * 3600e3 // depois de 6 h volta à frente
+  const r3 = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, ...base(rel) })
+  assert.equal(pedidos[0], 1)
+  assert.ok(r3.buscados >= 1)
+})
+
+test('carga gradual: timeout ou erro de rede tambem param; 404 segue para o proximo; 401 para tudo e nao grava', async () => {
+  const rel = relogioFalso()
   const resumoApi = { projects: [1, 2, 3].map((id) => proj(id)) }
-  const detalhe = async (id) => { if (id === 2) throw Object.assign(new Error('x'), { status: 404 }); return detalheBruto({ project_id: id }) }
-  const r = await sincronizarPieta({ pg, resumo: async () => resumoApi, concorrencia: 1, detalhe })
-  assert.equal(r.buscados, 2)
-  assert.equal(r.falhas, 1)
+  const { pg } = await criarBanco()
+  const pedidos = []
+  await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe: async (id) => { pedidos.push(id); throw Object.assign(new Error('Timeout'), { code: 'PIETA_TIMEOUT' }) }, ...base(rel) })
+  assert.deepEqual(pedidos, [1])
+  const { pg: pg404 } = await criarBanco()
+  const r404 = await sincronizarPieta({ pg: pg404, resumo: async () => resumoApi, detalhe: async (id) => { if (id === 2) throw Object.assign(new Error('x'), { status: 404 }); return detalheBruto({ project_id: id }) }, ...base(rel) })
+  assert.equal(r404.buscados, 2)
+  assert.equal(r404.falhas, 1)
+  assert.equal(r404.parada, null)
   const { pg: pg2 } = await criarBanco()
-  await assert.rejects(sincronizarPieta({ pg: pg2, resumo: async () => resumoApi, detalhe: async () => { throw Object.assign(new Error('cred'), { status: 401 }) } }), /cred/)
+  await assert.rejects(sincronizarPieta({ pg: pg2, resumo: async () => resumoApi, detalhe: async () => { throw Object.assign(new Error('cred'), { status: 401 }) }, ...base(rel) }), /cred/)
   assert.equal((await lerPietaArmazenada(pg2)).registros.length, 0)
 })
 
-// --- rota ---
+test('carga gradual: resumo reaproveitado por 30 min no tick; resumo vazio nao apaga nada', async () => {
+  const { pg } = await criarBanco()
+  const rel = relogioFalso()
+  let resumos = 0
+  const resumo = async () => { resumos += 1; return { projects: [1, 2, 3, 4, 5].map((id) => proj(id)) } }
+  const detalhe = async (id) => detalheBruto({ project_id: id })
+  const tick = () => sincronizarPieta({ pg, resumo, detalhe, ...base(rel), reaproveitarResumoMs: 30 * 60e3 })
+  await tick()
+  rel.t += 5 * 60e3
+  const r2 = await tick()
+  assert.equal(resumos, 1) // resumo de 5 min atrás: não pede outro
+  assert.equal(r2.resumoReaproveitado, true)
+  assert.equal(r2.buscados, 2)
+  rel.t += 5 * 60e3
+  const r3 = await tick()
+  assert.equal(resumos, 1)
+  assert.equal(r3.buscados, 0) // fila vazia: não chama nada
+  rel.t += 31 * 60e3
+  await tick()
+  assert.equal(resumos, 2) // resumo velho: pede de novo
+  // sem reaproveitar (cron diário) sempre pede
+  await sincronizarPieta({ pg, resumo, detalhe, ...base(rel) })
+  assert.equal(resumos, 3)
+  // resposta vazia: nada desativado
+  const vazio = await sincronizarPieta({ pg, resumo: async () => ({ projects: [] }), detalhe, ...base(rel) })
+  assert.equal(vazio.removidos, 0)
+  assert.equal((await lerPietaArmazenada(pg)).registros.length, 5)
+})
+
+test('carga gradual: resumo parcial (muitos sumidos de uma vez) nao desativa nada', async () => {
+  const { pg } = await criarBanco()
+  const rel = relogioFalso()
+  const todos = Array.from({ length: 20 }, (_, i) => proj(i + 1))
+  const detalhe = async (id) => detalheBruto({ project_id: id })
+  for (let i = 0; i < 7; i++) await sincronizarPieta({ pg, resumo: async () => ({ projects: todos }), detalhe, ...base(rel) })
+  assert.equal((await lerPietaArmazenada(pg)).registros.length, 20)
+  const parcial = await sincronizarPieta({ pg, resumo: async () => ({ projects: todos.slice(0, 8) }), detalhe, ...base(rel) })
+  assert.equal(parcial.removidos, 0)
+  assert.equal(parcial.remocaoSuspensa, true)
+  assert.equal((await lerPietaArmazenada(pg)).registros.length, 20)
+})
+
+test('carga gradual: respeita o orcamento (nao inicia chamada sem tempo) e o teto por env', async () => {
+  const { pg } = await criarBanco()
+  const rel = relogioFalso()
+  const resumoApi = { projects: [1, 2, 3].map((id) => proj(id)) }
+  const pedidos = []
+  const detalhe = async (id) => { pedidos.push(id); return detalheBruto({ project_id: id }) }
+  // 8 s de orçamento: 1º detalhe, pausa 3 s, 2º detalhe, pausa 3 s -> sobram 2 s (< 3 s): para
+  const r = await sincronizarPieta({ pg, resumo: async () => resumoApi, detalhe, ...base(rel), orcamentoMs: 8000 })
+  assert.equal(r.buscados, 2)
+  assert.equal(r.parada, 'orcamento')
+  assert.equal(maxDetalhesDoAmbiente({}), 3)
+  assert.equal(maxDetalhesDoAmbiente({ PIETA_MAX_DETALHES_POR_EXECUCAO: '5' }), 5)
+  assert.equal(maxDetalhesDoAmbiente({ PIETA_MAX_DETALHES_POR_EXECUCAO: '50' }), 10)
+  assert.equal(maxDetalhesDoAmbiente({ PIETA_MAX_DETALHES_POR_EXECUCAO: 'x' }), 3)
+  assert.equal(pausaDoAmbiente({}), 3000)
+  assert.equal(pausaDoAmbiente({ PIETA_PAUSA_ENTRE_DETALHES_MS: '10' }), 1000)
+})
+
+test('cliente: tentativas 1 nao repete o 5xx', async () => {
+  let chamadas = 0
+  globalThis.fetch = async () => { chamadas += 1; return resp(500, { mensagem: 'erro interno' }) }
+  await assert.rejects(pietaDetalheProjeto(5, { ...rapido, tentativas: 1 }), (e) => e.status === 500)
+  assert.equal(chamadas, 1)
+})
 async function chamarRota(opcoes, cabecalhos = {}) {
   const app = express()
   app.use('/api/sync/groner', createSyncRouter({ store: {}, ...opcoes }))
