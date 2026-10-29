@@ -10,6 +10,7 @@ import { derivarRegistro, rotuloFarol, FAROL_ROTULOS, mesAtualBrasilia, MESES_AB
 import * as clienteSolarz from './solarzClient.js'
 import { getPgSql } from './pgSql.js'
 import { stripSensitive } from './sanitize.js'
+import { montarAoVivo } from './solarzAoVivo.js'
 
 const pct = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 1000) / 10)
 const arred = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 10) / 10)
@@ -103,11 +104,24 @@ function limitar(valor, padrao = LIMITE_PADRAO) {
   return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), LIMITE_MAXIMO) : padrao
 }
 
+/** Dados guardados pela carga diária; se o banco falhar ou estiver vazio, monta direto da SolarZ (plano B). */
 async function carregar(deps) {
-  const pg = deps.pg ?? getPgSql()
-  if (!pg) throw new Error('Armazenamento Postgres não configurado: a carga diária da SolarZ não está disponível')
-  const dados = await (deps.lerArmazenada ?? lerSolarzArmazenada)(pg)
-  if (!dados.registros.length) throw new Error('Ainda não há dados da SolarZ guardados (a carga diária ainda não rodou)')
+  let dados = null
+  try {
+    const pg = deps.pg ?? getPgSql()
+    if (pg) {
+      // O driver tenta 3 vezes por até 15 s; sem limite aqui, o plano B não teria tempo dentro dos 60 s da função.
+      let timer
+      const limite = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('banco demorou mais de 8 s')), 8000) })
+      dados = await Promise.race([(deps.lerArmazenada ?? lerSolarzArmazenada)(pg), limite]).finally(() => clearTimeout(timer))
+    }
+  } catch (err) {
+    console.error('[solarz-mcp] banco indisponível, usando a SolarZ ao vivo:', err.message)
+  }
+  if (!dados?.registros?.length) {
+    dados = await (deps.aoVivo ?? montarAoVivo)(deps.solarz)
+    if (!dados.registros.length) throw new Error('A SolarZ não devolveu nenhuma usina')
+  }
   const premium = new Map((dados.simples?.usinas ?? []).map((u) => [String(u.id), u.premium]))
   return { ...dados, premium }
 }
@@ -310,7 +324,7 @@ function farol(dados, args) {
     .sort((a, b) => (a.farol === b.farol ? 0 : a.farol === 'Crítico' ? -1 : b.farol === 'Crítico' ? 1 : 0))
   const hoje = Object.fromEntries(FAROL_ROTULOS.map((s) => [s, 0]))
   for (const r of dados.registros) hoje[rotuloFarol(r.statusMonitoramento)] += 1
-  return { hoje, totalUsinas: dados.registros.length, usinasEmAlerta: emAlerta, historico: (dados.farolHistorico ?? []).slice(-dias) }
+  return { fonte: dados.fonte ?? 'banco (carga diária)', hoje, totalUsinas: dados.registros.length, usinasEmAlerta: emAlerta, historico: (dados.farolHistorico ?? []).slice(-dias) }
 }
 
 /**

@@ -86,9 +86,32 @@ test('farol separa quem está em alerta e corta o histórico', async () => {
   assert.equal(r.historico.length, 1)
 })
 
-test('sem dados guardados a ferramenta explica o motivo', async () => {
-  const vazio = { ...deps(), lerArmazenada: async () => ({ registros: [] }) }
-  await assert.rejects(executarFerramenta('solarz_resumo_parque', {}, vazio), /Ainda não há dados/)
+test('banco vazio ou fora do ar: usa a SolarZ ao vivo; sem usinas, explica o motivo', async () => {
+  const vazio = { ...deps(), lerArmazenada: async () => ({ registros: [] }), aoVivo: async () => armazenada }
+  assert.equal((await executarFerramenta('solarz_resumo_parque', {}, vazio)).usinas, 3)
+  const fora = { ...deps(), lerArmazenada: async () => { throw new Error('503') }, aoVivo: async () => armazenada }
+  assert.equal((await executarFerramenta('solarz_listar_usinas', {}, fora)).total, 3)
+  const nada = { ...vazio, aoVivo: async () => ({ registros: [] }) }
+  await assert.rejects(executarFerramenta('solarz_resumo_parque', {}, nada), /não devolveu nenhuma usina/)
+})
+
+test('plano B monta registros pela listagem e enriquece só as premium', async () => {
+  const { montarAoVivo, limparCacheAoVivo } = await import('../server/solarzAoVivo.js')
+  limparCacheAoVivo()
+  const s = {
+    solarzListarUsinasCompleto: async () => ({ itens: [{ id: 1, name: 'A', installedPower: 10, status: { status: 'OK' } }, { id: 2, name: 'B', installedPower: 5, status: { status: 'ALERTA' } }], completo: true }),
+    solarzListarSimples: async () => ({ itens: [{ id: 1, denominacao: 'A', premium: true }, { id: 2, denominacao: 'B', premium: false }] }),
+    solarzListarTicketsAbertos: async () => ({ itens: [{ usinaId: 1, tipo: 'X', status: 'ABERTO' }], completo: true }),
+    solarzListarUnidades: async () => ({ itens: [] }),
+    solarzEnergiaAno: async (_id, ano) => [{ yearMonth: `${ano}-01`, total: 90, totalExpected: 100 }],
+    solarzDesempenho: async () => ({ total30D: 90, expected30D: 100, total365D: 900, expected365D: 1000 }),
+  }
+  const d = await montarAoVivo(s)
+  assert.equal(d.registros.length, 2)
+  assert.ok(d.registros.find((r) => r.solarzId === 1).meses.length >= 1)
+  assert.equal(d.registros.find((r) => r.solarzId === 2).meses.length, 0)
+  assert.equal(d.tickets.total, 1)
+  limparCacheAoVivo()
 })
 
 test('endpoint exige a chave; com ela lista as 11 ferramentas', async () => {
