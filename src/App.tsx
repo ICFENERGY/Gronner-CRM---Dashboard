@@ -45,7 +45,7 @@ export default function App() {
     <Layout abas={ABAS} aba={aba} onAba={irParaAba} theme={theme} onToggleTheme={toggleTheme}>
       {/* Um erro de renderização numa aba mostra um aviso, nunca a tela em branco. */}
       <ErrorBoundary key={aba}>
-        {aba === 'geral' && <PainelPage onAba={irParaAba} />}
+        {aba === 'geral' && <PainelPage />}
         {aba === 'vendas' && <VendasPage />}
         {aba === 'solarz' && <MonitoramentoSolarPage />}
         {aba === 'pieta' && <PietaPage />}

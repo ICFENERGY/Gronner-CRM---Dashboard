@@ -1,235 +1,98 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { api } from '../../api/client'
-import { Dashboard } from '../../pages/Dashboard'
 import { useRawData } from '../../api/useRawData'
 import { currency, number } from '../../lib/palette'
-import { CHAVE_FILTROS_PAINEL, ErrorBoundary } from '../../components/ErrorBoundary'
-import { calcularPainel, FILTROS_PADRAO, filtrosValidos, opcoesFiltros, type Filtros } from './calculos'
-import { ConteudoDetalhe, type Detalhe } from './detalhes'
-import { anoEspecifico, hojeSP, NOMES_MESES, textoPeriodo } from './periodo'
-import { BlocoArea, Cartao, Gaveta, Kpi } from './ui/base'
-import { BarrasVerticais, GeracaoPrognostico } from './ui/graficos'
-import { CartaoRosca } from './ui/Rosca'
-
-const CHAVE_FILTROS = CHAVE_FILTROS_PAINEL
-const PADRAO: Filtros = FILTROS_PADRAO
-
-function lerFiltros(): Filtros {
-  try { return filtrosValidos(JSON.parse(window.localStorage.getItem(CHAVE_FILTROS) ?? '{}'), PADRAO) } catch { return PADRAO }
-}
+import type { ProjetoRaw } from '../../api/types'
+import { Cartao, Kpi } from './ui/base'
+import { BarrasHorizontais } from './ui/graficos'
 
 const mil = (v: number) => (Math.abs(v) >= 1e6 ? `${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi` : Math.abs(v) >= 1e3 ? `${Math.round(v / 1e3).toLocaleString('pt-BR')} mil` : number.format(Math.round(v)))
 const reais = (v: number) => `R$ ${mil(v)}`
 
-/**
- * Painel único: um filtro (ano, mês, vendedor, UF) para tudo, painéis em rosca por
- * área, KPIs e gráficos no tempo. Qualquer KPI ou gráfico abre o detalhe numa
- * gaveta, sem trocar de tela.
- */
-const SEMAFORO_USINAS = { 'Dentro do esperado': 'ok', Atenção: 'risco', Crítico: 'atrasado' } as const
+/** Valor do card: o da venda; sem ele, o da proposta aceita. */
+const valorDoCard = (p: ProjetoRaw) => (Number(p.valorVenda) > 0 ? Number(p.valorVenda) : Number(p.valorPrePropostaAceita) > 0 ? Number(p.valorPrePropostaAceita) : 0)
+/** Número do funil no começo do nome ("07. FINANCEIRO" → 7); sem número vai para o fim. */
+const numeroDoFunil = (nome: string) => { const n = parseInt(nome, 10); return Number.isFinite(n) ? n : 999 }
 
-export function PainelPage({ onAba }: { onAba: (k: string) => void }) {
-  const [filtros, setFiltrosState] = useState<Filtros>(lerFiltros)
-  const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
-  const setFiltro = <K extends keyof Filtros>(k: K, v: Filtros[K]) => {
-    const novo = { ...filtros, [k]: v }
-    if (k === 'ano' && !anoEspecifico(String(v))) novo.mes = ''
-    setFiltrosState(novo)
-    try { window.localStorage.setItem(CHAVE_FILTROS, JSON.stringify(novo)) } catch { /* sem armazenamento local */ }
-  }
-
-  const vendas = useRawData('vendas', api.getVendasRaw)
-  const propostas = useRawData('propostas', api.getPropostasRaw)
+/** Visão Geral: os cards cadastrados no Groner, em que funil estão e quanto cada funil tem em valor. */
+export function PainelPage() {
   const projetos = useRawData('projetos', api.getProjetosRaw)
-  const usinas = useRawData('usinas', api.getUsinasRaw)
 
-  const fontes = useMemo(() => ({
-    vendas: vendas.data, propostas: propostas.data, projetos: projetos.data, tarefas: null,
-    usinas: usinas.data?.usinas ?? null, engenharia: null,
-  }), [vendas.data, propostas.data, projetos.data, usinas.data])
-  const painel = useMemo(() => calcularPainel(fontes, filtros), [fontes, filtros])
-  const opcoes = useMemo(() => opcoesFiltros(fontes), [fontes])
-  const hoje = hojeSP()
-  // Ano salvo no navegador que não está nos dados também aparece no seletor.
-  const anosDoSelect = anoEspecifico(filtros.ano) && !opcoes.anos.includes(filtros.ano) ? [...opcoes.anos, filtros.ano].sort().reverse() : opcoes.anos
-  const fechar = useCallback(() => setDetalhe(null), [])
+  const funis = useMemo(() => {
+    const porFunil = new Map<string, { funil: string; cards: number; valor: number }>()
+    for (const p of projetos.data ?? []) {
+      const funil = (p.funil ?? '').trim() || 'Sem funil'
+      const g = porFunil.get(funil) ?? { funil, cards: 0, valor: 0 }
+      g.cards += 1
+      g.valor += valorDoCard(p)
+      porFunil.set(funil, g)
+    }
+    return [...porFunil.values()].sort((a, b) => numeroDoFunil(a.funil) - numeroDoFunil(b.funil) || a.funil.localeCompare(b.funil, 'pt-BR'))
+  }, [projetos.data])
 
-  const carregando = [vendas, propostas, projetos, usinas].filter((x) => x.loading).length
-  const erros = [vendas.error, propostas.error, projetos.error, usinas.error].filter(Boolean)
-  const { kpis, series } = painel
-  const periodoTxt = textoPeriodo(filtros.ano, filtros.mes)
-  const escopo = [filtros.vendedor, filtros.uf].filter(Boolean).join(' · ')
-  const sufixoEscopo = escopo ? ` · ${escopo}` : ''
-  const notaPosicao = filtros.ano !== 'tudo' ? 'O período não se aplica: é a posição de hoje.' : undefined
-  const notaUfProposta = filtros.uf ? 'UF não se aplica a propostas.' : undefined
-  const select = 'rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-2.5 py-1.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none'
+  const totalCards = funis.reduce((a, f) => a + f.cards, 0)
+  const totalValor = funis.reduce((a, f) => a + f.valor, 0)
+
+  if (projetos.error && !projetos.data) {
+    return <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Não foi possível carregar os cards: {projetos.error}.</p>
+  }
+  if (!projetos.data) return <p role="status" className="py-10 text-center text-sm text-[var(--text-muted)]">Carregando os cards…</p>
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-      {/* Filtro único, acima de tudo o que ele recorta */}
-      <div className="sticky top-0 z-20 -mx-6 flex flex-wrap items-end gap-3 border-b border-[var(--border)] bg-[var(--bg)]/95 px-6 py-3 backdrop-blur md:-mx-10 md:px-10">
-        <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
-          Ano
-          <select className={select} value={filtros.ano} onChange={(e) => setFiltro('ano', e.target.value)}>
-            <option value="12m">Últimos 12 meses</option>
-            <option value="tudo">Todos os anos</option>
-            {anosDoSelect.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </label>
-        <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
-          Mês
-          <select className={`${select} disabled:opacity-50`} value={filtros.mes} disabled={!anoEspecifico(filtros.ano)} onChange={(e) => setFiltro('mes', e.target.value)} title={anoEspecifico(filtros.ano) ? undefined : 'Escolha um ano para filtrar por mês'}>
-            <option value="">Todos</option>
-            {NOMES_MESES.map((m, i) => { const v = String(i + 1).padStart(2, '0'); return <option key={m} value={v} disabled={`${filtros.ano}-${v}` > hoje.slice(0, 7)}>{m}</option> })}
-          </select>
-        </label>
-        <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
-          Vendedor
-          <select className={`${select} min-w-[180px]`} value={filtros.vendedor} onChange={(e) => setFiltro('vendedor', e.target.value)}>
-            <option value="">Todos</option>
-            {opcoes.vendedores.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
-        </label>
-        <label className="grid gap-1 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
-          UF
-          <select className={select} value={filtros.uf} onChange={(e) => setFiltro('uf', e.target.value)}>
-            <option value="">Todas</option>
-            {opcoes.ufs.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
-        </label>
-        {(filtros.vendedor || filtros.uf || filtros.ano !== PADRAO.ano || filtros.mes) && (
-          <button type="button" onClick={() => { setFiltrosState(PADRAO); try { window.localStorage.removeItem(CHAVE_FILTROS) } catch { /* */ } }} className="rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:border-icf-green">
-            Limpar filtros
-          </button>
-        )}
-        <span className="ml-auto self-center text-xs text-[var(--text-muted)]">
-          {carregando ? `Carregando ${carregando} fonte${carregando > 1 ? 's' : ''}…` : 'Atualiza sozinho a cada minuto'}
-        </span>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Kpi area="Visão Geral" rotulo="Cards cadastrados" valor={number.format(totalCards)} contexto="todos os cards do Groner" />
+        <Kpi area="Visão Geral" rotulo="Funis com cards" valor={number.format(funis.length)} contexto="funis que têm pelo menos um card" />
+        <Kpi area="Visão Geral" rotulo="Valor total" valor={currency.format(totalValor)} contexto="soma do valor dos cards, de todos os funis" />
       </div>
 
-      {erros.length > 0 && (
-        <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-          Algumas fontes não carregaram: {erros.join(' · ')}. O resto do painel segue com o que chegou.
-        </p>
-      )}
-
-      {/* Painéis por área: partes de um todo em rosca, todas recortadas pelos filtros */}
-      <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">Painéis por área</h2>
-
-      <BlocoArea area="Comercial" subtitulo={`Vendas e propostas · ${periodoTxt}${sufixoEscopo}`}>
-        <CartaoRosca
-          titulo="Participação por vendedor"
-          subtitulo={`R$ vendido · ${periodoTxt} · clique para ver as vendas`}
-          dados={series.vendedores}
-          formatar={reais}
-          formatarTabela={(v) => currency.format(v)}
-          colunaValor="Vendido"
-          rotuloTotal="vendido"
-          onClicar={(nome) => setDetalhe({ tipo: 'vendas', titulo: `Vendas de ${nome}`, vendedor: nome })}
-          onDetalhe={() => onAba('vendas')}
-        />
-        <CartaoRosca
-          titulo="Vendas por origem do lead"
-          subtitulo={`Quantidade de vendas · ${periodoTxt}`}
-          dados={series.origens}
-          colunaValor="Vendas"
-          rotuloTotal="vendas"
-          onClicar={(origem) => setDetalhe({ tipo: 'vendas', titulo: `Vendas · origem ${origem}`, origem })}
-        />
-        <CartaoRosca
-          titulo="Propostas aceitas e não aceitas"
-          subtitulo={`Propostas criadas · ${periodoTxt}`}
-          nota={notaUfProposta}
-          dados={series.propostasAceitacao}
-          colunaValor="Propostas"
-          rotuloTotal="propostas"
-          onClicar={(nome) => setDetalhe({ tipo: 'propostas', titulo: `Propostas ${nome.toLowerCase()}`, grupo: nome === 'Aceitas' ? 'aceitas' : 'nao-aceitas' })}
-        />
-        <CartaoRosca
-          titulo="Funil comercial"
-          subtitulo="Projetos por etapa do funil · posição atual"
-          nota={notaPosicao}
-          dados={series.funil}
-          colunaValor="Projetos"
-          rotuloTotal="projetos"
-          onDetalhe={() => setDetalhe({ tipo: 'analise', titulo: 'Visão geral do funil', pagina: 'geral' })}
-        />
-      </BlocoArea>
-
-      {/* KPIs */}
-      <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">Indicadores</h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi area="Comercial" rotulo={`Vendido · ${periodoTxt}`} valor={reais(kpis.vendido)} variacao={kpis.vendidoVar} contexto={kpis.vendidoVar != null ? 'contra o período anterior' : escopo || undefined} onAbrir={() => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${periodoTxt}` })} />
-        <Kpi area="Comercial" rotulo="Vendas e ticket médio" valor={number.format(kpis.qtdVendas)} variacao={kpis.qtdVendasVar} contexto={`ticket médio ${currency.format(kpis.ticket)}`} onAbrir={() => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${periodoTxt}` })} />
-        <Kpi area="Comercial" rotulo="Propostas aceitas" valor={kpis.conversao != null ? `${kpis.conversao}%` : '—'} contexto={`${number.format(kpis.aceitas)} de ${number.format(kpis.propostas)} propostas do período`} onAbrir={() => setDetalhe({ tipo: 'propostas', titulo: `Propostas · ${periodoTxt}` })} />
-        <Kpi area="Usinas" rotulo="Desempenho médio (3 meses)" valor={kpis.desempenhoUsinas != null ? `${kpis.desempenhoUsinas}%` : '—'} pctTotal={kpis.usinas ? (100 * kpis.usinasCriticas) / kpis.usinas : null} contexto={`${kpis.usinas} usinas · ${kpis.usinasCriticas} em estado crítico`} onAbrir={() => setDetalhe({ tipo: 'usinas', titulo: 'Usinas' })} />
-      </div>
-
-      {/* Séries no tempo e demais áreas */}
-      <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">Evolução e acompanhamento</h2>
-      <div className="grid gap-4 lg:grid-cols-12">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Cartao
-          className="lg:col-span-8"
-          titulo={`Vendido por ${painel.intervalo.porDia ? 'dia' : 'mês'}`}
-          subtitulo={`R$ · ${periodoTxt}${sufixoEscopo}`}
-          colunas={['Período', 'Valor', 'Vendas']}
-          linhas={series.vendasTempo.map((b) => ({ nome: b.nome, valores: [currency.format(b.valor), b.extra ?? 0] }))}
-          onDetalhe={() => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${periodoTxt}` })}
+          titulo="Cards por funil"
+          subtitulo="Quantidade de cards em cada funil"
+          colunas={['Funil', 'Cards']}
+          linhas={funis.map((f) => ({ nome: f.funil, valores: [number.format(f.cards)] }))}
         >
-          <BarrasVerticais dados={series.vendasTempo} formatar={reais} rotuloValor="Vendido" altura={300} />
+          <BarrasHorizontais dados={funis.map((f) => ({ nome: f.funil, valor: f.cards }))} formatar={(v) => number.format(v)} rotuloValor="Cards" />
         </Cartao>
-        <CartaoRosca
-          className="lg:col-span-4"
-          titulo="Vendas por UF"
-          subtitulo={`R$ vendido · ${periodoTxt}`}
-          dados={series.ufs}
-          formatar={reais}
-          formatarTabela={(v) => currency.format(v)}
-          colunaValor="Vendido"
-          rotuloTotal="vendido"
-          onClicar={(uf) => setDetalhe({ tipo: 'vendas', titulo: `Vendas · ${uf}`, uf })}
-        />
-
         <Cartao
-          className="lg:col-span-8"
-          titulo="Usinas · geração real contra prognóstico"
-          subtitulo={`kWh por mês em 2026${filtros.uf ? ` · ${filtros.uf}` : ''}`}
-          nota={filtros.vendedor ? 'Vendedor não se aplica a usinas.' : undefined}
-          colunas={['Mês', 'Geração (kWh)', 'Prognóstico (kWh)']}
-          linhas={series.geracao.map((b) => ({ nome: b.nome, valores: [number.format(b.valor), number.format(b.extra ?? 0)] }))}
-          onDetalhe={() => onAba('solarz')}
+          titulo="Valor por funil (R$)"
+          subtitulo="Valor da venda do card; sem ele, o da proposta aceita"
+          colunas={['Funil', 'Valor']}
+          linhas={funis.map((f) => ({ nome: f.funil, valores: [currency.format(f.valor)] }))}
         >
-          <GeracaoPrognostico dados={series.geracao} formatar={mil} />
+          <BarrasHorizontais dados={funis.map((f) => ({ nome: f.funil, valor: f.valor }))} formatar={reais} rotuloValor="Valor" />
         </Cartao>
-        <CartaoRosca
-          className="lg:col-span-4"
-          titulo="Usinas por status de desempenho"
-          subtitulo="Média dos últimos 3 meses"
-          dados={series.statusUsinas}
-          semaforo={SEMAFORO_USINAS}
-          colunaValor="Usinas"
-          rotuloTotal="usinas"
-          onClicar={(st) => setDetalhe({ tipo: 'usinas', titulo: `Usinas · ${st}`, status: st })}
-        />
       </div>
 
-      {detalhe && detalhe.tipo !== 'analise' && (
-        <Gaveta titulo={detalhe.titulo} onFechar={fechar}>
-          <ErrorBoundary variante="cartao">
-            <ConteudoDetalhe detalhe={detalhe} painel={painel} onModoReuniao={() => undefined} />
-          </ErrorBoundary>
-        </Gaveta>
-      )}
-      {detalhe?.tipo === 'analise' && <AnaliseCompleta titulo={detalhe.titulo} onFechar={fechar} />}
+      <section className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+        <table className="w-full text-sm">
+          <caption className="px-4 py-3 text-left text-sm font-semibold text-[var(--text-primary)]">Cards e valor por funil</caption>
+          <thead>
+            <tr className="border-y border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+              <th scope="col" className="px-4 py-2 font-medium">Funil</th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">Cards</th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">Valor (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {funis.map((f) => (
+              <tr key={f.funil} className="border-t border-[var(--border)]">
+                <td className="px-4 py-2 text-[var(--text-primary)]">{f.funil}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{number.format(f.cards)}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{f.valor ? currency.format(f.valor) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-[var(--border-strong)] font-semibold">
+              <td className="px-4 py-2">Total</td>
+              <td className="px-4 py-2 text-right tabular-nums">{number.format(totalCards)}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{currency.format(totalValor)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </section>
     </div>
-  )
-}
-
-// Funil geral (tela antiga de projetos por etapa), aberto na gaveta larga.
-export function AnaliseCompleta({ titulo, onFechar }: { titulo: string; onFechar: () => void }) {
-  return (
-    <Gaveta titulo={titulo} largura="larga" onFechar={onFechar}>
-      <Dashboard />
-    </Gaveta>
   )
 }
