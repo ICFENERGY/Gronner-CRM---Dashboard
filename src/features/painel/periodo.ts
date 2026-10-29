@@ -6,9 +6,12 @@
 
 export type Ano = '12m' | 'tudo' | string
 
+export const ANO_PADRAO: Ano = '12m'
+
 export const NOMES_MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 export const anoEspecifico = (ano: string) => /^\d{4}$/.test(ano)
+export const anoValido = (ano: unknown): ano is Ano => ano === '12m' || ano === 'tudo' || (typeof ano === 'string' && anoEspecifico(ano))
 export const mesValido = (mes: unknown): mes is string => typeof mes === 'string' && /^(0[1-9]|1[0-2])$/.test(mes)
 
 export interface Intervalo {
@@ -78,9 +81,30 @@ export function intervalo(ano: Ano, mes = '', hoje = hojeSP()): Intervalo {
   return { inicio: null, fim: hoje, anterior: null, porDia: false }
 }
 
+/** Texto curto do período, em minúsculas onde cabe numa frase: "2026 · março", "últimos 12 meses". */
+export function textoPeriodo(ano: Ano, mes = ''): string {
+  if (anoEspecifico(ano)) return mesValido(mes) ? `${ano} · ${NOMES_MESES[Number(mes) - 1].toLowerCase()}` : ano
+  return ano === 'tudo' ? 'todos os anos' : 'últimos 12 meses'
+}
+
 /** Data (qualquer formato ISO do Groner) dentro do intervalo, comparando só o dia. */
 export function dentro(data: string | null | undefined, ini: string | null, fim: string) {
   if (!data) return false
   const dia = data.slice(0, 10)
   return (!ini || dia >= ini) && dia <= fim
 }
+
+/** Chaves contínuas da série temporal do intervalo (dias ou meses), sem buracos. */
+export function chavesDoIntervalo(iv: Intervalo, primeiraData: string | null): string[] {
+  const inicio = iv.inicio ?? primeiraData ?? iv.fim
+  const out: string[] = []
+  if (iv.porDia) {
+    for (let d = inicio; d <= iv.fim; d = somaDias(d, 1)) out.push(d)
+  } else {
+    for (let m = `${inicio.slice(0, 7)}-01`; m.slice(0, 7) <= iv.fim.slice(0, 7); m = somaMeses(m, 1)) out.push(m.slice(0, 7))
+  }
+  return out
+}
+
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+export const rotuloChave = (k: string) => (k.length === 7 ? `${MESES[Number(k.slice(5, 7)) - 1]}/${k.slice(2, 4)}` : `${k.slice(8, 10)}/${k.slice(5, 7)}`)

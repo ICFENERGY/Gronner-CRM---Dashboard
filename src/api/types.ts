@@ -111,10 +111,81 @@ export interface UsinaRaw {
   energiaGeradaAcumuladaKwh: number | null
 }
 
-/** GET /api/sync/groner/status: horário de cada carga do Groner guardada no banco. */
-export interface SyncStatus {
-  configured: boolean
-  entities: Record<string, { finishedAt?: string; sourceUpdatedAt?: string; lastSuccessfulRunAt?: string } | null | undefined>
+export interface EtapaContagem {
+  etapa: string
+  quantidade: number
+}
+
+export interface FunilResumo {
+  funil: string
+  categoria: string
+  cor: string
+  cadeiaPrincipal: boolean
+  quantidade: number
+  etapas: EtapaContagem[]
+}
+
+export interface CategoriaResumo {
+  categoria: string
+  label: string
+  cor: string
+  quantidade: number
+}
+
+export interface VendedorResumo {
+  vendedor: string
+  quantidade: number
+  valorTotal: number
+}
+
+export interface MesResumo {
+  mes: string
+  quantidade: number
+  valorTotal: number
+}
+
+export interface PivotFunilAnoLinha {
+  funil: string
+  categoria: string
+  cor: string
+  cadeiaPrincipal: boolean
+  porAno: number[]
+  total: number
+}
+
+export interface PivotFunilAno {
+  anos: string[]
+  linhas: PivotFunilAnoLinha[]
+}
+
+export interface Summary {
+  geradoEm: string
+  sourceUpdatedAt?: string | null
+  syncStatus?: { configured: boolean; entities: Record<string, unknown> }
+  leads: { total: number }
+  projetos: {
+    total: number
+    amostra: number
+    porFunil: FunilResumo[]
+    porCategoria: CategoriaResumo[]
+    porEstado: { name: string; value: number }[]
+    porConcessionaria: { name: string; value: number }[]
+    pivotFunilAno: PivotFunilAno
+  }
+  vendas: {
+    total: number
+    valorTotal: number
+    comissaoTotal: number
+    ticketMedio: number
+    porVendedor: VendedorResumo[]
+    porMes: MesResumo[]
+  }
+  prepropostas: {
+    total: number
+    aceitas: number
+    valorTotalAceita: number
+    valorTotalGeral: number
+  }
 }
 
 export interface VendaRaw {
@@ -163,10 +234,6 @@ export interface ProjetoRaw {
   estado: string | null
   bairro: string | null
   concessionaria: string | null
-  /** Potência do projeto (kWp), quando informada. */
-  kwp?: number | null
-  /** Dias desde a última atualização do card no Groner (calculado na leitura). */
-  diasSemAtualizacao?: number | null
 }
 
 export interface PropostaRaw {

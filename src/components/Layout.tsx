@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react'
 import { ThemeToggle } from './ThemeToggle'
 
-export interface AbaItem { k: string; rotulo: string; badge?: number; secundaria?: boolean }
+export interface AbaItem { k: string; rotulo: string; badge?: number }
 
 /**
- * Moldura do painel: marca, abas por área (as de apoio à direita, menores, com
- * badge de tarefas atrasadas) e tema. Os alertas ficam dentro de cada área.
+ * Moldura do painel: marca, abas por área e tema.
  */
 export function Layout({
   abas,
@@ -30,7 +29,7 @@ export function Layout({
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-icf-green text-lg text-icf-navy" aria-hidden="true">⚡</span>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-text)]">ICF Energy</p>
-              <h1 className="text-lg font-semibold leading-tight">Painel de gestão</h1>
+              <h1 className="text-lg font-semibold leading-tight">Painel Groner CRM</h1>
             </div>
           </div>
 
@@ -40,16 +39,15 @@ export function Layout({
         </div>
 
         <nav aria-label="Áreas do painel" className="-mx-1 mt-3 flex gap-1 overflow-x-auto">
-          {abas.map((a, i) => {
+          {abas.map((a) => {
             const ativa = a.k === aba
-            const primeiraSecundaria = a.secundaria && !abas[i - 1]?.secundaria
             return (
               <button
                 key={a.k}
                 type="button"
                 aria-current={ativa ? 'page' : undefined}
                 onClick={() => onAba(a.k)}
-                className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 py-2.5 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-icf-green ${a.secundaria ? 'text-xs' : 'text-sm'} ${primeiraSecundaria ? 'ml-auto' : ''} ${ativa ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors ${ativa ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
               >
                 {a.rotulo}
                 {!!a.badge && (

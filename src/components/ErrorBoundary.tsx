@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-/** Chave dos filtros de Vendas e Financeiro no armazenamento local (ver features/areas/ui.tsx). */
+/** Chave dos filtros da Visão geral no armazenamento local (ver PainelPage). */
 export const CHAVE_FILTROS_PAINEL = 'painel:filtros'
 
 /** Apaga os filtros salvos (podem ser a causa do erro) e recarrega a página. */
@@ -34,7 +34,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; variante?: '
     if (this.props.variante === 'cartao') {
       return (
         <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center text-xs text-[var(--text-muted)]">
-          <p>Não foi possível mostrar este bloco com os filtros atuais.</p>
+          <p>Não foi possível mostrar este gráfico com os filtros atuais.</p>
           {botao}
         </div>
       )

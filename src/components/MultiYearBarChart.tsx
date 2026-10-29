@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { number } from '../lib/palette'
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -20,17 +20,14 @@ export function MultiYearBarChart({ title, items }: { title: string; items: { da
         <p className="py-10 text-center text-xs text-[var(--text-muted)]">Sem dados para os filtros selecionados.</p>
       ) : (
         <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={porMes} margin={{ top: 18, right: 4, left: 0, bottom: 0 }}>
+          <BarChart data={porMes}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="mes" stroke="var(--text-muted)" fontSize={11} />
             <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={(v) => number.format(v)} />
             <Tooltip contentStyle={{ background: 'var(--surface-solid)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: 'var(--text-primary)' }} />
             <Legend wrapperStyle={{ fontSize: 11, color: 'var(--text-secondary)' }} />
             {anos.map((ano, i) => (
-              <Bar key={ano} isAnimationActive={false} dataKey={ano} fill={`var(--cat-${(i % 6) + 1})`} radius={[3, 3, 0, 0]}>
-                {/* Valor em cada barra (zero mostra "0"); fonte menor quando há muitos anos lado a lado. */}
-                <LabelList dataKey={ano} position="top" fontSize={anos.length > 3 ? 8 : 10} fill="var(--text-secondary)" formatter={(v: number) => number.format(v ?? 0)} />
-              </Bar>
+              <Bar key={ano} dataKey={ano} fill={`var(--cat-${(i % 6) + 1})`} radius={[3, 3, 0, 0]} />
             ))}
           </BarChart>
         </ResponsiveContainer>
