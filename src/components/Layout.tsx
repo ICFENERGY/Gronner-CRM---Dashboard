@@ -5,13 +5,12 @@ export interface AbaItem { k: string; rotulo: string; badge?: number; secundaria
 
 /**
  * Moldura do painel: marca, abas por área (as de apoio à direita, menores, com
- * badge de tarefas atrasadas), modo reunião e tema. Os alertas ficam na Visão geral.
+ * badge de tarefas atrasadas) e tema. Os alertas ficam dentro de cada área.
  */
 export function Layout({
   abas,
   aba,
   onAba,
-  onModoReuniao,
   theme,
   onToggleTheme,
   children,
@@ -19,7 +18,6 @@ export function Layout({
   abas: AbaItem[]
   aba: string
   onAba: (k: string) => void
-  onModoReuniao: () => void
   theme: 'light' | 'dark'
   onToggleTheme: () => void
   children: ReactNode
@@ -37,9 +35,6 @@ export function Layout({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={onModoReuniao} className="rounded-lg bg-icf-green px-3.5 py-1.5 text-sm font-semibold text-icf-navy hover:brightness-95">
-              Modo reunião
-            </button>
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>

@@ -1,123 +1,74 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from './api/client'
 import { useRawData } from './api/useRawData'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout, type AbaItem } from './components/Layout'
-import { VisaoGeralPage } from './features/visao/VisaoGeralPage'
+import { AbaFinanceiro } from './features/areas/AbaFinanceiro'
+import { AbaGeral } from './features/areas/AbaGeral'
+import { AbaHomologacao } from './features/areas/AbaHomologacao'
+import { AbaUsinas } from './features/areas/AbaUsinas'
+import { AbaVendas } from './features/areas/AbaVendas'
+import { AREAS } from './features/areas/calculos'
 import { useTheme } from './hooks/useTheme'
-import { EngenhariaPage } from './pages/EngenhariaPage'
 import { IndicadorTarefasPage } from './pages/IndicadorTarefasPage'
-import { MonitoramentoSolarPage } from './pages/MonitoramentoSolarPage'
-import { PietaPage } from './pages/PietaPage'
 import { ValidacaoCadastroPage } from './pages/ValidacaoCadastroPage'
-import { VendasPage } from './pages/VendasPage'
 
-export type Aba = 'geral' | 'engenharia' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento' | 'pieta'
-/** Visão geral primeiro; depois o detalhe de cada bloco; por fim as ferramentas de apoio (secundárias). */
+export type Aba = 'geral' | 'vendas' | 'financeiro' | 'usinas' | 'homologacao' | 'tarefas' | 'cadastro'
+/** Uma aba por área, com o nome fixo de `AREAS`; depois as ferramentas de apoio (secundárias). */
 const ABAS: { k: Aba; rotulo: string; secundaria?: boolean }[] = [
-  { k: 'geral', rotulo: 'Visão geral' },
-  { k: 'vendas', rotulo: 'Comercial' },
-  { k: 'engenharia', rotulo: 'Engenharia' },
-  { k: 'monitoramento', rotulo: 'Usinas' },
-  { k: 'pieta', rotulo: 'Homologação' },
+  { k: 'geral', rotulo: AREAS.geral.nome },
+  { k: 'vendas', rotulo: AREAS.vendas.nome },
+  { k: 'financeiro', rotulo: AREAS.financeiro.nome },
+  { k: 'usinas', rotulo: AREAS.usinas.nome },
+  { k: 'homologacao', rotulo: AREAS.homologacao.nome },
   { k: 'tarefas', rotulo: 'Tarefas', secundaria: true },
   { k: 'cadastro', rotulo: 'Cadastro', secundaria: true },
 ]
 
-/**
- * Endereço → tela. Uma aba por área (#vendas, #engenharia, #engenharia/painel,
- * #cadastro, #tarefas, #monitoramento, #pieta); #reuniao e #reuniao/painel
- * abrem o modo reunião em tela cheia; vazio ou #geral é a visão geral.
- */
-function lerEndereco(): { reuniao: boolean; aba: Aba | null } {
+/** Endereços antigos continuam abrindo a aba certa (links salvos). */
+const APELIDOS: Record<string, Aba> = { comercial: 'vendas', monitoramento: 'usinas', pieta: 'homologacao' }
+
+/** Endereço → aba: #vendas, #financeiro, #usinas, #homologacao, #tarefas, #cadastro; vazio ou desconhecido é a Visão Geral. */
+function lerEndereco(): Aba {
   const h = window.location.hash.replace('#', '').split('/')[0]
-  // #reuniao não diz em que aba o usuário estava: aba null = manter a atual.
-  if (h === 'reuniao') return { reuniao: true, aba: null }
-  const a = ABAS.find((x) => x.k === h)
-  return { reuniao: false, aba: a ? a.k : 'geral' }
+  return ABAS.find((x) => x.k === h)?.k ?? APELIDOS[h] ?? 'geral'
 }
 
 export default function App() {
-  const inicial = lerEndereco()
-  const [reuniao, setReuniao] = useState(inicial.reuniao)
-  const [aba, setAba] = useState<Aba>(inicial.aba ?? 'geral')
-  // Hash da aba (ex.: 'engenharia/painel') no momento em que a reunião foi aberta.
-  const hashAntesReuniao = useRef<string | null>(null)
+  const [aba, setAba] = useState<Aba>(lerEndereco)
   const { data: tarefas } = useRawData('tarefas', api.getTarefasRaw)
   const tarefasAtrasadas = tarefas?.filter((t) => t.atrasada).length ?? 0
   const { theme, toggleTheme } = useTheme()
 
-  const endereco = (h: string) => window.history.replaceState(null, '', h ? `#${h}` : window.location.pathname)
-  const abrirReuniao = useCallback(() => {
-    const atual = window.location.hash.replace('#', '')
-    if (atual.split('/')[0] !== 'reuniao') hashAntesReuniao.current = atual
-    setReuniao(true)
-    endereco('reuniao')
+  const irParaAba = useCallback((k: string) => {
+    setAba(k as Aba)
+    window.history.replaceState(null, '', k === 'geral' ? window.location.pathname : `#${k}`)
+    window.scrollTo(0, 0)
   }, [])
-  const fecharReuniao = useCallback(() => {
-    // Volta ao hash da aba de origem (preserva #engenharia/painel); sem ele, usa a aba atual.
-    const guardado = hashAntesReuniao.current
-    hashAntesReuniao.current = null
-    const destino = guardado !== null && (guardado.split('/')[0] || 'geral') === aba ? guardado : aba === 'geral' ? '' : aba
-    setReuniao(false)
-    endereco(destino === 'geral' ? '' : destino)
-  }, [aba])
-  const irParaAba = useCallback((k: string) => { hashAntesReuniao.current = null; setAba(k as Aba); setReuniao(false); endereco(k === 'geral' ? '' : k) }, [])
 
   // Botão voltar/avançar e links colados com outro #endereço.
   useEffect(() => {
-    const mudou = () => { const e = lerEndereco(); setReuniao(e.reuniao); if (e.aba) setAba(e.aba) }
+    const mudou = () => setAba(lerEndereco())
     window.addEventListener('hashchange', mudou)
     return () => window.removeEventListener('hashchange', mudou)
   }, [])
 
-  useEffect(() => {
-    if (!reuniao) return
-    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('[role="dialog"]')) fecharReuniao() }
-    document.addEventListener('keydown', tecla)
-    return () => document.removeEventListener('keydown', tecla)
-  }, [reuniao, fecharReuniao])
-
   const abas: AbaItem[] = ABAS.map((a) => ({ ...a, badge: a.k === 'tarefas' ? tarefasAtrasadas : undefined }))
 
   return (
-    <Layout
-      abas={abas}
-      aba={aba}
-      onAba={irParaAba}
-      onModoReuniao={abrirReuniao}
-      theme={theme}
-      onToggleTheme={toggleTheme}
-    >
+    <Layout abas={abas} aba={aba} onAba={irParaAba} theme={theme} onToggleTheme={toggleTheme}>
       {/* Um erro de renderização numa aba mostra um aviso, nunca a tela em branco. */}
       <ErrorBoundary key={aba}>
-        {aba === 'geral' && <VisaoGeralPage onModoReuniao={abrirReuniao} onAba={irParaAba} />}
-        {/* Com a reunião aberta, a Engenharia só monta dentro dela (evita duas buscas em paralelo). */}
-        {aba === 'engenharia' && !reuniao && <EngenhariaPage base="engenharia" />}
-        {aba === 'vendas' && <VendasPage />}
-        {aba === 'cadastro' && <ValidacaoCadastroPage />}
-        {aba === 'tarefas' && <IndicadorTarefasPage />}
-        {aba === 'monitoramento' && <MonitoramentoSolarPage />}
-        {aba === 'pieta' && <PietaPage />}
-      </ErrorBoundary>
-
-
-
-      {reuniao && (
-        <div className="fixed inset-0 z-30 overflow-y-auto bg-[var(--bg)]" role="region" aria-label="Modo reunião">
-          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-solid)] px-6 py-2.5 md:px-10">
-            <span className="text-sm font-semibold">Modo reunião · Engenharia</span>
-            <button type="button" onClick={fecharReuniao} className="rounded-md border border-[var(--border-strong)] px-3 py-1 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
-              Voltar ao painel (Esc)
-            </button>
-          </div>
-          <div className="px-6 py-5 md:px-10">
-            <ErrorBoundary>
-              <EngenhariaPage base="reuniao" />
-            </ErrorBoundary>
-          </div>
+        <div className="mx-auto max-w-[1440px]">
+          {aba === 'geral' && <AbaGeral />}
+          {aba === 'vendas' && <AbaVendas />}
+          {aba === 'financeiro' && <AbaFinanceiro />}
+          {aba === 'usinas' && <AbaUsinas />}
+          {aba === 'homologacao' && <AbaHomologacao />}
+          {aba === 'tarefas' && <IndicadorTarefasPage />}
+          {aba === 'cadastro' && <ValidacaoCadastroPage />}
         </div>
-      )}
+      </ErrorBoundary>
     </Layout>
   )
 }
