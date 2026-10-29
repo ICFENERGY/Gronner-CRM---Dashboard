@@ -10,6 +10,7 @@
     { "path": "/api/sync/groner/solarz", "schedule": "50 6 * * *" }
   ],
   "rewrites": [
+    { "source": "/mcp/solarz", "destination": "/api/mcp-solarz" },
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/api/:path*", "destination": "/api" }
   ]
