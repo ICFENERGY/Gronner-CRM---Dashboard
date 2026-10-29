@@ -7,10 +7,8 @@ import { FilterBar, type FilterDef } from '../../../components/FilterBar'
 import { useFilters, uniqueSorted } from '../../../hooks/useFilters'
 import { currency } from '../../../lib/palette'
 import { dataCurtaBr } from '../../../lib/datas'
-import { hojeSP } from '../../painel/periodo'
-import { diaPieta } from '../calculos'
 
-/** Listas de detalhe da aba Homologação: prazos vencidos e todos os projetos da PIETA, com a ficha de cada um. */
+/** Lista de detalhe da aba Pieta: todos os projetos da PIETA, com a ficha de cada um. */
 export function DetalheHomologacao({ resumo }: { resumo: PietaResumo }) {
   const { values, onChange, onClear } = useFilters()
   const [busca, setBusca] = useState('')
@@ -50,13 +48,6 @@ export function DetalheHomologacao({ resumo }: { resumo: PietaResumo }) {
     })
   }, [resumo, values, busca])
 
-  // Mesma regra da tabela de indicadores: em andamento e com o prazo informado pela PIETA já passado.
-  const hoje = hojeSP()
-  const vencidos = resumo.projects
-    .filter((p) => !['Finalizado', 'Cancelado'].includes(p.status) && (diaPieta(p.dueDate) ?? '9999') < hoje)
-    .map((p) => ({ ...p, diasAtraso: Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${diaPieta(p.dueDate)}T12:00:00Z`)) / 86_400_000) }))
-    .sort((a, b) => b.diasAtraso - a.diasAtraso)
-
   return (
     <div>
       <FilterBar filters={filtros} values={values} onChange={onChange} onClear={onClear} />
@@ -69,24 +60,6 @@ export function DetalheHomologacao({ resumo }: { resumo: PietaResumo }) {
           className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none"
         />
       </div>
-
-      {vencidos.length > 0 && (
-        <section className="mb-6 grid grid-cols-1 gap-4">
-          <DataTable
-            title={`Projetos com prazo vencido (${vencidos.length}), mais atrasados primeiro`}
-            rows={vencidos}
-            maxHeight={260}
-            onRowClick={(r) => abrirProjeto(r.projectId)}
-            columns={[
-              { key: 'id', label: 'ID', render: (r) => r.projectId },
-              { key: 'cliente', label: 'Cliente', render: (r) => r.clientName ?? '—' },
-              { key: 'prazo', label: 'Prazo', render: (r) => dataCurtaBr(diaPieta(r.dueDate)) },
-              { key: 'status', label: 'Status', render: (r) => r.status },
-              { key: 'atraso', label: 'Atraso (dias)', align: 'right', render: (r) => r.diasAtraso },
-            ]}
-          />
-        </section>
-      )}
 
       <section className="mb-6 grid grid-cols-1 gap-4">
         <DataTable

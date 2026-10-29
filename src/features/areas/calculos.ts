@@ -9,15 +9,14 @@ import type { PietaMetricas, PietaResumo, PropostaRaw, ProjetoRaw, TarefaRaw, Us
 import { igual, projetoVendido } from '../painel/calculos'
 import { NOMES_MESES, dentro, hojeSP, intervalo, mesValido } from '../painel/periodo'
 
-export type Area = 'geral' | 'vendas' | 'financeiro' | 'usinas' | 'homologacao'
+export type Area = 'geral' | 'vendas' | 'usinas' | 'homologacao'
 
 /** Nome fixo de cada área e a fonte dela: o mesmo texto em menus, títulos, alertas e rodapés. */
 export const AREAS: Record<Area, { nome: string; fonte: string }> = {
   geral: { nome: 'Visão Geral', fonte: 'Groner CRM' },
   vendas: { nome: 'Vendas', fonte: 'Groner CRM' },
-  financeiro: { nome: 'Financeiro', fonte: 'Groner CRM' },
-  usinas: { nome: 'Usinas', fonte: 'SolarZ' },
-  homologacao: { nome: 'Homologação', fonte: 'PIETA' },
+  usinas: { nome: 'SolarZ', fonte: 'SolarZ' },
+  homologacao: { nome: 'Pieta', fonte: 'PIETA' },
 }
 
 export interface Filtros {
@@ -361,7 +360,8 @@ export const FUNIS_EM_MOVIMENTO = { de: 4, ate: 11 }
 export const DIAS_PARADO = 30
 
 /** Categorias do funil do Groner, na ordem do fluxo, com os funis de cada uma. */
-const CATEGORIAS_FUNIL = (gronerFunis.categoriaOrdem as string[]).filter((k) => !CATEGORIAS_FORA_DE_LEADS.has(k) && k !== 'perdas')
+// Engenharia e Financeiro não aparecem no painel.
+const CATEGORIAS_FUNIL = (gronerFunis.categoriaOrdem as string[]).filter((k) => !CATEGORIAS_FORA_DE_LEADS.has(k) && !['perdas', 'engenharia', 'financeiro'].includes(k))
 const ranking = (m: Map<string, number>, max = 10): Item[] => {
   const ord = [...m.entries()].map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor)
   if (ord.length <= max) return ord
@@ -546,9 +546,6 @@ export function alertasDaArea(area: Area, f: Fontes, hoje = hojeSP()): Alerta[] 
   }
   if (area === 'homologacao') {
     const ho = calcularHomologacao(f, hoje)
-    if (ho && ho.vencidos.length) {
-      itens.push({ id: 'homologacao-vencidos', gravidade: 2, peso: (100 * ho.vencidos.length) / Math.max(1, ho.ativos.length), numero: inteiro(ho.vencidos.length), frase: `${ho.vencidos.length === 1 ? 'homologação está' : 'homologações estão'} com o prazo informado pela PIETA vencido.` })
-    }
     if (ho && ho.pendencia.length) {
       itens.push({ id: 'homologacao-pendencia', gravidade: 3, peso: (100 * ho.pendencia.length) / Math.max(1, ho.ativos.length), numero: inteiro(ho.pendencia.length), frase: `${ho.pendencia.length === 1 ? 'homologação parada' : 'homologações paradas'} em pendência (${[...new Set(ho.pendencia.map((p) => tipoPendencia(p.status)))].join(', ')}).` })
     }

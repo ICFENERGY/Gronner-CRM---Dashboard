@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout, type AbaItem } from './components/Layout'
-import { AbaFinanceiro } from './features/areas/AbaFinanceiro'
 import { AbaGeral } from './features/areas/AbaGeral'
 import { AbaHomologacao } from './features/areas/AbaHomologacao'
 import { AbaUsinas } from './features/areas/AbaUsinas'
@@ -9,20 +8,19 @@ import { AbaVendas } from './features/areas/AbaVendas'
 import { AREAS } from './features/areas/calculos'
 import { useTheme } from './hooks/useTheme'
 
-export type Aba = 'geral' | 'vendas' | 'financeiro' | 'usinas' | 'homologacao'
-/** Uma aba por área, com o nome fixo de `AREAS`. */
+export type Aba = 'geral' | 'vendas' | 'solarz' | 'pieta'
+/** Visão Geral | Vendas | SolarZ | Pieta, com o nome fixo de `AREAS`. */
 const ABAS: { k: Aba; rotulo: string }[] = [
   { k: 'geral', rotulo: AREAS.geral.nome },
   { k: 'vendas', rotulo: AREAS.vendas.nome },
-  { k: 'financeiro', rotulo: AREAS.financeiro.nome },
-  { k: 'usinas', rotulo: AREAS.usinas.nome },
-  { k: 'homologacao', rotulo: AREAS.homologacao.nome },
+  { k: 'solarz', rotulo: AREAS.usinas.nome },
+  { k: 'pieta', rotulo: AREAS.homologacao.nome },
 ]
 
 /** Endereços antigos continuam abrindo a aba certa (links salvos). */
-const APELIDOS: Record<string, Aba> = { comercial: 'vendas', monitoramento: 'usinas', pieta: 'homologacao' }
+const APELIDOS: Record<string, Aba> = { comercial: 'vendas', monitoramento: 'solarz', usinas: 'solarz', homologacao: 'pieta', financeiro: 'geral' }
 
-/** Endereço → aba: #vendas, #financeiro, #usinas, #homologacao; vazio ou desconhecido é a Visão Geral. */
+/** Endereço → aba: #vendas, #solarz, #pieta; vazio ou desconhecido é a Visão Geral. */
 function lerEndereco(): Aba {
   const h = window.location.hash.replace('#', '').split('/')[0]
   return ABAS.find((x) => x.k === h)?.k ?? APELIDOS[h] ?? 'geral'
@@ -54,9 +52,8 @@ export default function App() {
         <div className="mx-auto max-w-[1440px]">
           {aba === 'geral' && <AbaGeral />}
           {aba === 'vendas' && <AbaVendas />}
-          {aba === 'financeiro' && <AbaFinanceiro />}
-          {aba === 'usinas' && <AbaUsinas />}
-          {aba === 'homologacao' && <AbaHomologacao />}
+          {aba === 'solarz' && <AbaUsinas />}
+          {aba === 'pieta' && <AbaHomologacao />}
         </div>
       </ErrorBoundary>
     </Layout>

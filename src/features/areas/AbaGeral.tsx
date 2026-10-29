@@ -14,7 +14,7 @@ const vazio = <p className="py-10 text-center text-sm text-[var(--text-muted)]">
 
 /**
  * Visão Geral (tela inicial): tudo o que o Groner CRM tem hoje no banco
- * (projetos e funil, propostas, vendas e tarefas). SolarZ e PIETA ficam nas abas delas.
+ * (projetos e funil, propostas, vendas e tarefas). SolarZ e Pieta ficam nas abas delas.
  */
 export function AbaGeral() {
   const { filtros, mudar } = useFiltros()
@@ -36,7 +36,7 @@ export function AbaGeral() {
         area="geral"
         fontes={fontes}
         carregando={!principal && !erro}
-        escopo={`${textoEscopo(filtros, calc.iv, hoje)} Projetos ativos, funil, carteira e tarefas são a posição de hoje. Usinas (SolarZ) e Homologação (PIETA) ficam nas abas delas.`}
+        escopo={`${textoEscopo(filtros, calc.iv, hoje)} Projetos ativos, funil, carteira e tarefas são a posição de hoje. SolarZ e Pieta ficam nas abas delas.`}
         filtros={<BarraFiltros filtros={filtros} onMudar={mudar} anos={g.opcoes.anos} vendedores={g.opcoes.vendedores} />}
       />
       <AlertasArea area="geral" itens={alertas} alvoDetalhe="detalhe-geral" />

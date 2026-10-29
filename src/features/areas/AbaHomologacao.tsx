@@ -10,7 +10,7 @@ import { EtapasPieta } from './graficos'
 import { tabelaHomologacao } from './indicadores'
 import { AlertasArea, CabecalhoArea, CartaoGrafico, EstadoFonte, RodapeArea, SecaoDetalhe, TabelaIndicadores } from './ui'
 
-/** Aba Homologação (fonte: PIETA): projetos, prazos, pendências e tempo por etapa. */
+/** Aba Pieta (fonte: PIETA): projetos, prazos, pendências e tempo por etapa. */
 export function AbaHomologacao() {
   const resumo = useRawData('pieta-resumo', api.getPietaResumo)
   const metricas = useRawData('pieta-metricas', api.getPietaMetricas)
@@ -36,7 +36,7 @@ export function AbaHomologacao() {
         <EstadoFonte carregando={resumo.loading} erro={erro} vazio="Nenhum projeto no resumo da PIETA." />
       ) : (
         <>
-          <TabelaIndicadores titulo="Indicadores de Homologação" tabela={tabela} />
+          <TabelaIndicadores titulo="Indicadores da Pieta" tabela={tabela} />
           <div className="grid gap-4 lg:grid-cols-2">
             <CartaoGrafico titulo="Projetos em andamento por etapa (qtd.)" subtitulo="Posição de hoje no resumo da PIETA; a maior fila em cima.">
               <EtapasPieta dados={calc.etapas} />

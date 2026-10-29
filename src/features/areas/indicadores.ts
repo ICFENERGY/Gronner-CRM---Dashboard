@@ -4,7 +4,7 @@
  * é melhor) e situação. Cada linha leva a fórmula na definição.
  */
 import {
-  DIAS_PARADO, calcularComercial, calcularFinanceiro, calcularGeral, calcularHomologacao, calcularUsinas, decimal1, inteiro, pctTxt, reaisExato, rotuloMes,
+  DIAS_PARADO, calcularComercial, calcularGeral, calcularHomologacao, calcularUsinas, decimal1, inteiro, pctTxt, reaisExato, rotuloMes,
   type Fontes, type Filtros,
 } from './calculos'
 import { hojeSP } from '../painel/periodo'
@@ -174,51 +174,6 @@ export function tabelaVendas(f: Fontes, filtros: Filtros, hoje = hojeSP()): Tabe
   }
 }
 
-// ---------- Financeiro ----------
-export function tabelaFinanceiro(f: Fontes, filtros: Filtros, hoje = hojeSP()): Tabela {
-  const c = calcularFinanceiro(f, filtros, hoje)
-  const a = c.temAnterior
-  const qtd = (n: number) => `${inteiro(n)} ${n === 1 ? 'projeto' : 'projetos'}`
-  const valorProjeto = 'Valor de cada projeto = valor da venda; sem ele, o da proposta aceita.'
-  return {
-    base: c.base || null,
-    grupos: [
-      {
-        titulo: 'Propostas aceitas no período',
-        linhas: [
-          comparada('aceitas-valor', 'Valor em propostas aceitas', 'R$', c.aceitas.valor, a ? c.aceitasAnt!.valor : null, 'maior-melhor', 'Soma do preço das propostas aceitas criadas no período, uma por projeto (a alterada por último).', { nota: qtd(c.aceitas.qtd) }),
-          comparada('aceitas-vendidas', 'Aceitas já vendidas', 'R$', c.aceitas.vendidas, a ? c.aceitasAnt!.vendidas : null, 'maior-melhor', 'Parte do valor em propostas aceitas cujo projeto tem valor de venda ou já está do funil 06. Contrato em diante.'),
-          comparada('aceitas-sem-venda', 'Aceitas ainda sem venda', 'R$', c.aceitas.semVenda, a ? c.aceitasAnt!.semVenda : null, 'neutro', 'Parte do valor em propostas aceitas cujo projeto ainda não virou venda: dinheiro a converter.', { nota: qtd(c.aceitas.qtdSemVenda) }),
-        ],
-      },
-      {
-        titulo: 'Resultado das vendas no período',
-        linhas: [
-          comparada('lucro', 'Lucro registrado', 'R$', c.res.lucro, a ? c.resAnt!.lucro : null, 'maior-melhor', 'Soma do lucro informado nas vendas do período (sem negativos e nunca acima do valor da venda).', { nota: `em ${inteiro(c.res.comLucro)} ${c.res.comLucro === 1 ? 'venda' : 'vendas'}` }),
-          comparada('margem', 'Margem registrada', '%', c.res.margem, a ? c.resAnt!.margem : null, 'maior-melhor', 'Lucro registrado ÷ valor das vendas que têm lucro informado. A variação é em pontos percentuais (p.p.).'),
-          comparada('cobertura-lucro', 'Vendas com lucro informado', '%', c.res.cobertura, a ? c.resAnt!.cobertura : null, 'maior-melhor', 'Vendas do período com lucro preenchido ÷ todas as vendas do período. Mostra quanto o lucro e a margem representam.'),
-          comparada('comissao', 'Comissão registrada', 'R$', c.res.comissao, a ? c.resAnt!.comissao : null, 'neutro', 'Soma do valor de comissão informado nas vendas do período.'),
-        ],
-      },
-      {
-        titulo: 'Funil financeiro · posição de hoje',
-        linhas: [
-          posicao('banco', 'Banco e simulação (funil 05)', 'R$', c.banco.valor, `Projetos hoje no funil 05. Banco/Simulação/Aprovação, sem recusados nem desistências. ${valorProjeto}`, { nota: qtd(c.banco.qtd) }),
-          posicao('aguardando-pagamento', 'Aguardando pagamento (funil 07)', 'R$', c.aguardandoPagamento.valor, `Projetos hoje no funil 07. Financeiro nas etapas Aguardando pagamento, Pendente pagamento ou Pagamento em processo. ${valorProjeto}`, { nota: qtd(c.aguardandoPagamento.qtd) }),
-          posicao('pagamento-realizado', 'Pagamento realizado (funil 07)', 'R$', c.pagamentoRealizado.valor, `Projetos hoje no funil 07. Financeiro na etapa Pagamento realizado. ${valorProjeto}`, { nota: qtd(c.pagamentoRealizado.qtd) }),
-        ],
-      },
-      {
-        titulo: 'Valor em carteira por funil · posição de hoje',
-        linhas: [
-          ...c.carteira.filter((x) => x.n !== 7).map((x) => posicao(`carteira-${x.n}`, `Funil ${String(x.n).padStart(2, '0')} · ${x.nome}`, 'R$', x.valor, `Projetos hoje no funil ${String(x.n).padStart(2, '0')}. ${x.nome} do Groner, sem etapas de perda. ${valorProjeto}${x.n === 10 ? ' É o funil do Groner, não a base da PIETA (aba Homologação).' : ''}`, { nota: qtd(x.qtd) })),
-          posicao('carteira-total', 'Carteira total (funis 06 a 11)', 'R$', c.carteiraTotal.valor, `Soma dos funis 06 a 11, incluindo o funil 07. Financeiro. ${valorProjeto}`, { nota: qtd(c.carteiraTotal.qtd) }),
-        ],
-      },
-    ],
-  }
-}
-
 // ---------- Usinas ----------
 export function tabelaUsinas(f: Fontes, hoje = hojeSP()): Tabela | null {
   const u = calcularUsinas(f, hoje)
@@ -301,7 +256,6 @@ export function tabelaHomologacao(f: Fontes, hoje = hojeSP()): Tabela | null {
       {
         titulo: 'Prazos e pendências · posição de hoje',
         linhas: [
-          posicao('vencidos', 'Prazo vencido', 'qtd.', h.vencidos.length, 'Projetos em andamento cujo prazo informado pela PIETA já passou. Acima de zero, pede atenção.', { situacao: situacaoContagem(h.vencidos.length, 'atencao'), nota: `de ${inteiro(h.comPrazo.length)} com prazo informado` }),
           posicao('pendencia', 'Em pendência', 'qtd.', h.pendencia.length, 'Projetos em andamento num status de pendência (assinaturas, distribuidora ou vistoria), à espera de uma ação.', { situacao: h.pendencia.length === 0 ? 'ok' : null }),
         ],
       },

@@ -101,7 +101,8 @@ test('visão geral: projetos ativos, parados, carteira e funil por categoria', (
   assert.equal(g.kwpCarteira, 7.5)
   assert.equal(g.valorCarteira, 30000 + 8000 + 1050)
   assert.deepEqual(g.funis.map((x) => [x.n, x.qtd]), [[4, 1], [7, 2], [8, 1]])
-  assert.deepEqual(g.categorias.map((x) => x.qtd).reduce((a, b) => a + b, 0), 4)
+  // Engenharia (08) e Financeiro (07) não entram nas categorias da Visão Geral: só sobra o projeto 3 (Vendas).
+  assert.deepEqual(g.categorias.map((x) => x.qtd).reduce((a, b) => a + b, 0), 1)
   assert.deepEqual(g.porVendedor, [{ nome: 'Ana', valor: 3 }, { nome: 'Bruno', valor: 1 }])
   assert.ok(c.alertasDaArea('geral', f, HOJE).some((a) => a.id === 'projetos-parados'))
 })
@@ -157,9 +158,6 @@ test('financeiro: propostas aceitas por projeto, lucro sem passar da venda e fun
   assert.equal(b.aceitas.qtd, 0)
   assert.deepEqual(b.aguardandoPagamento, { qtd: 0, valor: 0 })
   assert.equal(b.pagamentoRealizado.qtd, 1)
-  const tab = t.tabelaFinanceiro(f, OUT, HOJE)
-  assert.equal(linha(tab, 'carteira-total').posicaoAtual, true)
-  assert.equal(linha(tab, 'carteira-7'), undefined) // o funil 07 aparece pelas etapas, não repetido na carteira
 })
 
 test('usinas: parque, mês de referência contra o anterior, faixas de desempenho e farol', () => {
@@ -190,7 +188,6 @@ test('homologação lê o prazo dd/mm/aaaa da PIETA e conta pendências pelo sta
   assert.equal(r.finMes, 1)
   assert.equal(r.etapas[0].etapa, 'Em Vistoria')
   const tab = t.tabelaHomologacao(fontes(), HOJE)
-  assert.equal(linha(tab, 'vencidos').situacao, 'atencao')
   assert.equal(linha(tab, 'finalizados').base, '01/09 a 29/09')
 })
 
@@ -201,8 +198,7 @@ test('alertas: no máximo 3 por área, só da própria área, do mais grave ao m
   assert.equal(vendas[0].gravidade, 2)
   const usinas = c.alertasDaArea('usinas', fontes(), HOJE)
   assert.deepEqual(usinas.map((a) => a.id).sort(), ['usinas-criticas', 'usinas-farol'])
-  assert.deepEqual(c.alertasDaArea('homologacao', fontes(), HOJE).map((a) => a.id), ['homologacao-vencidos', 'homologacao-pendencia'])
-  assert.deepEqual(c.alertasDaArea('financeiro', fontes(), HOJE), [])
+  assert.deepEqual(c.alertasDaArea('homologacao', fontes(), HOJE).map((a) => a.id), ['homologacao-pendencia'])
   for (const area of ['geral', 'vendas', 'usinas', 'homologacao']) assert.ok(c.alertasDaArea(area, fontes(), HOJE).length <= c.MAX_ALERTAS)
   // Sem nada a agir, nada aparece.
   const vazio = { ...fontes(), vendas: [], tarefas: [], usinas: { usinas: [] }, pietaResumo: { projects: [] } }
@@ -210,5 +206,5 @@ test('alertas: no máximo 3 por área, só da própria área, do mais grave ao m
 })
 
 test('nomes das áreas e fontes são fixos', () => {
-  assert.deepEqual(Object.values(c.AREAS).map((a) => `${a.nome} · ${a.fonte}`), ['Visão Geral · Groner CRM', 'Vendas · Groner CRM', 'Financeiro · Groner CRM', 'Usinas · SolarZ', 'Homologação · PIETA'])
+  assert.deepEqual(Object.values(c.AREAS).map((a) => `${a.nome} · ${a.fonte}`), ['Visão Geral · Groner CRM', 'Vendas · Groner CRM', 'SolarZ · SolarZ', 'Pieta · PIETA'])
 })
