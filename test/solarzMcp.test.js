@@ -110,3 +110,29 @@ test('endpoint exige a chave; com ela lista as 9 ferramentas', async () => {
     for (const [k, v] of [['MCP_SOLARZ_TOKEN', antes.a], ['MCP_ACCESS_TOKEN', antes.b]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v }
   }
 })
+
+test('sem OAuth: 401 sem WWW-Authenticate, rotas OAuth em 404 JSON e ?key= vale em POST, GET e DELETE', async () => {
+  const { default: handler } = await import('../api/mcp-solarz.js')
+  const chamar = async (method, { headers = {}, query = {} } = {}) => {
+    const cab = {}
+    const res = { statusCode: 200, corpo: null, setHeader(k, v) { cab[k.toLowerCase()] = v }, status(c) { this.statusCode = c; return this }, json(b) { this.corpo = b; return this }, end() { return this } }
+    await handler({ method, headers, query, body: { jsonrpc: '2.0', id: 1, method: 'initialize' } }, res)
+    return { res, cab }
+  }
+  const antes = process.env.MCP_SOLARZ_TOKEN
+  process.env.MCP_SOLARZ_TOKEN = 'chave-solarz'
+  try {
+    const sem = await chamar('POST')
+    assert.equal(sem.res.statusCode, 401)
+    assert.equal(sem.cab['www-authenticate'], undefined)
+    for (const m of ['POST', 'GET']) {
+      const r = await chamar(m, { query: { nao_oauth: '1' } })
+      assert.equal(r.res.statusCode, 404)
+      assert.equal(r.res.corpo.error, 'not_found')
+    }
+    assert.equal((await chamar('POST', { query: { key: 'chave-solarz' } })).res.statusCode, 200)
+    assert.equal((await chamar('GET', { query: { key: 'chave-solarz' } })).res.statusCode, 200)
+    assert.equal((await chamar('DELETE', { query: { key: 'chave-solarz' } })).res.statusCode, 204)
+    assert.equal((await chamar('DELETE')).res.statusCode, 401)
+  } finally { if (antes === undefined) delete process.env.MCP_SOLARZ_TOKEN; else process.env.MCP_SOLARZ_TOKEN = antes }
+})

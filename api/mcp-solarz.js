@@ -19,6 +19,11 @@ function autorizado(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// 401 sem WWW-Authenticate: esse cabeçalho faz o claude.ai procurar OAuth e tentar registro dinâmico.
+function negar(req, res) {
+  return res.status(401).json({ jsonrpc: "2.0", id: req.body?.id ?? null, error: { code: -32001, message: "Chave de acesso do MCP ausente ou inválida" } });
+}
+
 async function handleMessage(msg) {
   const { id, method, params } = msg ?? {};
   if (id === undefined || id === null) return null; // notificação
@@ -47,13 +52,16 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, mcp-session-id");
 
   if (req.method === "OPTIONS") return res.status(200).end();
+
+  // Descoberta/registro OAuth (/.well-known/*, /register, /authorize, /token): este MCP usa só chave, sem OAuth.
+  // Responde 404 JSON para o cliente não achar um servidor OAuth e não tentar o registro dinâmico (DCR).
+  if (req.query?.nao_oauth) return res.status(404).json({ error: "not_found", error_description: "Este servidor não usa OAuth; use a chave na URL (?key=) ou no cabeçalho Authorization." });
+
+  if (req.method === "DELETE") return autorizado(req) ? res.status(204).end() : negar(req, res); // sessão stateless: nada a encerrar
   if (req.method === "GET") return res.status(200).json({ status: "ok", server: "solarz-mcp", version: "1.0.0" });
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  if (!autorizado(req)) {
-    res.setHeader("WWW-Authenticate", 'Bearer realm="solarz-mcp"');
-    return res.status(401).json({ jsonrpc: "2.0", id: req.body?.id ?? null, error: { code: -32001, message: "Chave de acesso do MCP ausente ou inválida" } });
-  }
+  if (!autorizado(req)) return negar(req, res);
 
   const body = req.body;
   try {
