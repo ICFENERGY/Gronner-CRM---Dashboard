@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { FERRAMENTAS, executarFerramenta } from "../server/solarzMcp.js";
 
-// MCP da SolarZ (somente leitura). Endereço: /mcp/solarz?key=<chave> (rewrite em vercel.json).
+// MCP da SolarZ (somente leitura). Endereço: /mcp/solarz?key=<chave> ou /mcp/solarz/k/<chave> (o rewrite do vercel.json repassa a chave como ?key= interno).
 // Chave: MCP_SOLARZ_TOKEN; se não existir, usa a MCP_ACCESS_TOKEN do MCP do Groner. Sem nenhuma, fica fechado.
 
 function chaveRecebida(req) {

@@ -15,6 +15,7 @@
     { "source": "/register", "destination": "/api/mcp-solarz?nao_oauth=1" },
     { "source": "/authorize", "destination": "/api/mcp-solarz?nao_oauth=1" },
     { "source": "/token", "destination": "/api/mcp-solarz?nao_oauth=1" },
+    { "source": "/mcp/solarz/k/:chave", "destination": "/api/mcp-solarz?key=:chave" },
     { "source": "/mcp/solarz", "destination": "/api/mcp-solarz" },
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/api/:path*", "destination": "/api" }

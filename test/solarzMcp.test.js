@@ -167,3 +167,28 @@ test('assinaturas: devolve plano e licenças; 403 vira aviso', async () => {
   const negado = await executarFerramenta('solarz_assinaturas', {}, deps({ solarzListarAssinaturas: async () => { throw Object.assign(new Error('x'), { status: 403 }) } }))
   assert.match(negado.aviso, /403/)
 })
+
+test('chave no caminho (/mcp/solarz/k/<chave>) chega como query.key e vercel.json a reescreve antes de /mcp/solarz', async () => {
+  const fs = await import('node:fs')
+  const { rewrites } = JSON.parse(fs.readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'))
+  const i = rewrites.findIndex((r) => r.source === '/mcp/solarz/k/:chave')
+  assert.ok(i >= 0 && i < rewrites.findIndex((r) => r.source === '/mcp/solarz'))
+  assert.equal(rewrites[i].destination, '/api/mcp-solarz?key=:chave')
+
+  const anterior = process.env.MCP_SOLARZ_TOKEN
+  process.env.MCP_SOLARZ_TOKEN = 'chave-caminho-1'
+  try {
+    const { default: handler } = await import('../api/mcp-solarz.js')
+    const chamar = async (key) => {
+      const res = { statusCode: 200, cab: {}, setHeader(k, v) { this.cab[k] = v }, status(c) { this.statusCode = c; return this }, json() { return this }, end() { return this } }
+      await handler({ method: 'POST', headers: {}, query: { key }, body: { jsonrpc: '2.0', id: 1, method: 'tools/list' } }, res)
+      return res
+    }
+    assert.equal((await chamar('chave-caminho-1')).statusCode, 200)
+    const ruim = await chamar('errada')
+    assert.equal(ruim.statusCode, 401)
+    assert.equal(ruim.cab['WWW-Authenticate'], undefined)
+  } finally {
+    if (anterior === undefined) delete process.env.MCP_SOLARZ_TOKEN; else process.env.MCP_SOLARZ_TOKEN = anterior
+  }
+})

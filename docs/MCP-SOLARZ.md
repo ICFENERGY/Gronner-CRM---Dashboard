@@ -23,11 +23,11 @@ Usina sem monitoramento premium responde com aviso "não premium" (não é erro)
 
 ## Chave
 Variável na Vercel: `MCP_SOLARZ_TOKEN`. Se ela não existir, vale `MCP_ACCESS_TOKEN` (a mesma do MCP do Groner).
-Sem nenhuma das duas o MCP fica fechado (401). A chave é aceita por `?key=`, `Authorization: Bearer` ou `x-api-key`.
+Sem nenhuma das duas o MCP fica fechado (401). A chave é aceita por `?key=`, `Authorization: Bearer`, `x-api-key` ou no caminho `/mcp/solarz/k/<chave>` (use esta se o cliente descartar a query string; comparada com `timingSafeEqual`, sem registro em log).
 
 ## Instalação
 **claude.ai** (Configurações > Conectores > Adicionar conector personalizado): nome "SolarZ", URL
-`https://groner-crm-dashboard-ten.vercel.app/mcp/solarz?key=<chave>`. Deixe o OAuth Client ID em branco.
+`https://groner-crm-dashboard-ten.vercel.app/mcp/solarz/k/<chave>` (ou `/mcp/solarz?key=<chave>`). Deixe o OAuth Client ID em branco.
 
 **Claude Code:**
 ```
