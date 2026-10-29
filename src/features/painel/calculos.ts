@@ -54,11 +54,35 @@ export function filtrosValidos(lido: unknown, padrao: Filtros, hoje = hojeSP()):
   }
 }
 
+/**
+ * Série mensal real x prognóstico somando as usinas, para o ano da série (corrente nos dados da SolarZ).
+ * Usa o prognóstico de cada mês quando existe; no relatório estático (sem ele) cai no prognóstico do mês de referência.
+ * O mês corrente entra marcado como parcial.
+ */
+export function serieGeracaoUsinas(usinas: UsinaRaw[]): Barra[] {
+  const meses = new Map<number, { geracao: number; prognostico: number; parcial: boolean }>()
+  let ano = 0
+  for (const u of usinas) {
+    const serie = u.mensal ?? u.mensal2026 ?? []
+    if (serie.length) ano = Math.max(ano, u.anoMensal ?? 2026)
+    serie.forEach((m, i) => {
+      if (!m.geracaoKwh) return
+      const atual = meses.get(i) ?? { geracao: 0, prognostico: 0, parcial: false }
+      atual.geracao += m.geracaoKwh
+      atual.prognostico += m.prognosticoKwh ?? u.prognosticoKwhMes ?? 0
+      atual.parcial = atual.parcial || Boolean(m.parcial)
+      meses.set(i, atual)
+    })
+  }
+  const yy = String(ano || 2026).slice(2)
+  return [...meses.entries()].sort(([x], [y]) => x - y).map(([i, v]) => ({ nome: `${MESES_ABREV[i]}/${yy}${v.parcial ? ' (parcial)' : ''}`, valor: Math.round(v.geracao), extra: Math.round(v.prognostico) }))
+}
+
 export const FILTROS_PADRAO: Filtros = { ano: ANO_PADRAO, mes: '', vendedor: '', uf: '' }
 
 export interface Barra { nome: string; valor: number; extra?: number }
 
-const MESES_2026 = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 /**
  * Nome em texto. Os dados vêm do armazenamento sincronizado e já chegaram com o
  * vendedor como objeto do usuário ({ nome, … }) em vez de texto: aceita os dois
@@ -178,18 +202,7 @@ export function calcularPainel(f: Fontes, filtros: Filtros) {
   // Usinas
   const usinas = (f.usinas ?? []).filter((u) => igual(u.estado, filtros.uf))
   const comDesempenho = usinas.filter((u) => u.desempenhoMedio3mPct != null)
-  const meses = new Map<string, { geracao: number; prognostico: number }>()
-  for (const u of usinas) {
-    for (const m of u.mensal2026 ?? []) {
-      if (!m.geracaoKwh) continue
-      const atual = meses.get(m.mes) ?? { geracao: 0, prognostico: 0 }
-      atual.geracao += m.geracaoKwh
-      atual.prognostico += u.prognosticoKwhMes ?? 0
-      meses.set(m.mes, atual)
-    }
-  }
-  const ordemMes = (m: string) => MESES_2026.indexOf(m.slice(0, 3).toLowerCase())
-  const geracao = [...meses.entries()].filter(([mes]) => ordemMes(mes) >= 0).sort(([a], [b]) => ordemMes(a) - ordemMes(b)).map(([mes, v]) => ({ nome: `${MESES_2026[ordemMes(mes)]}/26`, valor: Math.round(v.geracao), extra: Math.round(v.prognostico) }))
+  const geracao = serieGeracaoUsinas(usinas)
   const statusUsinas = ['Dentro do esperado', 'Atenção', 'Crítico', 'Sem dado'].map((s) => ({ nome: s, valor: usinas.filter((u) => (u.statusDesempenho ?? 'Sem dado') === s).length }))
 
   // Tarefas (estado atual; não têm vendedor nem UF)

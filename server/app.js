@@ -7,6 +7,7 @@ import { mapVenda, mapProjeto, normalizarProjetoLido, mapProposta, mapTarefa, ma
 import { stripSensitive } from './sanitize.js'
 import { dealsEnriquecido, salesEnriquecido, usinasRelatorio } from './enrichment.js'
 import { solarzListarUsinas } from './solarzClient.js'
+import { lerSolarzArmazenada } from './solarzSync.js'
 import { pietaResumo, pietaDetalheProjeto, pietaConfigurada } from './pietaClient.js'
 import { calcularMetricasPieta } from './pietaMetricas.js'
 import { lerPietaArmazenada } from './pietaSync.js'
@@ -407,6 +408,23 @@ app.get('/api/raw/tarefas', async (_req, res) => {
 
 // --- SolarZ (monitoramento de usinas instaladas) ---
 
+/** Origem dos dados para o aviso da tela: quantas usinas vêm da SolarZ (banco) e de quando. */
+function resumirOrigemSolarz(usinas, armazenada) {
+  const aoVivo = usinas.filter((u) => u.fonte === 'solarz')
+  const datas = aoVivo.map((u) => u.dadoEm).filter(Boolean).sort()
+  const porTipo = armazenada?.tickets?.porTipo ?? {}
+  return {
+    usinasSolarz: aoVivo.length,
+    usinasRelatorio: usinas.length - aoVivo.length,
+    solarzAtualizadoEm: datas.length ? datas[datas.length - 1] : null,
+    relatorioExtraidoEm: usinasRelatorio.extraidoEm ?? null,
+    ticketsDisponiveis: Boolean(armazenada?.tickets),
+    ticketsAbertos: armazenada?.tickets?.total ?? null,
+    ticketsAbertosPorTipo: porTipo,
+    farolHistorico: armazenada?.farolHistorico ?? [],
+  }
+}
+
 app.get('/api/raw/usinas', async (_req, res) => {
   // Bug real (22/09/2026): a SolarZ (monitoramento ao vivo) recusando a
   // autenticação (401 — credencial expirada/regenerada no painel deles)
@@ -426,10 +444,20 @@ app.get('/api/raw/usinas', async (_req, res) => {
         : `Não foi possível atualizar o status ao vivo da SolarZ (${err.message}). Os dados abaixo são do último relatório importado.`
   }
 
+  // Dado ao vivo guardado pela carga diária (Neon). Sem banco ou com falha: segue só com o relatório.
+  let armazenada = null
+  try {
+    const pg = getPgSql()
+    if (pg) armazenada = await cached('solarz-armazenada', TTL_MS, () => lerSolarzArmazenada(pg))
+  } catch (err) {
+    console.error('[SolarZ] falha ao ler a carga guardada — seguindo só com o relatório:', err.message)
+  }
+
   try {
     const mapeadas = usinasAoVivo.map(mapUsina)
-    const completas = usinasRelatorio.usinas?.length ? mesclarUsinasComRelatorio(mapeadas, usinasRelatorio) : mapeadas
-    res.json(stripSensitive({ usinas: completas, avisoIntegracaoSolarZ }))
+    const extra = armazenada?.registros?.length ? { registros: armazenada.registros, unidades: armazenada.unidades, tickets: armazenada.tickets, simples: armazenada.simples } : {}
+    const completas = usinasRelatorio.usinas?.length ? mesclarUsinasComRelatorio(mapeadas, usinasRelatorio, extra) : mapeadas
+    res.json(stripSensitive({ usinas: completas, avisoIntegracaoSolarZ, origemDados: resumirOrigemSolarz(completas, armazenada) }))
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })

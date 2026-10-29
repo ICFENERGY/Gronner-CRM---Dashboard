@@ -1,3 +1,5 @@
+import { derivarRegistro } from './solarzMetricas.js'
+
 /**
  * Cada mapper aqui é uma allowlist explícita de campos do Groner.
  * Alguns recursos (PreProposta, sobretudo) embutem objetos gigantes com
@@ -492,8 +494,8 @@ export function mapPietaProjetoDetalhe(p) {
 
 /**
  * A SolarZ embute o objeto completo do cliente em cada usina, incluindo CPF,
- * e-mail e telefone. Mantemos só o nome (para casar visualmente com o
- * cliente já conhecido do Groner) e a concessionária; o resto fica de fora.
+ * e-mail e telefone, mais logradouro/bairro/CEP e o responsável. Mantemos só o
+ * nome do cliente (para casar com o Groner), a concessionária, cidade e UF; o resto fica de fora.
  */
 export function mapUsina(p) {
   return {
@@ -508,13 +510,21 @@ export function mapUsina(p) {
     concessionaria: p.cliente?.concessionaria ?? null,
     cidade: p.endereco?.cidade ?? null,
     estado: p.endereco?.siglaEstado ?? null,
-    cep: p.endereco?.cep ?? null,
     latitude: p.endereco?.latitude ?? null,
     longitude: p.endereco?.longitude ?? null,
   }
 }
 
-function normalizeNomeUsina(nome) {
+export const OBS_SEM_PREMIUM = 'sem monitoramento premium — dados do último levantamento'
+export const OBS_COMPLEMENTAR = 'requer complementação manual'
+
+/** Usina sem cliente vinculado: cidade, UF e concessionária ficam como "Pendente". */
+function pendente(u) {
+  if (u.cliente) return u
+  return { ...u, cidade: u.cidade ?? 'Pendente', estado: u.estado ?? 'Pendente', concessionaria: u.concessionaria ?? 'Pendente' }
+}
+
+export function normalizeNomeUsina(nome) {
   return (nome ?? '')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -523,15 +533,78 @@ function normalizeNomeUsina(nome) {
     .toUpperCase()
 }
 
+/** Campos derivados do registro guardado pela carga diária (dado ao vivo do banco). */
+function camposAoVivo(registro, agora) {
+  const d = derivarRegistro(registro, agora)
+  const temEnergia = (registro.meses ?? []).length > 0
+  return {
+    anoMensal: d.anoMensal,
+    mensal: temEnergia ? d.mensal : null,
+    mesAnoRecente: d.mesAnoRecente,
+    geracaoKwhMes: d.geracaoKwhMes,
+    prognosticoKwhMes: d.prognosticoKwhMes,
+    desempenhoMesPct: d.desempenhoMesPct,
+    desempenho30dPct: d.desempenho30dPct,
+    desempenho12mPct: d.desempenho12mPct,
+    desempenhoMedio3mPct: d.desempenhoMedio3mPct,
+    statusDesempenho: temEnergia && d.desempenhoMedio3mPct != null ? d.statusDesempenho : null,
+    totalInvestido: registro.totalInvestido ?? null,
+    temEnergia,
+  }
+}
+
+/** Substitui, campo a campo, o que o relatório tem pelo que veio ao vivo (nulo ao vivo mantém o relatório). */
+function aplicarAoVivo(base, ao) {
+  const out = { ...base }
+  for (const k of ['mesAnoRecente', 'geracaoKwhMes', 'prognosticoKwhMes', 'desempenhoMesPct', 'desempenho30dPct', 'desempenho12mPct', 'desempenhoMedio3mPct', 'statusDesempenho', 'totalInvestido']) {
+    if (ao[k] != null) out[k] = ao[k]
+  }
+  if (ao.mensal) { out.mensal = ao.mensal; out.anoMensal = ao.anoMensal }
+  return out
+}
+
 /**
  * A API ao vivo da SolarZ só retorna usinas com monitoramento premium
- * (~52 de 126). O relatório mensal exportado do painel cobre todas as 126,
- * com geração/desempenho Jan-Dez/26 e status de desempenho — mas é um
- * snapshot estático. Aqui usamos o relatório como base (todas as usinas) e
- * sobrepomos o status de monitoramento em tempo real da API quando a usina
- * casa por nome (normalizado, sem acento).
+ * (59 de 139 na conta; o relatório mensal exportado do painel cobre 126),
+ * com geração/desempenho Jan-Dez/26 - mas é um snapshot estático. Aqui o relatório é a base
+ * (todas as usinas) e, para cada usina, os dados ao vivo substituem os do relatório:
+ *  1. status de monitoramento em tempo real (chamada da requisição);
+ *  2. dados guardados pela carga diária no banco (extra.registros): produção mensal, prognóstico, desempenhos,
+ *     status, total investido; UCs (extra.unidades) e tickets abertos (extra.tickets).
+ * Casamento por id SolarZ; sem id, por nome normalizado (sem acento). Cada usina leva `fonte`
+ * ('solarz' com dado do banco, 'relatorio' sem) e `dadoEm` (ISO do dado usado).
+ * Sem `extra` o resultado é o de antes (só relatório + status ao vivo).
  */
-export function mesclarUsinasComRelatorio(usinasAoVivo, relatorio) {
+export function mesclarUsinasComRelatorio(usinasAoVivo, relatorio, extra = {}) {
+  const agora = extra.agora ?? new Date()
+  const registros = extra.registros ?? []
+  const porIdReg = new Map(registros.filter((r) => r.solarzId != null).map((r) => [String(r.solarzId), r]))
+  const porNomeReg = new Map()
+  for (const r of registros) {
+    const k = normalizeNomeUsina(r.nome)
+    if (k && !porNomeReg.has(k)) porNomeReg.set(k, r)
+  }
+  const regUsados = new Set()
+  const acharRegistro = (id, nome) => {
+    const r = (id != null ? porIdReg.get(String(id)) : null) ?? porNomeReg.get(normalizeNomeUsina(nome)) ?? null
+    return r && !regUsados.has(r) ? r : null
+  }
+  const unidadesPorId = extra.unidades?.porUsina ?? {}
+  const unidadesPorNome = new Map(Object.values(unidadesPorId).map((u) => [normalizeNomeUsina(u.nome), u]))
+  const temTickets = Boolean(extra.tickets)
+  const ticketsPorId = extra.tickets?.porUsina ?? {}
+  const ticketsPorNome = new Map(Object.values(ticketsPorId).map((t) => [normalizeNomeUsina(t.nome), t]))
+  const complementos = (id, nome) => {
+    const uc = (id != null ? unidadesPorId[String(id)] : null) ?? unidadesPorNome.get(normalizeNomeUsina(nome)) ?? null
+    const tk = (id != null ? ticketsPorId[String(id)] : null) ?? ticketsPorNome.get(normalizeNomeUsina(nome)) ?? null
+    return {
+      unidadesConsumidoras: extra.unidades ? (uc?.ucs ?? []).map((u) => u.codigo) : null,
+      ticketsAbertos: temTickets ? (tk?.total ?? 0) : null,
+      ticketsAbertosPorTipo: temTickets ? (tk?.porTipo ?? {}) : null,
+      ticketsAfetamDesempenho: temTickets ? (tk?.afetamDesempenho ?? 0) : null,
+    }
+  }
+
   const porNome = new Map()
   for (const u of usinasAoVivo) {
     const chave = normalizeNomeUsina(u.nome)
@@ -545,18 +618,21 @@ export function mesclarUsinasComRelatorio(usinasAoVivo, relatorio) {
     const candidatos = porNome.get(chave) ?? []
     const aoVivo = candidatos.find((c) => !usadas.has(c)) ?? null
     if (aoVivo) usadas.add(aoVivo)
+    const registro = acharRegistro(aoVivo?.id, r.nome)
+    if (registro) regUsados.add(registro)
+    const idUsina = aoVivo?.id ?? registro?.solarzId ?? null
 
-    return {
-      id: aoVivo?.id ?? null,
+    const base = {
+      id: idUsina,
       nome: r.nome,
       cliente: r.cliente,
       totalInvestido: r.totalInvestido,
-      concessionaria: r.concessionaria ?? aoVivo?.concessionaria ?? null,
-      cidade: r.cidade ?? aoVivo?.cidade ?? null,
-      estado: r.estado ?? aoVivo?.estado ?? null,
+      concessionaria: r.concessionaria ?? aoVivo?.concessionaria ?? registro?.concessionaria ?? null,
+      cidade: r.cidade ?? aoVivo?.cidade ?? registro?.cidade ?? null,
+      estado: r.estado ?? aoVivo?.estado ?? registro?.estado ?? null,
       classe: r.classe,
       plano: r.plano,
-      potenciaKwp: r.potenciaKwp ?? aoVivo?.potenciaInstalada ?? null,
+      potenciaKwp: r.potenciaKwp ?? aoVivo?.potenciaInstalada ?? registro?.potenciaKwp ?? null,
       mesAnoRecente: r.mesAnoRecente,
       prognosticoKwhMes: r.prognosticoKwhMes,
       geracaoKwhMes: r.geracaoKwhMes,
@@ -565,43 +641,99 @@ export function mesclarUsinasComRelatorio(usinasAoVivo, relatorio) {
       desempenho12mPct: r.desempenho12mPct,
       desempenhoMedio3mPct: r.desempenhoMedio3mPct,
       statusDesempenho: r.statusDesempenho,
-      dataInstalacao: r.dataInstalacao ?? aoVivo?.dataInstalacao ?? null,
-      mensal2026: r.mensal2026,
+      dataInstalacao: r.dataInstalacao ?? aoVivo?.dataInstalacao ?? registro?.dataInstalacao ?? null,
+      anoMensal: 2026,
+      mensal: r.mensal2026,
       observacao: r.observacao,
-      statusMonitoramento: aoVivo?.status ?? null,
-      statusMonitoramentoEm: aoVivo?.statusEm ?? null,
-      energiaGeradaAcumuladaKwh: aoVivo?.energiaGeradaKwh ?? null,
+      statusMonitoramento: aoVivo?.status ?? registro?.statusMonitoramento ?? null,
+      statusMonitoramentoEm: aoVivo?.statusEm ?? registro?.statusMonitoramentoEm ?? null,
+      energiaGeradaAcumuladaKwh: aoVivo?.energiaGeradaKwh ?? registro?.energiaGeradaAcumuladaKwh ?? null,
       latitude: aoVivo?.latitude ?? null,
       longitude: aoVivo?.longitude ?? null,
     }
+    const ao = registro ? camposAoVivo(registro, agora) : null
+    const solarz = Boolean(ao?.temEnergia)
+    const comDado = solarz ? aplicarAoVivo(base, ao) : base
+    // Com a carga da SolarZ presente, quem ficou sem dado ao vivo não tem monitoramento premium (a API responde "Essa usina não é premium").
+    const semPremium = registros.length > 0 && !solarz
+    const observacao = semPremium ? (comDado.observacao ? `${OBS_SEM_PREMIUM}; ${comDado.observacao}` : OBS_SEM_PREMIUM) : comDado.observacao
+    return {
+      ...pendente(comDado),
+      observacao,
+      mensal2026: comDado.anoMensal === 2026 ? comDado.mensal : r.mensal2026, // compatibilidade com quem lê o campo antigo
+      fonte: solarz ? 'solarz' : 'relatorio',
+      dadoEm: solarz ? registro.buscadoEm : relatorio.extraidoEm ?? null,
+      ...complementos(idUsina, r.nome),
+    }
   })
 
-  // Usinas que a API retorna mas que por algum motivo não estão no relatório
+  // Usinas que a API retorna (ou que a carga guardou) mas que não estão no relatório
   // (relatório desatualizado) ainda entram, para não perder dado ao vivo.
+  const extras = []
   for (const u of usinasAoVivo) {
-    if (!usadas.has(u)) {
-      usinas.push({
-        ...u,
-        cliente: u.clienteNome,
-        totalInvestido: null,
-        classe: null,
-        plano: null,
-        potenciaKwp: u.potenciaInstalada,
-        mesAnoRecente: null,
-        prognosticoKwhMes: null,
-        geracaoKwhMes: null,
-        desempenhoMesPct: null,
-        desempenho30dPct: null,
-        desempenho12mPct: null,
-        desempenhoMedio3mPct: null,
-        statusDesempenho: 'Sem dado',
-        mensal2026: null,
-        observacao: 'Usina identificada apenas na API ao vivo (fora do último relatório mensal).',
-        statusMonitoramento: u.status,
-        statusMonitoramentoEm: u.statusEm,
-        energiaGeradaAcumuladaKwh: u.energiaGeradaKwh,
-      })
-    }
+    if (usadas.has(u)) continue
+    const registro = acharRegistro(u.id, u.nome)
+    if (registro) regUsados.add(registro)
+    extras.push({ aoVivo: u, registro })
+  }
+  for (const registro of registros) {
+    if (regUsados.has(registro)) continue
+    regUsados.add(registro)
+    extras.push({ aoVivo: null, registro })
+  }
+  for (const { aoVivo: u, registro } of extras) {
+    const nome = u?.nome ?? registro.nome
+    const ao = registro ? camposAoVivo(registro, agora) : null
+    const dados = ao?.temEnergia ? ao : null
+    const idUsina = u?.id ?? registro?.solarzId ?? null
+    usinas.push(pendente({
+      id: idUsina,
+      nome,
+      cliente: u?.clienteNome ?? registro?.clienteNome ?? null,
+      totalInvestido: dados?.totalInvestido ?? null,
+      concessionaria: u?.concessionaria ?? registro?.concessionaria ?? null,
+      cidade: u?.cidade ?? registro?.cidade ?? null,
+      estado: u?.estado ?? registro?.estado ?? null,
+      classe: null,
+      plano: null,
+      potenciaKwp: u?.potenciaInstalada ?? registro?.potenciaKwp ?? null,
+      mesAnoRecente: dados?.mesAnoRecente ?? null,
+      prognosticoKwhMes: dados?.prognosticoKwhMes ?? null,
+      geracaoKwhMes: dados?.geracaoKwhMes ?? null,
+      desempenhoMesPct: dados?.desempenhoMesPct ?? null,
+      desempenho30dPct: dados?.desempenho30dPct ?? null,
+      desempenho12mPct: dados?.desempenho12mPct ?? null,
+      desempenhoMedio3mPct: dados?.desempenhoMedio3mPct ?? null,
+      statusDesempenho: dados?.statusDesempenho ?? 'Sem dado',
+      dataInstalacao: u?.dataInstalacao ?? registro?.dataInstalacao ?? null,
+      anoMensal: dados?.anoMensal ?? null,
+      mensal: dados?.mensal ?? null,
+      mensal2026: dados && dados.anoMensal === 2026 ? dados.mensal : null,
+      observacao: dados ? 'Usina identificada apenas na API ao vivo (fora do último relatório mensal).' : (registro?.indisponiveis ?? []).includes('energia') ? OBS_SEM_PREMIUM : OBS_COMPLEMENTAR,
+      statusMonitoramento: u?.status ?? registro?.statusMonitoramento ?? null,
+      statusMonitoramentoEm: u?.statusEm ?? registro?.statusMonitoramentoEm ?? null,
+      energiaGeradaAcumuladaKwh: u?.energiaGeradaKwh ?? registro?.energiaGeradaAcumuladaKwh ?? null,
+      latitude: u?.latitude ?? null,
+      longitude: u?.longitude ?? null,
+      fonte: dados ? 'solarz' : 'relatorio',
+      dadoEm: dados ? registro.buscadoEm : null,
+      ...complementos(idUsina, nome),
+    }))
+  }
+
+  // Usinas da conta que não estão no relatório nem na listagem premium (sem monitoramento): entram para fechar o total do parque.
+  const conhecidos = new Set(usinas.map((u) => normalizeNomeUsina(u.nome)))
+  const idsConhecidos = new Set(usinas.map((u) => String(u.id)))
+  for (const s of extra.simples?.usinas ?? []) {
+    if (s.arquivada || idsConhecidos.has(String(s.id)) || conhecidos.has(normalizeNomeUsina(s.nome))) continue
+    conhecidos.add(normalizeNomeUsina(s.nome))
+    usinas.push(pendente({
+      id: s.id, nome: s.nome, cliente: null, totalInvestido: null, concessionaria: null, cidade: null, estado: null, classe: null, plano: null, potenciaKwp: null,
+      mesAnoRecente: null, prognosticoKwhMes: null, geracaoKwhMes: null, desempenhoMesPct: null, desempenho30dPct: null, desempenho12mPct: null,
+      desempenhoMedio3mPct: null, statusDesempenho: 'Sem dado', dataInstalacao: null, anoMensal: null, mensal: null, mensal2026: null,
+      observacao: s.premium ? OBS_COMPLEMENTAR : `${OBS_SEM_PREMIUM}; ${OBS_COMPLEMENTAR}`, statusMonitoramento: null, statusMonitoramentoEm: null,
+      energiaGeradaAcumuladaKwh: null, latitude: null, longitude: null, fonte: 'relatorio', dadoEm: null, ...complementos(s.id, s.nome),
+    }))
   }
 
   return usinas

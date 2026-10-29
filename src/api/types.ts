@@ -67,6 +67,10 @@ export interface UsinaMensal {
   mes: string
   geracaoKwh: number | null
   desempenhoPct: number | null
+  /** Prognóstico (kWh) do mês; só nos dados vindos da SolarZ. */
+  prognosticoKwh?: number | null
+  /** Mês corrente: geração parcial, sem desempenho. */
+  parcial?: boolean
 }
 
 export interface UsinaRaw {
@@ -89,7 +93,18 @@ export interface UsinaRaw {
   desempenhoMedio3mPct: number | null
   statusDesempenho: string | null
   dataInstalacao: string | null
+  /** Ano da série `mensal` (ano corrente nos dados da SolarZ; 2026 no relatório estático). */
+  anoMensal?: number | null
+  mensal?: UsinaMensal[] | null
+  /** Campo antigo, igual a `mensal` quando o ano é 2026. */
   mensal2026: UsinaMensal[] | null
+  /** 'solarz' = dado ao vivo guardado pela carga diária; 'relatorio' = relatório estático. */
+  fonte?: 'solarz' | 'relatorio'
+  dadoEm?: string | null
+  unidadesConsumidoras?: string[] | null
+  ticketsAbertos?: number | null
+  ticketsAbertosPorTipo?: Record<string, number> | null
+  ticketsAfetamDesempenho?: number | null
   observacao: string | null
   statusMonitoramento: string | null
   statusMonitoramentoEm: string | null
@@ -273,4 +288,17 @@ export interface UsinasRawResponse {
   usinas: UsinaRaw[]
   /** Aviso não-bloqueante — ex.: SolarZ recusou a credencial (401) e os dados abaixo vêm só do relatório importado. */
   avisoIntegracaoSolarZ: string | null
+  origemDados?: UsinasOrigemDados
+}
+
+export interface UsinasOrigemDados {
+  usinasSolarz: number
+  usinasRelatorio: number
+  solarzAtualizadoEm: string | null
+  relatorioExtraidoEm: string | null
+  ticketsDisponiveis: boolean
+  ticketsAbertos: number | null
+  ticketsAbertosPorTipo: Record<string, number>
+  /** Foto diária das contagens do farol de monitoramento. */
+  farolHistorico: { data: string; total: number; contagens: Record<string, number> }[]
 }

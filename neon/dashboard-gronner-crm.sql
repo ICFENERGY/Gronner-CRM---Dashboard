@@ -26,7 +26,7 @@ begin;
 --      acao       ação combinada ativa de um card da Engenharia
 --      acao_log   últimas 20 versões da ação de um card (dados = array)
 --      config     configuração de prazos da Engenharia
---    entidade: projetos | tarefas | propostas | vendas | engenharia | pieta_projetos
+--    entidade: projetos | tarefas | propostas | vendas | engenharia | pieta_projetos | solarz_usinas
 -- -----------------------------------------------------------------------------
 create table if not exists public."DASHBOARD-GRONNER-CRM" (
   tipo          text        not null,
@@ -44,15 +44,15 @@ create table if not exists public."DASHBOARD-GRONNER-CRM" (
     'acao', 'acao_log', 'config'
   )),
   constraint dashboard_gronner_crm_entidade_chk check (entidade in (
-    'projetos', 'tarefas', 'propostas', 'vendas', 'engenharia', 'pieta_projetos'
+    'projetos', 'tarefas', 'propostas', 'vendas', 'engenharia', 'pieta_projetos', 'solarz_usinas'
   )),
   constraint dashboard_gronner_crm_chave_chk check (char_length(chave) between 1 and 200)
 );
 
--- Migração (idempotente): acrescenta a entidade da Pieta em bancos criados antes dela.
+-- Migração (idempotente): acrescenta as entidades da Pieta e da SolarZ em bancos criados antes delas.
 alter table public."DASHBOARD-GRONNER-CRM" drop constraint if exists dashboard_gronner_crm_entidade_chk;
 alter table public."DASHBOARD-GRONNER-CRM" add constraint dashboard_gronner_crm_entidade_chk check (entidade in (
-  'projetos', 'tarefas', 'propostas', 'vendas', 'engenharia', 'pieta_projetos'
+  'projetos', 'tarefas', 'propostas', 'vendas', 'engenharia', 'pieta_projetos', 'solarz_usinas'
 ));
 
 comment on table public."DASHBOARD-GRONNER-CRM" is

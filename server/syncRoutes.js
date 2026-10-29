@@ -131,7 +131,27 @@ async function sincronizarPietaPadrao() {
   return sincronizarPieta({ pg, resumo: () => pietaResumo(), detalhe: (id) => pietaDetalheProjeto(id) })
 }
 
-export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {}, onChanged = () => {}, buscarGroner = buscarGronerPadrao, buscarTudo = buscarTudoPadrao, sincronizarPieta = sincronizarPietaPadrao } = {}) {
+/** Carga diária da SolarZ (Open API), carregada só quando usada. Sem credencial ou sem Postgres não grava nada. */
+async function sincronizarSolarzPadrao() {
+  if (!process.env.SOLARZ_USER || !process.env.SOLARZ_PASSWORD) return { ok: false, motivo: 'sem credencial' }
+  const { getPgSql } = await import('./pgSql.js')
+  const pg = getPgSql()
+  if (!pg) return { ok: false, motivo: 'sem armazenamento Postgres' }
+  const c = await import('./solarzClient.js')
+  const { sincronizarSolarz } = await import('./solarzSync.js')
+  return sincronizarSolarz({
+    pg,
+    listarUsinas: () => c.solarzListarUsinasCompleto(),
+    energia: (id, ano) => c.solarzEnergiaAno(id, ano),
+    desempenho: (id) => c.solarzDesempenho(id),
+    relatorio: (id, ini, fim) => c.solarzRelatorioPeriodo(id, ini, fim),
+    unidades: () => c.solarzListarUnidades(),
+    tickets: () => c.solarzListarTicketsAbertos(),
+    simples: () => c.solarzListarSimples(),
+  })
+}
+
+export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {}, onChanged = () => {}, buscarGroner = buscarGronerPadrao, buscarTudo = buscarTudoPadrao, sincronizarPieta = sincronizarPietaPadrao, sincronizarSolarz = sincronizarSolarzPadrao } = {}) {
   const router = express.Router()
 
   /** Carga completa de uma entidade numa chamada: busca tudo, upsertBatch em lotes de 50 e finalize. */
@@ -199,6 +219,19 @@ export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {
       console.error('[sync] pieta falhou:', err.message)
       const cliente = err.status && err.status < 500
       res.status(cliente ? err.status : 502).json({ error: cliente ? err.message : 'Não foi possível sincronizar a Pieta' })
+    }
+  })
+
+  // Carga diária da SolarZ (Vercel Cron). Sem credencial: 200 com ok:false e nada é gravado.
+  router.all('/solarz', authenticateCompleta, async (_req, res) => {
+    try {
+      const resultado = await sincronizarSolarz()
+      console.info('[sync] solarz', resultado)
+      res.json(resultado)
+    } catch (err) {
+      console.error('[sync] solarz falhou:', err.message)
+      const cliente = err.status && err.status < 500 && err.status !== 401 && err.status !== 403
+      res.status(cliente ? err.status : 502).json({ error: cliente ? err.message : 'Não foi possível sincronizar a SolarZ' })
     }
   })
 
