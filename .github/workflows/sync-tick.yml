@@ -2,8 +2,10 @@ name: sync-tick
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'
+  # Pausado: token do Groner bloqueado até 01/11/2026 11:24 (consulta em massa).
+  # Para retomar, descomente o schedule abaixo.
+  # schedule:
+  #   - cron: '*/5 * * * *'
 
 concurrency:
   group: sync-tick
