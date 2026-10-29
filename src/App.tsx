@@ -3,7 +3,7 @@ import { api } from './api/client'
 import { useRawData } from './api/useRawData'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout, type AbaItem } from './components/Layout'
-import { PainelPage } from './features/painel/PainelPage'
+import { VisaoGeralPage } from './features/visao/VisaoGeralPage'
 import { useTheme } from './hooks/useTheme'
 import { EngenhariaPage } from './pages/EngenhariaPage'
 import { IndicadorTarefasPage } from './pages/IndicadorTarefasPage'
@@ -13,14 +13,15 @@ import { ValidacaoCadastroPage } from './pages/ValidacaoCadastroPage'
 import { VendasPage } from './pages/VendasPage'
 
 export type Aba = 'geral' | 'engenharia' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento' | 'pieta'
-const ABAS: { k: Aba; rotulo: string }[] = [
+/** Visão geral primeiro; depois o detalhe de cada bloco; por fim as ferramentas de apoio (secundárias). */
+const ABAS: { k: Aba; rotulo: string; secundaria?: boolean }[] = [
   { k: 'geral', rotulo: 'Visão geral' },
+  { k: 'vendas', rotulo: 'Comercial' },
   { k: 'engenharia', rotulo: 'Engenharia' },
-  { k: 'vendas', rotulo: 'Vendas' },
-  { k: 'cadastro', rotulo: 'Validação de cadastro' },
-  { k: 'tarefas', rotulo: 'Indicador de tarefas' },
-  { k: 'monitoramento', rotulo: 'Monitoramento solar' },
-  { k: 'pieta', rotulo: 'Pieta (PIEP)' },
+  { k: 'monitoramento', rotulo: 'Usinas' },
+  { k: 'pieta', rotulo: 'Homologação' },
+  { k: 'tarefas', rotulo: 'Tarefas', secundaria: true },
+  { k: 'cadastro', rotulo: 'Cadastro', secundaria: true },
 ]
 
 /**
@@ -85,14 +86,12 @@ export default function App() {
       aba={aba}
       onAba={irParaAba}
       onModoReuniao={abrirReuniao}
-      alertCount={tarefasAtrasadas}
-      onAlerta={() => irParaAba('tarefas')}
       theme={theme}
       onToggleTheme={toggleTheme}
     >
       {/* Um erro de renderização numa aba mostra um aviso, nunca a tela em branco. */}
       <ErrorBoundary key={aba}>
-        {aba === 'geral' && <PainelPage onModoReuniao={abrirReuniao} onAba={irParaAba} />}
+        {aba === 'geral' && <VisaoGeralPage onModoReuniao={abrirReuniao} onAba={irParaAba} />}
         {/* Com a reunião aberta, a Engenharia só monta dentro dela (evita duas buscas em paralelo). */}
         {aba === 'engenharia' && !reuniao && <EngenhariaPage base="engenharia" />}
         {aba === 'vendas' && <VendasPage />}

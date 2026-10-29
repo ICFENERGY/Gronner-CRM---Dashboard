@@ -80,6 +80,8 @@ export interface Painel {
   concessionarias: { nome: string; n: number }[]
   homologacao: number
   vendas: { mes: string; n: number; kwp: number }[]
+  /** Encerrados por mês (data do último status no Groner), últimos 12 meses. */
+  concluidosPorMes?: { mes: string; n: number }[]
   preenchimento: { campo: string; rotulo: string; grupo: 'cheio' | 'vazio'; pct: number }[]
 }
 

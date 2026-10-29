@@ -20,7 +20,13 @@ function mediana(v) {
   const m = Math.floor(o.length / 2)
   return arred(o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2)
 }
-const dia = (s) => (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null)
+/** Dia AAAA-MM-DD. A API real manda o prazo (due_date) como "dd/mm/aaaa"; as demais datas, em ISO. */
+export const dia = (s) => {
+  if (typeof s !== 'string') return null
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const br = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s)
+  return br ? `${br[3]}-${br[2]}-${br[1]}` : null
+}
 const diasEntre = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DIA_MS)
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
 

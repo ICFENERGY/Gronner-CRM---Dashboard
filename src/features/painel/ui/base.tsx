@@ -59,19 +59,6 @@ export function Kpi({
   )
 }
 
-/** Bloco de uma área (Comercial, Engenharia, Financeiro): faixa colorida com o título e os cartões dentro. */
-export function BlocoArea({ area, subtitulo, children }: { area: string; subtitulo: string; children: ReactNode }) {
-  return (
-    <section aria-label={area} className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg)] shadow-sm">
-      <header className="flex flex-wrap items-baseline gap-x-3 px-4 py-2 text-[#0b1f33]" style={{ background: FAIXA[area] ?? 'var(--cat-1)' }}>
-        <h2 className="text-sm font-bold uppercase tracking-wide">{area}</h2>
-        <p className="text-xs">{subtitulo}</p>
-      </header>
-      <div className="grid gap-3 p-3 md:grid-cols-2">{children}</div>
-    </section>
-  )
-}
-
 export interface LinhaTabela { nome: string; valores: (string | number)[] }
 
 /**

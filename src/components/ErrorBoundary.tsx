@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-/** Chave dos filtros da Visão geral no armazenamento local (ver PainelPage). */
-export const CHAVE_FILTROS_PAINEL = 'painel:filtros'
+/** Chave dos filtros da Visão geral no armazenamento local (ver VisaoGeralPage). */
+export const CHAVE_FILTROS_PAINEL = 'visao:filtros'
 
 /** Apaga os filtros salvos (podem ser a causa do erro) e recarrega a página. */
 export function limparFiltrosERecarregar() {

@@ -14,7 +14,7 @@ export type Detalhe =
   | { tipo: 'projetos'; titulo: string; etapa?: string }
   | { tipo: 'engenharia'; titulo: string; marco?: string; concessionaria?: string; somenteAtrasados?: boolean; alemDaMeta?: boolean; momento?: string; situacao?: string }
   | { tipo: 'tarefas'; titulo: string; responsavel?: string }
-  | { tipo: 'usinas'; titulo: string; status?: string }
+  | { tipo: 'usinas'; titulo: string; status?: string; monitoramento?: string[] }
   | { tipo: 'analise'; titulo: string; pagina: 'geral' | 'vendas' | 'cadastro' | 'tarefas' | 'monitoramento' | 'pieta' }
 
 function Tabela<T>({ linhas, colunas, chave, vazio = 'Nada para mostrar.' }: { linhas: T[]; colunas: { rotulo: string; dir?: boolean; render: (x: T) => ReactNode }[]; chave: (x: T) => string | number; vazio?: string }) {
@@ -143,7 +143,7 @@ export function ConteudoDetalhe({ detalhe, painel, onModoReuniao }: { detalhe: D
   }
 
   if (detalhe.tipo === 'usinas') {
-    const linhas = painel.usinas.filter((u) => !detalhe.status || (u.statusDesempenho ?? 'Sem dado') === detalhe.status)
+    const linhas = painel.usinas.filter((u) => (!detalhe.status || (u.statusDesempenho ?? 'Sem dado') === detalhe.status) && (!detalhe.monitoramento || detalhe.monitoramento.includes(u.statusMonitoramento ?? '')))
     return (
       <>
         <Resumo>{linhas.length} usinas</Resumo>
@@ -153,7 +153,7 @@ export function ConteudoDetalhe({ detalhe, painel, onModoReuniao }: { detalhe: D
           { rotulo: 'Potência', dir: true, render: (u) => (u.potenciaKwp != null ? `${number.format(u.potenciaKwp)} kWp` : '—') },
           { rotulo: 'Desempenho 3M', dir: true, render: (u) => (u.desempenhoMedio3mPct != null ? `${Math.round(u.desempenhoMedio3mPct * 100)}%` : '—') },
           { rotulo: 'Status', render: (u) => u.statusDesempenho ?? 'Sem dado' },
-          { rotulo: 'Monitoramento', render: (u) => u.statusMonitoramento ?? '—' },
+          { rotulo: 'Farol SolarZ', render: (u) => ({ OK: 'Normal', ALERTA: 'Com alerta', CRITICO: 'Crítico' } as Record<string, string>)[u.statusMonitoramento ?? ''] ?? '—' },
         ]} />
       </>
     )

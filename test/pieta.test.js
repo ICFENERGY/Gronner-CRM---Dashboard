@@ -407,3 +407,16 @@ test('rota /pieta: exige chave e, sem credencial da Pieta, devolve 200 ok:false'
   const cron = await chamarRota({ sincronizarPieta: async () => ({ ok: true, buscados: 3 }) }, { Authorization: 'Bearer cron' })
   assert.deepEqual(cron.corpo, { ok: true, buscados: 3 })
 })
+
+test('prazo no formato da API real (dd/mm/aaaa) conta como vencido', () => {
+  const agora = new Date('2026-10-29T15:00:00-03:00')
+  const registros = [
+    { projectId: 1, status: 'Em Vistoria', dueDate: '28/10/2026' },
+    { projectId: 2, status: 'Em Vistoria', dueDate: '29/10/2026' },
+    { projectId: 3, status: 'Em Homologação', dueDate: '05/11/2026' },
+  ]
+  const m = calcularMetricasPieta(registros, { agora })
+  assert.equal(m.prazoVencido.quantidade, 1)
+  assert.equal(m.prazoVencido.projetos[0].dueDate, '2026-10-28')
+  assert.equal(m.prazoVencido.projetos[0].diasAtraso, 1)
+})

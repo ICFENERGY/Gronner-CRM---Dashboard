@@ -43,6 +43,12 @@
   --st-atrasado: #d03b3b;
   --st-risco: #fab219;
   --st-ok: #0ca30c;
+  /* Visão geral: série em segundo plano (ênfase), fundo dos KPIs e texto de variação boa/ruim */
+  --viz-muted: #b9c4ce;
+  --surface-2: #f6f8f9;
+  --txt-bom: #0a7a3c;
+  --txt-ruim: #b42318;
+  --txt-risco: #8a5a00;
 }
 
 .dark {
@@ -76,6 +82,11 @@
   --st-atrasado: #e0504f;
   --st-risco: #fab219;
   --st-ok: #2fb82f;
+  --viz-muted: #4a6d8f;
+  --surface-2: #17344f;
+  --txt-bom: #5fd38a;
+  --txt-ruim: #ff8a80;
+  --txt-risco: #fbc75a;
 }
 
 body {

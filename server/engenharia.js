@@ -248,6 +248,10 @@ export function montarPainel(universo, todos, hoje) {
     const g = universo.filter((p) => String(p.dataVenda ?? '').slice(0, 7) === m)
     return { mes: m, n: g.length, kwp: soma(g, (p) => p.kwp) }
   })
+  // Encerrados (FIM) por mês da última mudança de status no Groner: a data em que o card saiu do fluxo.
+  const dataConclusao = (p) => String(p.dataUltimoStatus ?? p.dataUltimaAtualizacao ?? '').slice(0, 7)
+  const encerradosLista = universo.filter((p) => p.marco === 'FIM')
+  const concluidosPorMes = meses.map((m) => ({ mes: m, n: encerradosLista.filter((p) => dataConclusao(p) === m).length }))
 
   return {
     ativos: ativos.length,
@@ -268,6 +272,7 @@ export function montarPainel(universo, todos, hoje) {
     concessionarias: Object.entries(conc).map(([nome, n]) => ({ nome, n })).sort((a, b) => b.n - a.n).slice(0, 10),
     homologacao: homolog.length,
     vendas,
+    concluidosPorMes,
     preenchimento: CAMPOS_PREENCHIMENTO.map(([campo, rotulo, grupo]) => ({ campo, rotulo, grupo, pct: pct(universo.filter((p) => preenchido(p[campo])).length, universo.length) })),
   }
 }
