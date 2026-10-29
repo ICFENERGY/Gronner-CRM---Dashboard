@@ -197,3 +197,20 @@ export function solarzRelatorioPeriodo(plantId, inicio, fim, opcoes) {
 export async function solarzPotenciaUsina(plantId) {
   return solarzRequest(`/openApi/seller/plant/power?id=${plantId}`)
 }
+
+// ─── Leituras extras (MCP remoto da SolarZ; todas somente leitura) ───────────
+
+/** Produção diária de um mês (yyyy-MM). Só premium. */
+export function solarzEnergiaMes(plantId, yearMonth, opcoes) {
+  return solarzRequest(`/openApi/seller/plant/energy/plantId/${encodeURIComponent(plantId)}/month/${encodeURIComponent(yearMonth)}`, { method: 'POST', ...opcoes })
+}
+
+/** Produção diária num intervalo (yyyy-MM-dd, inclusivo). Só premium. */
+export function solarzEnergiaIntervalo(plantId, de, ate, opcoes) {
+  return solarzRequest('/openApi/seller/plant/energy/dayRange', { method: 'POST', body: { fromLocalDate: de, toLocalDate: ate, plantId: String(plantId) }, ...opcoes })
+}
+
+/** Assinaturas (plano e licenças disponíveis). */
+export function solarzListarAssinaturas(opcoes = {}) {
+  return solarzListarPaginado('/openApi/seller/subscription/list', { ...opcoes, rotulo: 'assinaturas' })
+}

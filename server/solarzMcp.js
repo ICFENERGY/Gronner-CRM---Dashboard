@@ -52,6 +52,16 @@ export const FERRAMENTAS = [
     inputSchema: { type: 'object', properties: { ...usinaProps, ano: { ...numero, description: 'Ex.: 2026' } } },
   },
   {
+    name: 'solarz_geracao_diaria',
+    description: 'Geração e prognóstico dia a dia de uma usina premium. Informe mes (AAAA-MM) ou de e ate (AAAA-MM-DD, no máximo 92 dias).',
+    inputSchema: { type: 'object', properties: { ...usinaProps, mes: { ...texto, description: 'AAAA-MM' }, de: { ...texto, description: 'AAAA-MM-DD' }, ate: { ...texto, description: 'AAAA-MM-DD' } } },
+  },
+  {
+    name: 'solarz_assinaturas',
+    description: 'Assinaturas da conta SolarZ: plano e licenças disponíveis.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
     name: 'solarz_relatorio_periodo',
     description: 'Relatório mensal consolidado da SolarZ por usina (geração, desempenho, total investido e demais campos do relatório) entre dois meses.',
     inputSchema: { type: 'object', properties: { ...usinaProps, inicio: { ...texto, description: 'Mês inicial AAAA-MM' }, fim: { ...texto, description: 'Mês final AAAA-MM' } }, required: ['inicio', 'fim'] },
@@ -80,6 +90,13 @@ export const FERRAMENTAS = [
     inputSchema: { type: 'object', properties: usinaProps },
   },
 ]
+
+/** Instante ISO (UTC) em horário de Brasília: AAAA-MM-DD HH:mm:ss. */
+export function brasilia(iso) {
+  const d = new Date(iso)
+  if (!iso || Number.isNaN(d.getTime())) return null
+  return d.toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+}
 
 function limitar(valor, padrao = LIMITE_PADRAO) {
   const n = Number(valor)
@@ -150,7 +167,7 @@ function resumoParque(dados, agora) {
     desempenhoMedio3mPct: pct(media(m3)), desempenhoMedio12mPct: pct(media(m12)),
     usinasPorStatusDesempenho: porStatus, usinasPorFarol: porFarol,
     ticketsAbertos: dados.tickets?.total ?? null, ticketsPorTipo: dados.tickets?.porTipo ?? null,
-    atualizadoEm: dados.estado?.concluidoEm ?? dados.tickets?.atualizadoEm ?? null,
+    atualizadoEm: brasilia(dados.estado?.concluidoEm ?? dados.tickets?.atualizadoEm),
   }
 }
 
@@ -216,6 +233,43 @@ async function geracaoMensal(args, deps, agora) {
   return { usinaId: id, ano, meses: mesesDoAno(lista, ano, agora) }
 }
 
+const MAX_DIAS = 92
+const dataValida = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) && !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime())
+
+async function geracaoDiaria(args, deps) {
+  let de = args.de; let ate = args.ate
+  if (args.mes != null) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(args.mes))) throw new Error('mes precisa estar no formato AAAA-MM')
+    const [a, m] = args.mes.split('-').map(Number)
+    de = `${args.mes}-01`; ate = `${args.mes}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, '0')}`
+  } else if (!dataValida(de) || !dataValida(ate)) {
+    throw new Error('Informe mes (AAAA-MM) ou de e ate (AAAA-MM-DD)')
+  }
+  const nDias = (Date.parse(`${ate}T00:00:00Z`) - Date.parse(`${de}T00:00:00Z`)) / 86400000 + 1
+  if (nDias < 1) throw new Error('ate precisa ser igual ou posterior a de')
+  if (nDias > MAX_DIAS) throw new Error(`Intervalo de ${nDias} dias; o máximo é ${MAX_DIAS}`)
+  const id = await idDaUsina(args, deps)
+  let lista
+  try {
+    lista = args.mes != null ? await deps.solarz.solarzEnergiaMes(id, args.mes) : await deps.solarz.solarzEnergiaIntervalo(id, de, ate)
+  } catch (err) {
+    if (deps.solarz.ehIndisponivel?.(err)) return { usinaId: id, de, ate, aviso: 'não premium: esta usina não tem geração diária na SolarZ' }
+    throw err
+  }
+  const dias = (Array.isArray(lista) ? lista : []).map((x) => ({ dia: x.date, geracaoKwh: arred(x.total), prognosticoKwh: arred(x.totalExpected) }))
+  return { usinaId: id, de, ate, totalGeracaoKwh: arred(dias.reduce((a, x) => a + (x.geracaoKwh ?? 0), 0)), totalPrognosticoKwh: arred(dias.reduce((a, x) => a + (x.prognosticoKwh ?? 0), 0)), dias }
+}
+
+async function assinaturas(deps) {
+  try {
+    const r = await deps.solarz.solarzListarAssinaturas()
+    return { assinaturas: r.itens.map((x) => ({ plano: x.name ?? null, licencasDisponiveis: x.availableLicenses ?? null })) }
+  } catch (err) {
+    if (err?.status === 403 || deps.solarz.ehIndisponivel?.(err)) return { assinaturas: null, aviso: 'a SolarZ não liberou a rota de assinaturas para esta credencial (403)' }
+    throw err
+  }
+}
+
 async function relatorioPeriodo(args, deps) {
   const ym = /^\d{4}-(0[1-9]|1[0-2])$/
   if (!ym.test(String(args.inicio)) || !ym.test(String(args.fim))) throw new Error('inicio e fim precisam estar no formato AAAA-MM')
@@ -271,6 +325,8 @@ export async function executarFerramenta(nome, args = {}, deps = {}) {
     case 'solarz_listar_usinas': return listarUsinas(await carregar(d), args, agora)
     case 'solarz_detalhe_usina': return detalheUsina(await carregar(d), args, d, agora)
     case 'solarz_geracao_mensal': return geracaoMensal(args, d, agora)
+    case 'solarz_geracao_diaria': return geracaoDiaria(args, d)
+    case 'solarz_assinaturas': return assinaturas(d)
     case 'solarz_relatorio_periodo': return relatorioPeriodo(args, d)
     case 'solarz_unidades_consumidoras': return unidades(args, d)
     case 'solarz_tickets': return tickets(args, d)

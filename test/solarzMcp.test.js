@@ -91,7 +91,7 @@ test('sem dados guardados a ferramenta explica o motivo', async () => {
   await assert.rejects(executarFerramenta('solarz_resumo_parque', {}, vazio), /Ainda não há dados/)
 })
 
-test('endpoint exige a chave; com ela lista as 9 ferramentas', async () => {
+test('endpoint exige a chave; com ela lista as 11 ferramentas', async () => {
   const { default: handler } = await import('../api/mcp-solarz.js')
   const chamar = async (headers = {}, query = {}) => {
     const res = { statusCode: 200, corpo: null, setHeader() {}, status(c) { this.statusCode = c; return this }, json(b) { this.corpo = b; return this }, end() { return this } }
@@ -105,7 +105,7 @@ test('endpoint exige a chave; com ela lista as 9 ferramentas', async () => {
     process.env.MCP_SOLARZ_TOKEN = 'chave-solarz'
     assert.equal((await chamar({}, { key: 'errada' })).statusCode, 401)
     const ok = await chamar({}, { key: 'chave-solarz' })
-    assert.equal(ok.corpo.result.tools.length, 9)
+    assert.equal(ok.corpo.result.tools.length, 11)
   } finally {
     for (const [k, v] of [['MCP_SOLARZ_TOKEN', antes.a], ['MCP_ACCESS_TOKEN', antes.b]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v }
   }
@@ -135,4 +135,35 @@ test('sem OAuth: 401 sem WWW-Authenticate, rotas OAuth em 404 JSON e ?key= vale 
     assert.equal((await chamar('DELETE', { query: { key: 'chave-solarz' } })).res.statusCode, 204)
     assert.equal((await chamar('DELETE')).res.statusCode, 401)
   } finally { if (antes === undefined) delete process.env.MCP_SOLARZ_TOKEN; else process.env.MCP_SOLARZ_TOKEN = antes }
+})
+
+test('atualizadoEm do resumo sai em horário de Brasília', async () => {
+  const r = await executarFerramenta('solarz_resumo_parque', {}, deps())
+  assert.equal(r.atualizadoEm, '2026-10-29 06:50:00')
+})
+
+test('geração diária: mês, intervalo, limite de 92 dias e não premium', async () => {
+  const dias = [{ date: '2026-10-01', total: 10.04, totalExpected: 12 }, { date: '2026-10-02', total: 5, totalExpected: 12 }]
+  const chamadas = []
+  const solarz = {
+    solarzEnergiaMes: async (...a) => { chamadas.push(['mes', ...a]); return dias },
+    solarzEnergiaIntervalo: async (...a) => { chamadas.push(['dia', ...a]); return dias },
+  }
+  const m = await executarFerramenta('solarz_geracao_diaria', { id: 1, mes: '2026-10' }, deps(solarz))
+  assert.equal(m.totalGeracaoKwh, 15)
+  assert.deepEqual(chamadas[0], ['mes', 1, '2026-10'])
+  const i = await executarFerramenta('solarz_geracao_diaria', { id: 1, de: '2026-10-01', ate: '2026-12-31' }, deps(solarz))
+  assert.equal(i.dias.length, 2)
+  await assert.rejects(executarFerramenta('solarz_geracao_diaria', { id: 1, de: '2026-01-01', ate: '2026-06-30' }, deps(solarz)), /máximo/)
+  await assert.rejects(executarFerramenta('solarz_geracao_diaria', { id: 1, mes: '2026-13' }, deps(solarz)), /AAAA-MM/)
+  await assert.rejects(executarFerramenta('solarz_geracao_diaria', { id: 1 }, deps(solarz)), /Informe mes/)
+  const np = await executarFerramenta('solarz_geracao_diaria', { id: 1, mes: '2026-10' }, deps({ solarzEnergiaMes: async () => { throw Object.assign(new Error('x'), { code: 'SOLARZ_NAO_PREMIUM' }) }, ehIndisponivel: (e) => e.code === 'SOLARZ_NAO_PREMIUM' }))
+  assert.match(np.aviso, /não premium/)
+})
+
+test('assinaturas: devolve plano e licenças; 403 vira aviso', async () => {
+  const ok = await executarFerramenta('solarz_assinaturas', {}, deps({ solarzListarAssinaturas: async () => ({ itens: [{ id: 1, name: 'Pro', availableLicenses: 4 }] }) }))
+  assert.deepEqual(ok.assinaturas, [{ plano: 'Pro', licencasDisponiveis: 4 }])
+  const negado = await executarFerramenta('solarz_assinaturas', {}, deps({ solarzListarAssinaturas: async () => { throw Object.assign(new Error('x'), { status: 403 }) } }))
+  assert.match(negado.aviso, /403/)
 })

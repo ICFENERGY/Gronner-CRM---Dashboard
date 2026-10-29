@@ -1,6 +1,7 @@
 {
   "functions": {
-    "api/index.js": { "maxDuration": 60 }
+    "api/index.js": { "maxDuration": 60 },
+    "api/mcp-solarz.js": { "maxDuration": 60 }
   },
   "crons": [
     { "path": "/api/sync/groner/completa/propostas", "schedule": "10 6 * * *" },
