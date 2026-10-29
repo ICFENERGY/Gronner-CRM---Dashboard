@@ -120,7 +120,18 @@ async function buscarGronerPadrao(recurso, params) {
   return gronerGet(recurso, params, { timeoutMs: 10000, retries: 1, retryDelayMs: 300 })
 }
 
-export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {}, onChanged = () => {}, buscarGroner = buscarGronerPadrao, buscarTudo = buscarTudoPadrao } = {}) {
+/** Carga dos detalhes da Pieta, carregada só quando usada. Sem credencial ou sem Postgres não grava nada. */
+async function sincronizarPietaPadrao() {
+  const { pietaConfigurada, pietaResumo, pietaDetalheProjeto } = await import('./pietaClient.js')
+  if (!pietaConfigurada()) return { ok: false, motivo: 'sem credencial' }
+  const { getPgSql } = await import('./pgSql.js')
+  const pg = getPgSql()
+  if (!pg) return { ok: false, motivo: 'sem armazenamento Postgres' }
+  const { sincronizarPieta } = await import('./pietaSync.js')
+  return sincronizarPieta({ pg, resumo: () => pietaResumo(), detalhe: (id) => pietaDetalheProjeto(id) })
+}
+
+export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {}, onChanged = () => {}, buscarGroner = buscarGronerPadrao, buscarTudo = buscarTudoPadrao, sincronizarPieta = sincronizarPietaPadrao } = {}) {
   const router = express.Router()
 
   /** Carga completa de uma entidade numa chamada: busca tudo, upsertBatch em lotes de 50 e finalize. */
@@ -176,6 +187,19 @@ export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {
       }
     }
     res.status(resultados.some((r) => r.erro) ? 500 : 200).json({ ok: !resultados.some((r) => r.erro), resultados })
+  })
+
+  // Carga diária dos detalhes da Pieta (Vercel Cron). Sem credencial: 200 com ok:false e nada é gravado.
+  router.all('/pieta', authenticateCompleta, async (_req, res) => {
+    try {
+      const resultado = await sincronizarPieta()
+      console.info('[sync] pieta', resultado)
+      res.json(resultado)
+    } catch (err) {
+      console.error('[sync] pieta falhou:', err.message)
+      const cliente = err.status && err.status < 500
+      res.status(cliente ? err.status : 502).json({ error: cliente ? err.message : 'Não foi possível sincronizar a Pieta' })
+    }
   })
 
   // Atualização de 5 minutos dentro do dashboard, chamada por um agendador externo.

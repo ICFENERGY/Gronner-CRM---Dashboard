@@ -7,7 +7,10 @@ import { mapVenda, mapProjeto, normalizarProjetoLido, mapProposta, mapTarefa, ma
 import { stripSensitive } from './sanitize.js'
 import { dealsEnriquecido, salesEnriquecido, usinasRelatorio } from './enrichment.js'
 import { solarzListarUsinas } from './solarzClient.js'
-import { pietaResumo, pietaDetalheProjeto } from './pietaClient.js'
+import { pietaResumo, pietaDetalheProjeto, pietaConfigurada } from './pietaClient.js'
+import { calcularMetricasPieta } from './pietaMetricas.js'
+import { lerPietaArmazenada } from './pietaSync.js'
+import { getPgSql } from './pgSql.js'
 import { createSyncRouter } from './syncRoutes.js'
 import { createEngenhariaRouter } from './engenhariaRoutes.js'
 import { createDealsRouter } from './dealsRoutes.js'
@@ -453,6 +456,27 @@ app.get('/api/raw/pieta/projeto/:projectId', async (req, res) => {
   try {
     const detalhe = await cached(`pieta-projeto-${req.params.projectId}`, TTL_MS, () => pietaDetalheProjeto(req.params.projectId))
     res.json(stripSensitive(mapPietaProjetoDetalhe(detalhe)))
+  } catch (err) {
+    console.error(err)
+    res.status(err.status || 500).json({ error: err.message })
+  }
+})
+
+// Métricas calculadas sobre os detalhes guardados no banco pela carga diária (sem chamar a Pieta).
+app.get('/api/raw/pieta/metricas', async (_req, res) => {
+  try {
+    const vazio = (aviso) => ({ vazio: true, aviso, atualizadoEm: null })
+    const pg = getPgSql()
+    if (!pg) return res.json(vazio('Armazenamento Postgres não configurado.'))
+    const { registros, estado } = await cached('pieta-metricas', TTL_MS, () => lerPietaArmazenada(pg))
+    if (!registros.length) {
+      return res.json(vazio(pietaConfigurada() ? 'Ainda não há detalhes carregados; a carga diária da Pieta roda às 06:40 UTC.' : 'Integração Pieta ainda não ativada (faltam PIETA_USER e PIETA_PASSWORD).'))
+    }
+    res.json(stripSensitive({
+      vazio: false, aviso: null, atualizadoEm: estado?.concluidoEm ?? null,
+      cobertura: { armazenados: registros.length, totalNoResumo: estado?.totalNoResumo ?? null, restantes: estado?.restantes ?? null },
+      ...calcularMetricasPieta(registros),
+    }))
   } catch (err) {
     console.error(err)
     res.status(err.status || 500).json({ error: err.message })

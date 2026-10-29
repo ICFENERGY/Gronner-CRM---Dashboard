@@ -35,14 +35,32 @@ export interface PietaProjetoDetalhe extends PietaProjetoResumo {
   tempoTotalDias: number | null
   medidorSubstituidoDate: string | null
   statusTimeline: PietaStatusTimelineItem[] | null
-  mainContact: { name: string; phone: string } | null
+  mainContact: { name: string } | null
   pendencies: string[]
-  payment: { method: string; totalPaid: number; balanceUsed: number | null } | null
   inversors: { brand: string; model: string; power: number; quantity: number }[]
   solarPanels: { brand: string; model: string; power: number; quantity: number }[]
   projectValue: number | null
   changesTotal: number
   totalValue: number | null
+}
+
+export interface PietaTempoStats { projetos: number; mediaDias: number | null; medianaDias: number | null }
+
+export interface PietaMetricas {
+  vazio: boolean
+  aviso: string | null
+  atualizadoEm: string | null
+  cobertura?: { armazenados: number; totalNoResumo: number | null; restantes: number | null }
+  hoje?: string
+  projetosArmazenados?: number
+  ativos?: number
+  finalizados?: number
+  prazoVencido?: { quantidade: number; projetos: { projectId: number; clientName: string | null; status: string; dueDate: string; diasAtraso: number }[] }
+  comPendencia?: { quantidade: number; pendenciasFrequentes: { pendencia: string; projetos: number }[] }
+  tempoPorEtapa?: { etapa: string; projetos: number; visitas: number; mediaDias: number | null; medianaDias: number | null }[]
+  tempoDesdePagamento?: { finalizados: PietaTempoStats; emAndamento: PietaTempoStats }
+  medidorSubstituido?: { quantidade: number; tempoMedioCriacaoAteTrocaDias: number | null }
+  alteracoes?: { valorTotal: number; projetosComAlteracao: number }
 }
 
 export interface UsinaMensal {

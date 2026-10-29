@@ -472,22 +472,18 @@ export function mapPietaProjetoDetalhe(p) {
       saiuEm: s.saiu_em,
       tempoNaEtapaDias: s.tempo_na_etapa_dias,
     })),
-    mainContact: p.main_contact ? { name: p.main_contact.name, phone: p.main_contact.phone } : null,
+    // Privacidade: só o nome do contato; telefone, pagamento e detalhe do integrador não saem do servidor.
+    mainContact: p.main_contact ? { name: p.main_contact.name } : null,
     pendencies: p.pendencies ?? [],
-    payment: p.payment
-      ? { method: p.payment.method, totalPaid: p.payment.total_paid, balanceUsed: p.payment.balance_used }
-      : null,
     inversors: p.inversors ?? [],
     solarPanels: p.solar_panels ?? [],
     projectValue: p.project_value ?? null,
     changes: (p.changes ?? []).map((c) => ({
       price: c.price,
       status: c.status,
-      payment: c.payment,
       createdAt: c.created_at,
       requestFields: c.request_fields,
       responseStatus: c.response_status,
-      changeIntegratorDetail: c.change_integrator_detail,
     })),
     changesTotal: p.changes_total ?? 0,
     totalValue: p.total_value ?? null,

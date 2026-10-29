@@ -5,7 +5,8 @@
   "crons": [
     { "path": "/api/sync/groner/completa/propostas", "schedule": "10 6 * * *" },
     { "path": "/api/sync/groner/completa/tarefas", "schedule": "20 6 * * *" },
-    { "path": "/api/sync/groner/completa/vendas", "schedule": "30 6 * * *" }
+    { "path": "/api/sync/groner/completa/vendas", "schedule": "30 6 * * *" },
+    { "path": "/api/sync/groner/pieta", "schedule": "40 6 * * *" }
   ],
   "rewrites": [
     { "source": "/mcp", "destination": "/api/mcp" },
