@@ -1,38 +1,20 @@
 import { useMemo } from 'react'
 import { api } from '../../api/client'
 import { useRawData } from '../../api/useRawData'
+import { percentualCurto } from '../../lib/formatoGrafico'
 import { currency, number } from '../../lib/palette'
-import type { ProjetoRaw } from '../../api/types'
+import { agruparPorFunil } from './funis'
 import { Cartao, Kpi } from './ui/base'
-import { BarrasHorizontais } from './ui/graficos'
+import { CardsFunil } from './ui/CardsFunil'
 
-const mil = (v: number) => (Math.abs(v) >= 1e6 ? `${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi` : Math.abs(v) >= 1e3 ? `${Math.round(v / 1e3).toLocaleString('pt-BR')} mil` : number.format(Math.round(v)))
-const reais = (v: number) => `R$ ${mil(v)}`
-
-/** Valor do card: o da venda; sem ele, o da proposta aceita. */
-const valorDoCard = (p: ProjetoRaw) => (Number(p.valorVenda) > 0 ? Number(p.valorVenda) : Number(p.valorPrePropostaAceita) > 0 ? Number(p.valorPrePropostaAceita) : 0)
-/** Número do funil no começo do nome ("07. FINANCEIRO" → 7); sem número vai para o fim. */
-const numeroDoFunil = (nome: string) => { const n = parseInt(nome, 10); return Number.isFinite(n) ? n : 999 }
-
-/** Visão Geral: os cards cadastrados no Groner, em que funil estão e quanto cada funil tem em valor. */
+/** Visão Geral: os cards cadastrados no Groner e em que funil e etapa estão. O valor por funil fica na aba Vendas. */
 export function PainelPage() {
   const projetos = useRawData('projetos', api.getProjetosRaw)
 
-  const funis = useMemo(() => {
-    const porFunil = new Map<string, { funil: string; cards: number; valor: number }>()
-    for (const p of projetos.data ?? []) {
-      const funil = (p.funil ?? '').trim() || 'Sem funil'
-      const g = porFunil.get(funil) ?? { funil, cards: 0, valor: 0 }
-      g.cards += 1
-      g.valor += valorDoCard(p)
-      porFunil.set(funil, g)
-    }
-    return [...porFunil.values()].sort((a, b) => numeroDoFunil(a.funil) - numeroDoFunil(b.funil) || a.funil.localeCompare(b.funil, 'pt-BR'))
-  }, [projetos.data])
+  const funis = useMemo(() => agruparPorFunil(projetos.data ?? []), [projetos.data])
 
   const totalCards = funis.reduce((a, f) => a + f.cards, 0)
   const totalValor = funis.reduce((a, f) => a + f.valor, 0)
-
   if (projetos.error && !projetos.data) {
     return <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Não foi possível carregar os cards: {projetos.error}.</p>
   }
@@ -46,24 +28,14 @@ export function PainelPage() {
         <Kpi area="Visão Geral" rotulo="Valor total" valor={currency.format(totalValor)} contexto="soma do valor dos cards, de todos os funis" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Cartao
-          titulo="Cards por funil"
-          subtitulo="Quantidade de cards em cada funil"
-          colunas={['Funil', 'Cards']}
-          linhas={funis.map((f) => ({ nome: f.funil, valores: [number.format(f.cards)] }))}
-        >
-          <BarrasHorizontais dados={funis.map((f) => ({ nome: f.funil, valor: f.cards }))} formatar={(v) => number.format(v)} rotuloValor="Cards" />
-        </Cartao>
-        <Cartao
-          titulo="Valor por funil (R$)"
-          subtitulo="Valor da venda do card; sem ele, o da proposta aceita"
-          colunas={['Funil', 'Valor']}
-          linhas={funis.map((f) => ({ nome: f.funil, valores: [currency.format(f.valor)] }))}
-        >
-          <BarrasHorizontais dados={funis.map((f) => ({ nome: f.funil, valor: f.valor }))} formatar={reais} rotuloValor="Valor" />
-        </Cartao>
-      </div>
+      <Cartao
+        titulo="Cards por funil"
+        subtitulo="Quantidade de cards em cada funil e como se dividem pelas etapas (a barra colorida); clique no cartão para ver todas as etapas"
+        colunas={['Funil', 'Cards', '% do total', 'Etapas']}
+        linhas={funis.map((f) => ({ nome: f.funil, valores: [number.format(f.cards), percentualCurto(totalCards ? (100 * f.cards) / totalCards : 0), f.etapas.length] }))}
+      >
+        <CardsFunil funis={funis} />
+      </Cartao>
 
       <section className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
         <table className="w-full text-sm">

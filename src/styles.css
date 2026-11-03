@@ -26,6 +26,9 @@
   --accent: #01c38e;
   --accent-text: #00805f;
   --navy: #132d46;
+  --navy-chip: #132d46;
+  --navy-chip-text: #ffffff;
+  --accent-soft: rgba(1, 195, 142, 0.12);
   /* Gráficos (validados com a skill de dataviz sobre a superfície branca) */
   --viz-1: #01c38e;
   --viz-ref: #5c6e80;
@@ -60,6 +63,9 @@
   --track-bg: #2b4c6c;
   --accent: #01c38e;
   --accent-text: #01c38e;
+  --navy-chip: #f4f4f4;
+  --navy-chip-text: #132d46;
+  --accent-soft: rgba(1, 195, 142, 0.16);
   /* Passos próprios do escuro (validados contra a superfície #1b3b5c) */
   --viz-1: #00a87c;
   --viz-ref: #bccad6;

@@ -13,6 +13,7 @@ import { serieGeracaoUsinas } from '../features/painel/calculos'
 import { useFilters, uniqueSorted } from '../hooks/useFilters'
 import { currency, decimal, number } from '../lib/palette'
 import { dataCurtaBr } from '../lib/datas'
+import { energiaCurta } from '../lib/formatoGrafico'
 
 const STATUS_DESEMPENHO_COR: Record<string, string> = {
   Crítico: '#EF4444',
@@ -137,7 +138,7 @@ export function MonitoramentoSolarPage() {
     porMesInstalacao.set(mesAno, (porMesInstalacao.get(mesAno) ?? 0) + 1)
   }
   const semDataInstalacao = porAnoInstalacao.get('Sem data') ?? 0
-  const instalacaoAnoData = [...porAnoInstalacao.entries()].sort(([a], [b]) => (a === 'Sem data' ? 1 : b === 'Sem data' ? -1 : a.localeCompare(b))).map(([name, value]) => ({ name: name === 'Sem data' ? 'Sem data de instalação informada' : name, value }))
+  const instalacaoAnoData = [...porAnoInstalacao.entries()].sort(([a], [b]) => (a === 'Sem data' ? 1 : b === 'Sem data' ? -1 : a.localeCompare(b))).map(([name, value]) => ({ name: name, value }))
   const instalacaoMesData = [...porMesInstalacao.entries()].sort(([a], [b]) => a.slice(3).localeCompare(b.slice(3)) || a.localeCompare(b)).map(([name, value]) => ({ name, value }))
 
   const potenciaPorCidade = new Map<string, { cidade: string; estado: string; quantidade: number; potencia: number; usinas: UsinaRaw[] }>()
@@ -179,11 +180,12 @@ export function MonitoramentoSolarPage() {
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">{`Geração real × prognóstico ${anoSerie} (kWh)`}</h3>
+          <h3 className="text-sm font-medium text-[var(--text-secondary)]">{`Geração real × prognóstico ${anoSerie}`}</h3>
+          <p className="mb-2 mt-0.5 text-xs text-[var(--text-muted)]">Energia por mês, somada das usinas (MWh = mil kWh). * mês corrente, parcial.</p>
           {serieGeracao.length === 0 ? (
             <p className="py-10 text-center text-xs text-[var(--text-muted)]">Sem dados para os filtros selecionados.</p>
           ) : (
-            <GeracaoPrognostico dados={serieGeracao} formatar={(v) => decimal.format(v)} />
+            <GeracaoPrognostico dados={serieGeracao} formatar={energiaCurta} />
           )}
         </div>
         <DonutChart title="Status de desempenho (méd. 3 meses)" data={porStatusDesempenho} semaforo={{ "Dentro do esperado": "ok", Atenção: "risco", Crítico: "atrasado" }} />

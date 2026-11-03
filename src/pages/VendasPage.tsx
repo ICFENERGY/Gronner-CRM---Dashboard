@@ -10,11 +10,16 @@ import { FilterBar, type FilterDef } from '../components/FilterBar'
 import { KpiCard } from '../components/KpiCard'
 import { useFilters, uniqueSorted } from '../hooks/useFilters'
 import { currency, number } from '../lib/palette'
+import { reaisCurto } from '../lib/formatoGrafico'
+import { agruparPorFunil } from '../features/painel/funis'
+import { Cartao } from '../features/painel/ui/base'
+import { BarrasHorizontais } from '../features/painel/ui/graficos'
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
 export function VendasPage() {
   const { data: vendas, loading, error } = useRawData('vendas', api.getVendasRaw)
+  const projetos = useRawData('projetos', api.getProjetosRaw)
   const { values, onChange, onClear } = useFilters()
   const [busca, setBusca] = useState('')
   const [vendaSelecionada, setVendaSelecionada] = useState<VendaRaw | null>(null)
@@ -51,6 +56,8 @@ export function VendasPage() {
       return true
     })
   }, [vendas, values, busca])
+
+  const valorPorFunil = useMemo(() => agruparPorFunil(projetos.data ?? []).filter((f) => f.valor > 0), [projetos.data])
 
   if (loading) return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando vendas…</p>
   if (error) return <p className="p-10 text-center text-red-600 dark:text-red-400">{error}</p>
@@ -126,11 +133,29 @@ export function VendasPage() {
         <BarChartGeneric title="Ano da venda" data={porAno} layout="vertical" />
         <BarChartGeneric
           title="Valor vendido por mês"
-          data={valorPorMesData}
+          subtitle="Últimos 12 meses com venda (ano-mês)"
+          data={valorPorMesData.slice(-12)}
           layout="vertical"
-          formatValue={(v) => currency.format(v)}
+          formatValue={reaisCurto}
           ordenarPorValor={false}
         />
+      </section>
+
+      <section className="mb-6 grid grid-cols-1 gap-4">
+        <Cartao
+          titulo="Valor por funil (R$)"
+          subtitulo="Soma, em cada funil do Groner, do valor da venda de cada card; sem venda, o da proposta aceita. Todos os cards cadastrados (não segue os filtros acima); funis sem valor não aparecem."
+          colunas={['Funil', 'Valor', 'Cards']}
+          linhas={valorPorFunil.map((f) => ({ nome: f.funil, valores: [currency.format(f.valor), number.format(f.cards)] }))}
+        >
+          {projetos.error && !projetos.data ? (
+            <p role="alert" className="py-6 text-center text-xs text-[var(--text-muted)]">Não foi possível carregar os cards: {projetos.error}.</p>
+          ) : !projetos.data ? (
+            <p role="status" className="py-6 text-center text-xs text-[var(--text-muted)]">Carregando os cards…</p>
+          ) : (
+            <BarrasHorizontais dados={valorPorFunil.map((f) => ({ nome: f.funil, valor: f.valor }))} formatar={reaisCurto} rotuloValor="Valor" larguraNomes={260} />
+          )}
+        </Cartao>
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">

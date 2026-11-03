@@ -10,6 +10,7 @@ import type { PietaProjetoDetalhe } from '../api/types'
 import { useFilters, uniqueSorted } from '../hooks/useFilters'
 import { currency, number } from '../lib/palette'
 import { dataCurtaBr } from '../lib/datas'
+import { diasCurto } from '../lib/formatoGrafico'
 import { Cartao, Kpi } from '../features/painel/ui/base'
 import { BarrasHorizontais } from '../features/painel/ui/graficos'
 import type { PietaMetricas } from '../api/types'
@@ -43,7 +44,7 @@ function MetricasPieta({ metricas, loading }: { metricas: PietaMetricas | null; 
       )}
       <section className="mb-6 grid grid-cols-1 gap-4">
         <Cartao titulo="Tempo médio por etapa (dias)" subtitulo="Soma das visitas de cada projeto à etapa; a etapa atual conta até hoje" colunas={['Etapa', 'Média', 'Mediana', 'Projetos']} linhas={linhas}>
-          <BarrasHorizontais dados={barras} formatar={(v) => v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} rotuloValor="Média (dias)" />
+          <BarrasHorizontais dados={barras} formatar={diasCurto} rotuloValor="Média (dias)" larguraNomes={230} />
         </Cartao>
       </section>
     </>
