@@ -14,6 +14,8 @@ import { diasCurto } from '../lib/formatoGrafico'
 import { Cartao, Kpi } from '../features/painel/ui/base'
 import { BarrasHorizontais } from '../features/painel/ui/graficos'
 import type { PietaMetricas } from '../api/types'
+import { SlaAtendimento } from '../features/pieta/SlaAtendimento'
+import { chamadosSla } from '../features/pieta/sla'
 
 const dias = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} d`)
 
@@ -56,6 +58,8 @@ export function PietaPage() {
   const { data: metricas, loading: carregandoMetricas } = useRawData('pieta-metricas', api.getPietaMetricas)
   const { values, onChange, onClear } = useFilters()
   const [busca, setBusca] = useState('')
+  const [visao, setVisao] = useState<'sla' | 'projetos'>('sla')
+  const chamados = useMemo(() => chamadosSla(resumo?.projects ?? []), [resumo])
   const [selecionado, setSelecionado] = useState<number | null>(null)
   const [detalhe, setDetalhe] = useState<PietaProjetoDetalhe | null>(null)
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false)
@@ -124,6 +128,13 @@ export function PietaPage() {
         </p>
       </div>
 
+      <nav aria-label="Pieta" className="mb-4 flex gap-1 border-b border-[var(--border)]">
+        {([['sla', 'SLA de Atendimento'], ['projetos', 'Projetos e métricas']] as const).map(([k, rot]) => (
+          <button key={k} type="button" aria-current={visao === k ? 'page' : undefined} onClick={() => setVisao(k)} className={`border-b-2 px-4 py-2 text-sm font-medium ${visao === k ? 'border-icf-green text-[var(--text-primary)]' : 'border-transparent text-[var(--text-secondary)]'}`}>{rot}</button>
+        ))}
+      </nav>
+
+      {visao === 'sla' ? <SlaAtendimento chamados={chamados} /> : <>
       <FilterBar filters={filtros} values={values} onChange={onChange} onClear={onClear} />
 
       <div className="mb-4 max-w-xs">
@@ -167,6 +178,7 @@ export function PietaPage() {
           ]}
         />
       </section>
+      </>}
 
       {selecionado && (
         <Modal title={`Projeto #${selecionado}`} onClose={() => setSelecionado(null)}>

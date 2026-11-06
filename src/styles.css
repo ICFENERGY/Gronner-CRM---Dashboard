@@ -88,3 +88,38 @@ body {
   background-color: var(--bg);
   color: var(--text-primary);
 }
+
+/* Indicadores (aba Groner): visual escuro próprio, independente do tema do painel. */
+.indicadores {
+  --ind-fundo: #111112;
+  --ind-card: #1e1e20;
+  --ind-borda: #34343a;
+  --ind-trilho: #101012;
+  --ind-texto: #f2f2f3;
+  --ind-mudo: #9a9aa3;
+  --ind-acento: #14b8a6;
+  background: #0b0b0c;
+  color: var(--ind-texto);
+  color-scheme: dark;
+}
+.ind-titulo { font-family: Georgia, 'Times New Roman', serif; }
+.ind-scroll { scrollbar-width: thin; scrollbar-color: #55555d transparent; }
+
+/* SLA de Atendimento (aba Pieta): mesmas peças dos Indicadores, em tema claro. */
+.sla-pieta {
+  --ind-fundo: #f4f5f7;
+  --ind-card: #ffffff;
+  --ind-borda: #d8dbe2;
+  --ind-trilho: #e7e9ed;
+  --ind-texto: #0a0a0a;
+  --ind-mudo: #55596a;
+  --ind-acento: #1f6fd6;
+}
+.dark .sla-pieta {
+  --ind-fundo: #132d46;
+  --ind-card: #1b3b5c;
+  --ind-borda: #2b4c6c;
+  --ind-trilho: #2b4c6c;
+  --ind-texto: #f4f4f4;
+  --ind-mudo: #bccad6;
+}

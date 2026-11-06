@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout, type AbaItem } from './components/Layout'
-import { PainelPage } from './features/painel/PainelPage'
+import { IndicadoresPage } from './features/indicadores/IndicadoresPage'
 import { useTheme } from './hooks/useTheme'
 import { MonitoramentoSolarPage } from './pages/MonitoramentoSolarPage'
 import { PietaPage } from './pages/PietaPage'
@@ -9,7 +9,7 @@ import { VendasPage } from './pages/VendasPage'
 
 export type Aba = 'geral' | 'vendas' | 'solarz' | 'pieta'
 const ABAS: AbaItem[] = [
-  { k: 'geral', rotulo: 'Visão Geral' },
+  { k: 'geral', rotulo: 'Indicadores' },
   { k: 'vendas', rotulo: 'Vendas' },
   { k: 'solarz', rotulo: 'SolarZ' },
   { k: 'pieta', rotulo: 'Pieta' },
@@ -45,7 +45,7 @@ export default function App() {
     <Layout abas={ABAS} aba={aba} onAba={irParaAba} theme={theme} onToggleTheme={toggleTheme}>
       {/* Um erro de renderização numa aba mostra um aviso, nunca a tela em branco. */}
       <ErrorBoundary key={aba}>
-        {aba === 'geral' && <PainelPage />}
+        {aba === 'geral' && <IndicadoresPage />}
         {aba === 'vendas' && <VendasPage />}
         {aba === 'solarz' && <MonitoramentoSolarPage />}
         {aba === 'pieta' && <PietaPage />}

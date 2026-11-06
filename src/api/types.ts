@@ -199,6 +199,8 @@ export interface VendaRaw {
   origemNome: string | null
   statusNome: string
   statusCor: string
+  /** Tipo de negócio (ex.: B2C_Residencial), quando o Groner informa. */
+  tipo?: string | null
   cidade: string | null
   estado: string | null
   bairro: string | null

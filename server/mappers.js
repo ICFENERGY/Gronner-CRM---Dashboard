@@ -29,6 +29,7 @@ export function mapVenda(v, enriquecimento) {
     origemNome: v.origemNome,
     statusNome: v.statusNome,
     statusCor: v.statusCor,
+    tipo: nomeDe(v.tipo) ?? nomeDe(v.tipoProjeto) ?? nomeDe(v.tipoNegocio) ?? extra?.tipo ?? null,
     cidade: extra?.cidade ?? null,
     estado: extra?.estado ?? null,
     bairro: extra?.bairro ?? null,
