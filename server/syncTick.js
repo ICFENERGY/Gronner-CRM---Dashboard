@@ -23,9 +23,10 @@ const MARGEM_MS = 10 * 60 * 1000
 const TAMANHO_PAGINA = 100 // pedido; o Groner devolve no máximo 20 por página
 const MAX_PAGINAS = 60
 const MAX_ITENS = 1200
-const MAX_DETALHES = 40
-const PARALELO = 4
-const PAGINAS_EM_PARALELO = 6
+// O Groner aceita cerca de 20 pedidos por 1,5 s (~13/s): ondas pequenas, bem abaixo disso.
+const MAX_DETALHES = 20
+const PARALELO = 1
+const PAGINAS_EM_PARALELO = 3
 const ORCAMENTO_BUSCA_MS = 20000 // depois disso não inicia ondas novas de páginas
 const PRAZO_DETALHES_MS = 24000 // depois disso não inicia mais detalhes (com timeout de 10 s + 1 nova tentativa, o tick fica em ~45 s)
 
