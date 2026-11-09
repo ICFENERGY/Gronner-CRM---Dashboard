@@ -15,6 +15,7 @@ import { getPgSql } from './pgSql.js'
 import { createSyncRouter } from './syncRoutes.js'
 import { createEngenhariaRouter } from './engenhariaRoutes.js'
 import { createDealsRouter } from './dealsRoutes.js'
+import { createIndicadoresRouter } from './indicadoresRoutes.js'
 import { getSyncStatuses, loadSyncedEntity } from './syncStore.js'
 
 const app = express()
@@ -236,6 +237,9 @@ export function loadUsinasBrutas() {
 app.use(cors())
 app.use(express.json({ limit: '6mb' }))
 
+// Indicadores (painel /indicadores e aba Vendas): só leitura do Neon, nunca do Groner.
+const indicadoresRouter = createIndicadoresRouter()
+
 const syncCacheKeys = {
   projetos: 'projetos-dados',
   vendas: 'vendas-dados',
@@ -247,10 +251,12 @@ app.use('/api/sync/groner', createSyncRouter({
   onFinalized: (entity) => {
     invalidate(syncCacheKeys[entity])
     invalidate('summary')
+    indicadoresRouter.invalidar()
   },
   onChanged: (entity) => {
     invalidate(syncCacheKeys[entity])
     invalidate('summary')
+    indicadoresRouter.invalidar()
   },
 }))
 
@@ -265,6 +271,8 @@ app.use('/api/engenharia', createEngenhariaRouter({
 
 // Download do Deals em .xlsx (link assinado emitido pela ferramenta MCP deals_exportar).
 app.use('/api/deals', createDealsRouter({ get: gronerGet }))
+
+app.use('/api/indicadores', indicadoresRouter)
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 

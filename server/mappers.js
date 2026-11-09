@@ -37,6 +37,15 @@ export function mapVenda(v, enriquecimento) {
     inversor: extra?.inversor ?? null,
     lucro: extra?.lucro ?? null,
     lucroServico: extra?.lucroServico ?? null,
+    // Para o painel de indicadores (formato docs/data_sales.json). Nomes conforme o cadastro de
+    // Venda da API (projetoId, ValorEntrada, ValorFinanciamento…); a confirmar na primeira carga:
+    // campo ausente fica null. idNegocio liga a venda à proposta (tipo/etapa/status do negócio).
+    idNegocio: numero(primeiro(v.projetoId, v.idNegocio)),
+    valorProduto: numero(v.valorProduto) ?? numero(extra?.valorProduto),
+    valorServico: numero(v.valorServico) ?? numero(extra?.valorServico),
+    valorEntrada: numero(v.valorEntrada),
+    valorFinanciado: numero(primeiro(v.valorFinanciamento, v.valorFinanciado)),
+    dataCadastro: dataGronerValida(primeiro(v.dataInclusao, v.dataCadastro)),
   }
 }
 

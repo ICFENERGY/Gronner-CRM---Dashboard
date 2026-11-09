@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useRawData } from '../api/useRawData'
-import type { VendaRaw } from '../api/types'
 import { BarChartGeneric } from '../components/BarChartGeneric'
 import { DataTable } from '../components/DataTable'
 import { DetailRow, Modal } from '../components/Modal'
@@ -14,69 +13,72 @@ import { reaisCurto } from '../lib/formatoGrafico'
 import { agruparPorFunil } from '../features/painel/funis'
 import { Cartao } from '../features/painel/ui/base'
 import { BarrasHorizontais } from '../features/painel/ui/graficos'
+import { combinarVendas, filtrarVendas, MESES_ROTULO as MESES, rotuloMes, somaInformada, type VendaPainel } from '../features/vendas/vendasPainel'
 
-const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-
+/**
+ * Aba Vendas. Fonte principal: /api/indicadores/sales (mesmo formato de docs/data_sales.json,
+ * montado do Neon: vendedor, tipo de negócio, status, origem, UF/cidade, valores, mês/ano).
+ * Comissão, ciclo, kit e lucro vêm da venda gravada (/api/raw/vendas), casados pelo código.
+ */
 export function VendasPage() {
-  const { data: vendas, loading, error } = useRawData('vendas', api.getVendasRaw)
+  const sales = useRawData('indicadores-sales', api.getSalesIndicadores)
+  const vendasRaw = useRawData('vendas', api.getVendasRaw)
   const projetos = useRawData('projetos', api.getProjetosRaw)
   const { values, onChange, onClear } = useFilters()
   const [busca, setBusca] = useState('')
-  const [vendaSelecionada, setVendaSelecionada] = useState<VendaRaw | null>(null)
-  const [grupoSelecionado, setGrupoSelecionado] = useState<{ titulo: string; vendas: VendaRaw[] } | null>(null)
+  const [vendaSelecionada, setVendaSelecionada] = useState<VendaPainel | null>(null)
+  const [grupoSelecionado, setGrupoSelecionado] = useState<{ titulo: string; vendas: VendaPainel[] } | null>(null)
+
+  // Sem a lista de sales (erro), a aba segue com as vendas gravadas, no mesmo formato.
+  const carregando = sales.loading || (vendasRaw.loading && !sales.data)
+  const vendas = useMemo(
+    () => (sales.data || vendasRaw.data ? combinarVendas(sales.data, vendasRaw.data) : null),
+    [sales.data, vendasRaw.data],
+  )
 
   const filtros: FilterDef[] = useMemo(() => {
     if (!vendas) return []
-    return [
-      { key: 'ano', label: 'Ano', options: uniqueSorted(vendas.map((v) => v.dataVenda?.slice(0, 4))).reverse() },
-      {
-        key: 'mes',
-        label: 'Mês',
-        options: MESES,
-      },
+    const lista: FilterDef[] = [
+      { key: 'ano', label: 'Ano', options: uniqueSorted(vendas.map((v) => (v.ano ? String(v.ano) : null))).reverse() },
+      { key: 'mes', label: 'Mês', options: MESES },
       { key: 'vendedor', label: 'Vendedor', options: uniqueSorted(vendas.map((v) => v.vendedor)) },
-      { key: 'origemNome', label: 'Origem', options: uniqueSorted(vendas.map((v) => v.origemNome)) },
-      { key: 'estado', label: 'Estado', options: uniqueSorted(vendas.map((v) => v.estado)) },
+      { key: 'tipoNegocio', label: 'Tipo de negócio', options: uniqueSorted(vendas.map((v) => v.tipoNegocio)) },
+      { key: 'origem', label: 'Origem', options: uniqueSorted(vendas.map((v) => v.origemContato)) },
+      { key: 'uf', label: 'Estado', options: uniqueSorted(vendas.map((v) => v.uf)) },
+      { key: 'statusVenda', label: 'Status da venda', options: uniqueSorted(vendas.map((v) => v.statusVenda)) },
     ]
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Campo que ainda não chega do banco (lista vazia) não vira filtro.
+    return lista.filter((f) => f.options.length > 0)
   }, [vendas])
 
-  const filtradas = useMemo(() => {
-    if (!vendas) return []
-    return vendas.filter((v) => {
-      if (values.ano && v.dataVenda?.slice(0, 4) !== values.ano) return false
-      if (values.mes) {
-        const mesIdx = Number(v.dataVenda?.slice(5, 7)) - 1
-        if (MESES[mesIdx] !== values.mes) return false
-      }
-      if (values.vendedor && v.vendedor !== values.vendedor) return false
-      if (values.origemNome && v.origemNome !== values.origemNome) return false
-      if (values.estado && v.estado !== values.estado) return false
-      if (busca && !v.nome.toLowerCase().includes(busca.toLowerCase())) return false
-      return true
-    })
-  }, [vendas, values, busca])
+  const filtradas = useMemo(() => (vendas ? filtrarVendas(vendas, { ...values, busca }) : []), [vendas, values, busca])
 
   const valorPorFunil = useMemo(() => agruparPorFunil(projetos.data ?? []).filter((f) => f.valor > 0), [projetos.data])
 
-  if (loading) return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando vendas…</p>
-  if (error) return <p className="p-10 text-center text-red-600 dark:text-red-400">{error}</p>
+  if (carregando) return <p className="p-10 text-center text-[var(--text-secondary)]">Carregando vendas…</p>
+  if (!vendas) return <p className="p-10 text-center text-red-600 dark:text-red-400">{sales.error ?? vendasRaw.error ?? 'Não foi possível carregar as vendas.'}</p>
 
   const valorTotal = filtradas.reduce((s, v) => s + v.valorTotal, 0)
   const ticketMedio = filtradas.length ? valorTotal / filtradas.length : 0
+  const composicao = (['valorProduto', 'valorServico', 'valorEntrada', 'valorFinanciado'] as const).map((campo) => ({ campo, ...somaInformada(filtradas, campo) }))
+  const ROTULO_VALOR = { valorProduto: 'Valor de produto', valorServico: 'Valor de serviço', valorEntrada: 'Valor de entrada', valorFinanciado: 'Valor financiado' }
 
-  const porOrigem = agrupar(filtradas, (v) => v.origemNome ?? 'Não informado')
-  const porVendedor = agrupar(filtradas, (v) => v.vendedor)
-  const porMes = agrupar(filtradas, (v) => MESES[Number(v.dataVenda?.slice(5, 7)) - 1] ?? '—')
-  const porAno = agrupar(filtradas, (v) => v.dataVenda?.slice(0, 4) ?? '—')
-  const porEstado = agrupar(filtradas, (v) => v.estado ?? 'Não informado')
+  const porTipo = agrupar(filtradas, (v) => v.tipoNegocio ?? 'Não informado')
+  const porStatusNegocio = agrupar(filtradas, (v) => v.statusNegocio ?? 'Não informado')
+  const porOrigem = agrupar(filtradas, (v) => v.origemContato ?? 'Não informado')
+  const porVendedor = agrupar(filtradas, (v) => v.vendedor ?? 'Não informado')
+  const porMes = agrupar(filtradas, rotuloMes)
+  const porAno = agrupar(filtradas, (v) => (v.ano ? String(v.ano) : '—'))
+  const porEstado = agrupar(filtradas, (v) => v.uf ?? 'Não informado')
   const porFornecedor = agrupar(filtradas, (v) => (v.fornecedor ? v.fornecedor.trim().toUpperCase() : 'Não informado'))
+  const temTipo = filtradas.some((v) => v.tipoNegocio)
+  const temStatusNegocio = filtradas.some((v) => v.statusNegocio)
 
-  const valorPorCidade = new Map<string, { cidade: string; estado: string; quantidade: number; valorTotal: number; vendas: VendaRaw[] }>()
+  const valorPorCidade = new Map<string, { cidade: string; estado: string; quantidade: number; valorTotal: number; vendas: VendaPainel[] }>()
   for (const v of filtradas) {
     const cidade = v.cidade ?? 'Não informado'
-    const chave = `${cidade}/${v.estado ?? ''}`
-    const cur = valorPorCidade.get(chave) ?? { cidade, estado: v.estado ?? '—', quantidade: 0, valorTotal: 0, vendas: [] }
+    const chave = `${cidade}/${v.uf ?? ''}`
+    const cur = valorPorCidade.get(chave) ?? { cidade, estado: v.uf ?? '—', quantidade: 0, valorTotal: 0, vendas: [] }
     cur.quantidade += 1
     cur.valorTotal += v.valorTotal
     cur.vendas.push(v)
@@ -86,14 +88,14 @@ export function VendasPage() {
 
   const valorPorMes = new Map<string, number>()
   for (const v of filtradas) {
-    const chave = v.dataVenda?.slice(0, 7) ?? '—'
+    const chave = v.ano && v.mes ? `${v.ano}-${String(v.mes).padStart(2, '0')}` : '—'
     valorPorMes.set(chave, (valorPorMes.get(chave) ?? 0) + v.valorTotal)
   }
   const valorPorMesData = [...valorPorMes.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([mes, value]) => ({ name: mes, value }))
 
-  const porDia = new Map<string, { dia: string; quantidade: number; valorTotal: number; vendas: VendaRaw[] }>()
+  const porDia = new Map<string, { dia: string; quantidade: number; valorTotal: number; vendas: VendaPainel[] }>()
   for (const v of filtradas) {
     const dia = v.dataVenda?.slice(0, 10) ?? '—'
     const cur = porDia.get(dia) ?? { dia, quantidade: 0, valorTotal: 0, vendas: [] }
@@ -103,9 +105,17 @@ export function VendasPage() {
     porDia.set(dia, cur)
   }
   const diasOrdenados = [...porDia.values()].sort((a, b) => b.dia.localeCompare(a.dia))
+  const dataCurta = (d: string | null) => (d ? new Date(`${d.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR') : '—')
+  const valorOuTraco = (n: number | null | undefined) => (n != null ? currency.format(n) : '—')
 
   return (
     <div>
+      {sales.error && (
+        <p role="alert" className="mb-4 rounded-lg border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          Não foi possível ler a lista de vendas dos indicadores ({sales.error}); mostrando as vendas gravadas, sem tipo de negócio e composição do valor.
+        </p>
+      )}
+
       <FilterBar filters={filtros} values={values} onChange={onChange} onClear={onClear} />
 
       <div className="mb-4 max-w-xs">
@@ -117,20 +127,41 @@ export function VendasPage() {
         />
       </div>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard label="Quantidade de vendas" value={number.format(filtradas.length)} />
         <KpiCard label="Soma de valor total" value={currency.format(valorTotal)} />
         <KpiCard label="Ticket médio" value={currency.format(ticketMedio)} />
       </section>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <DonutChart title="Origem do negócio" data={porOrigem} />
-        <DonutChart title="Visão por vendedor" data={porVendedor} />
-        <BarChartGeneric title="Vendas por mês (quantidade)" data={[...porMes].sort((a, b) => MESES.indexOf(a.name) - MESES.indexOf(b.name))} ordenarPorValor={false} />
+      <section className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Composição do valor">
+        {composicao.map((c) => (
+          <KpiCard
+            key={c.campo}
+            label={ROTULO_VALOR[c.campo]}
+            value={c.informadas ? currency.format(c.soma) : '—'}
+            hint={`${number.format(c.informadas)} de ${number.format(filtradas.length)} vendas informam`}
+          />
+        ))}
       </section>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <DonutChart title="Tipo de negócio" data={porTipo} />
+        <DonutChart title="Origem do negócio" data={porOrigem} />
+        <DonutChart title="Visão por vendedor" data={porVendedor} />
+      </section>
+      {!temTipo && (
+        <p className="-mt-4 mb-6 text-xs text-[var(--text-muted)]">
+          Tipo e status do negócio ainda não chegam do banco: dependem do projeto da venda, que passa a ser gravado na próxima carga diária de vendas.
+        </p>
+      )}
+
+      <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <BarChartGeneric title="Vendas por mês (quantidade)" data={[...porMes].sort((a, b) => MESES.indexOf(a.name) - MESES.indexOf(b.name))} ordenarPorValor={false} />
         <BarChartGeneric title="Ano da venda" data={porAno} layout="vertical" />
+        <DonutChart title="Vendas por estado" data={porEstado} />
+      </section>
+
+      <section className="mb-6 grid grid-cols-1 gap-4">
         <BarChartGeneric
           title="Valor vendido por mês"
           subtitle="Últimos 12 meses com venda (ano-mês)"
@@ -159,7 +190,7 @@ export function VendasPage() {
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <DonutChart title="Vendas por estado" data={porEstado} />
+        {temStatusNegocio && <DonutChart title="Status do negócio" data={porStatusNegocio} />}
         <DonutChart title="Fornecedor do kit" data={porFornecedor} />
       </section>
 
@@ -182,9 +213,9 @@ export function VendasPage() {
           title="Vendas diárias"
           rows={diasOrdenados}
           maxHeight={320}
-          onRowClick={(r) => setGrupoSelecionado({ titulo: new Date(r.dia).toLocaleDateString('pt-BR'), vendas: r.vendas })}
+          onRowClick={(r) => setGrupoSelecionado({ titulo: dataCurta(r.dia), vendas: r.vendas })}
           columns={[
-            { key: 'dia', label: 'Dia', render: (r) => new Date(r.dia).toLocaleDateString('pt-BR') },
+            { key: 'dia', label: 'Dia', render: (r) => dataCurta(r.dia) },
             { key: 'quantidade', label: 'Qtd', align: 'right', render: (r) => number.format(r.quantidade) },
             { key: 'valorTotal', label: 'Valor total', align: 'right', render: (r) => currency.format(r.valorTotal) },
           ]}
@@ -195,29 +226,37 @@ export function VendasPage() {
           maxHeight={320}
           onRowClick={setVendaSelecionada}
           columns={[
-            { key: 'vendedor', label: 'Vendedor', render: (r) => r.vendedor },
-            { key: 'nome', label: 'Nome', render: (r) => r.nome },
-            { key: 'cidade', label: 'Cidade/UF', render: (r) => (r.cidade ? `${r.cidade}/${r.estado}` : '—') },
+            { key: 'vendedor', label: 'Vendedor', render: (r) => r.vendedor ?? '—' },
+            { key: 'nome', label: 'Nome', render: (r) => r.nome ?? '—' },
+            { key: 'tipoNegocio', label: 'Tipo', render: (r) => r.tipoNegocio ?? '—' },
+            { key: 'cidade', label: 'Cidade/UF', render: (r) => (r.cidade ? `${r.cidade}/${r.uf ?? '—'}` : '—') },
             { key: 'valorTotal', label: 'Valor', align: 'right', render: (r) => currency.format(r.valorTotal) },
           ]}
         />
       </section>
 
       {vendaSelecionada && (
-        <Modal title={vendaSelecionada.nome} onClose={() => setVendaSelecionada(null)}>
+        <Modal title={vendaSelecionada.nome ?? `Venda ${vendaSelecionada.codigo}`} onClose={() => setVendaSelecionada(null)}>
+          <DetailRow label="Código" value={String(vendaSelecionada.codigo)} />
           <DetailRow label="Vendedor" value={vendaSelecionada.vendedor} />
+          <DetailRow label="Tipo de negócio" value={vendaSelecionada.tipoNegocio} />
+          <DetailRow label="Etapa do negócio" value={vendaSelecionada.etapaNegocio} />
+          <DetailRow label="Status do negócio" value={vendaSelecionada.statusNegocio} />
+          <DetailRow label="Status da venda" value={vendaSelecionada.statusVenda ?? vendaSelecionada.statusNome} />
           <DetailRow label="Valor total" value={currency.format(vendaSelecionada.valorTotal)} />
-          <DetailRow label="Comissão" value={currency.format(vendaSelecionada.valorComissao)} />
-          <DetailRow label="Data da venda" value={vendaSelecionada.dataVenda ? new Date(vendaSelecionada.dataVenda).toLocaleString('pt-BR') : '—'} />
+          <DetailRow label="Valor de produto" value={valorOuTraco(vendaSelecionada.valorProduto)} />
+          <DetailRow label="Valor de serviço" value={valorOuTraco(vendaSelecionada.valorServico)} />
+          <DetailRow label="Entrada / financiado" value={`${valorOuTraco(vendaSelecionada.valorEntrada)} / ${valorOuTraco(vendaSelecionada.valorFinanciado)}`} />
+          <DetailRow label="Comissão" value={valorOuTraco(vendaSelecionada.valorComissao)} />
+          <DetailRow label="Data da venda" value={dataCurta(vendaSelecionada.dataVenda)} />
           <DetailRow label="Ciclo de venda" value={vendaSelecionada.cicloVenda != null ? `${Math.round(vendaSelecionada.cicloVenda)} dias` : '—'} />
-          <DetailRow label="Origem" value={vendaSelecionada.origemNome} />
-          <DetailRow label="Status" value={vendaSelecionada.statusNome} />
-          <DetailRow label="Cidade/UF" value={vendaSelecionada.cidade ? `${vendaSelecionada.cidade}/${vendaSelecionada.estado}` : '—'} />
+          <DetailRow label="Origem" value={vendaSelecionada.origemContato} />
+          <DetailRow label="Cidade/UF" value={vendaSelecionada.cidade ? `${vendaSelecionada.cidade}/${vendaSelecionada.uf ?? '—'}` : '—'} />
           <DetailRow label="Bairro" value={vendaSelecionada.bairro} />
           <DetailRow label="Fornecedor do kit" value={vendaSelecionada.fornecedor} />
           <DetailRow label="Placa" value={vendaSelecionada.placa} />
           <DetailRow label="Inversor" value={vendaSelecionada.inversor} />
-          <DetailRow label="Lucro" value={vendaSelecionada.lucro != null ? currency.format(vendaSelecionada.lucro) : '—'} />
+          <DetailRow label="Lucro" value={valorOuTraco(vendaSelecionada.lucro)} />
         </Modal>
       )}
 
@@ -232,8 +271,8 @@ export function VendasPage() {
               setVendaSelecionada(v)
             }}
             columns={[
-              { key: 'nome', label: 'Cliente', render: (r) => r.nome },
-              { key: 'vendedor', label: 'Vendedor', render: (r) => r.vendedor },
+              { key: 'nome', label: 'Cliente', render: (r) => r.nome ?? '—' },
+              { key: 'vendedor', label: 'Vendedor', render: (r) => r.vendedor ?? '—' },
               { key: 'valorTotal', label: 'Valor', align: 'right', render: (r) => currency.format(r.valorTotal) },
             ]}
           />

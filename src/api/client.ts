@@ -1,4 +1,4 @@
-import type { PietaMetricas, PietaProjetoDetalhe, PietaResumo, ProjetoRaw, PropostaRaw, Summary, TarefaRaw, UsinasRawResponse, VendaRaw } from './types'
+import type { PietaMetricas, PietaProjetoDetalhe, PietaResumo, ProjetoRaw, PropostaRaw, SaleIndicador, Summary, TarefaRaw, UsinasRawResponse, VendaRaw } from './types'
 
 async function request<T>(path: string): Promise<T> {
   const res = await fetch(path)
@@ -12,6 +12,7 @@ async function request<T>(path: string): Promise<T> {
 export const api = {
   getSummary: (refresh = false) => request<Summary>(`/api/summary${refresh ? '?refresh=1' : ''}`),
   getVendasRaw: () => request<VendaRaw[]>('/api/raw/vendas'),
+  getSalesIndicadores: () => request<SaleIndicador[]>('/api/indicadores/sales'),
   getProjetosRaw: () => request<ProjetoRaw[]>('/api/raw/projetos'),
   getPropostasRaw: () => request<PropostaRaw[]>('/api/raw/propostas'),
   getTarefasRaw: () => request<TarefaRaw[]>('/api/raw/tarefas'),

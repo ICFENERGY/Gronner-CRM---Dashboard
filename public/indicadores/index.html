@@ -1,0 +1,2544 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Indicador Engenharia - Groner</title>
+<!-- Servido pelo painel em /indicadores. Dados: /api/indicadores/* (Neon, nunca o Groner ao vivo), carregados por shim.js. -->
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=Source+Serif+4:wght@600;700&display=swap">
+<style>
+/* ---------------------------------------------------------------
+   Indicador Engenharia - Groner — standalone port
+   Layout: single-column band + tabs + filter bar, full-width dashboard
+   ------------------------------------------------------------------ */
+:root {
+  --color-bg: #ffffff;
+  --color-panel: #f7f8f8;
+  --color-fg: #16181a;
+  --color-fg-muted: #6b7280;
+  --color-border-line: #e3e5e7;
+  --color-accent: #0f9b94;
+  --font-anthropic-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-anthropic-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #111315;
+    --color-panel: #1a1d20;
+    --color-fg: #eef0f1;
+    --color-fg-muted: #9aa2a9;
+    --color-border-line: #2b2f33;
+    --color-accent: #2cc2b8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --color-bg: #111315;
+  --color-panel: #1a1d20;
+  --color-fg: #eef0f1;
+  --color-fg-muted: #9aa2a9;
+  --color-border-line: #2b2f33;
+  --color-accent: #2cc2b8;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-anthropic-sans);
+}
+#dash-root {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px;
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+</style>
+<style>
+  :root {
+    --eng-teal: #0f9b94;
+    --eng-orange: #e08a2e;
+    --eng-red: #e8515b;
+    --eng-green: #2e9e52;
+    --eng-gray: #9aa0a6;
+    --eng-blue: #3f6fd6;
+    --eng-purple: #8a5bd6;
+  }
+
+  #dash-root { font-family: var(--font-anthropic-sans); }
+
+  .eng-wrap { display: flex; flex-direction: column; gap: 20px; }
+
+  .eng-band {
+    display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+    gap: 10px; border-bottom: 1px solid var(--color-border-line); padding: 0 0 14px 0;
+  }
+  .eng-band-eyebrow { font-size: 11px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-fg-muted); margin-bottom: 6px; }
+  .eng-band-title { font-family: var(--font-anthropic-serif); font-size: clamp(20px, 3.4vw, 26px); font-weight: 700; color: var(--color-fg); }
+  .eng-band-right { text-align: right; }
+  .eng-band-stat { display: flex; align-items: center; justify-content: flex-end; gap: 7px; font-size: 13px; font-weight: 600; color: var(--color-fg); }
+  .eng-band-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--eng-teal); flex: none; }
+  .eng-band-sub { font-size: 12px; color: var(--color-fg-muted); margin-top: 3px; }
+
+  .eng-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--color-border-line); }
+  .eng-tab-btn {
+    font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 14px; border: none; background: none;
+    color: var(--color-fg-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .eng-tab-btn:hover { color: var(--color-fg); }
+  .eng-tab-btn.is-active { color: var(--eng-teal); border-bottom-color: var(--eng-teal); }
+
+  .eng-filterbar { border: 1px solid var(--color-border-line); border-radius: 12px; padding: 12px 14px; background: var(--color-panel); }
+  .eng-filters-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .eng-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--color-fg-muted); }
+  .eng-field select, .eng-field input {
+    font-family: inherit; font-size: 13px; font-weight: 400; text-transform: none; padding: 6px 9px;
+    border-radius: 8px; border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg);
+    min-width: 120px; box-sizing: border-box;
+  }
+  .eng-field-hint { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--eng-teal, var(--color-accent)); min-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .eng-range-pair { display: flex; gap: 4px; }
+  .eng-range-pair input { width: 78px; min-width: 0; }
+  .eng-range-pair input[type="date"] { width: 128px; }
+  .eng-multiselect { position: relative; }
+  .eng-multiselect-btn {
+    font-family: inherit; font-size: 13px; font-weight: 400; text-transform: none; padding: 6px 9px;
+    border-radius: 8px; border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg);
+    min-width: 120px; box-sizing: border-box; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .eng-multiselect-btn:hover { border-color: var(--eng-teal); }
+  .eng-multiselect-pop {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 160px; max-height: 240px; overflow-y: auto;
+    background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    padding: 6px; display: flex; flex-direction: column; gap: 1px;
+  }
+  .eng-multiselect-opt { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 400; text-transform: none; color: var(--color-fg); padding: 5px 6px; border-radius: 6px; cursor: pointer; }
+  .eng-multiselect-opt:hover { background: var(--color-bg); }
+  .eng-multiselect-opt input { margin: 0; accent-color: var(--eng-teal); }
+  .eng-multiselect-sep { border-top: 1px solid var(--color-border-line); margin: 4px 0; }
+  .eng-back-link { font-family: inherit; font-size: 12px; font-weight: 600; color: var(--eng-teal); background: none; border: none; cursor: pointer; padding: 0; margin: -4px 0 8px; }
+  .eng-back-link:hover { text-decoration: underline; }
+  .eng-tipo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: stretch; }
+  .eng-tipo-card { border: 1px solid var(--color-border-line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; min-width: 0; }
+  .eng-tipo-head { font-family: var(--font-anthropic-serif); font-size: 14px; font-weight: 700; color: var(--color-fg); margin-bottom: 2px; line-height: 1.3; }
+  .eng-tipo-card .eng-donut-wrap { align-items: flex-start; flex: 1; min-width: 0; flex-wrap: nowrap; }
+  .eng-tipo-card .eng-donut-legend { font-size: 12px; min-width: 0; flex: 1; }
+  .eng-tipo-card .eng-legend-row { flex-direction: column; align-items: stretch; gap: 1px; }
+  .eng-tipo-card .eng-legend-row-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .eng-tipo-card .eng-legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .eng-tipo-card .eng-legend-value { padding-left: 16px; color: var(--color-fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .eng-clear-btn {
+    font-family: inherit; font-size: 12px; padding: 7px 12px; align-self: end;
+    border-radius: 8px; border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg-muted); cursor: pointer;
+  }
+  .eng-clear-btn:hover { color: var(--color-fg); }
+  .eng-filter-summary { margin-top: 8px; font-size: 12px; color: var(--color-fg-muted); }
+
+  .eng-view { display: flex; flex-direction: column; gap: 20px; }
+
+  .eng-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .eng-kpi { padding: 14px 16px; border-radius: 12px; background: var(--color-panel); border: 1px solid var(--color-border-line); border-left: 4px solid var(--eng-teal); }
+  .eng-kpi--teal { border-left-color: var(--eng-teal); }
+  .eng-kpi--orange { border-left-color: var(--eng-orange); }
+  .eng-kpi--gray { border-left-color: var(--eng-gray); }
+  .eng-kpi--green { border-left-color: var(--eng-green); }
+  .eng-kpi--red { border-left-color: var(--eng-red); }
+  .eng-kpi-label { font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-fg-muted); margin-bottom: 4px; }
+  .eng-kpi-value { font-family: var(--font-anthropic-serif); font-size: clamp(16px, 2.4vw, 20px); font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--color-fg); }
+  .eng-kpi-sub { font-size: 11px; color: var(--color-fg-muted); margin-top: 3px; }
+
+  .eng-grid { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .eng-grid { grid-template-columns: 1fr; } }
+
+  .eng-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .eng-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .eng-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 680px) { .eng-two-col { grid-template-columns: 1fr; } }
+
+  .eng-panel { border: 1px solid var(--color-border-line); border-radius: 12px; padding: 18px; background: var(--color-panel); min-width: 0; }
+  .eng-panel--tight { padding: 14px; }
+  .eng-panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 12px; }
+  .eng-panel-head h2 { font-size: 14.5px; font-weight: 650; margin: 0; color: var(--color-fg); }
+  .eng-panel-note { font-size: 11.5px; color: var(--color-fg-muted); }
+
+  .eng-vchart-wrap { min-width: 0; overflow-x: auto; }
+  .eng-vbar-label { font-size: 10.5px; fill: var(--color-fg-muted); }
+  .eng-vbar-value { font-size: 10.5px; font-weight: 650; fill: var(--color-fg); }
+
+  .eng-ranklist { display: flex; flex-direction: column; gap: 11px; }
+  .eng-ranklist--scroll { max-height: 220px; overflow-y: auto; padding-right: 4px; }
+  .eng-rank-row { display: flex; flex-direction: column; gap: 4px; }
+  .eng-rank-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .eng-rank-label { font-size: 12.5px; color: var(--color-fg); overflow-wrap: anywhere; }
+  .eng-rank-value { font-size: 12.5px; font-weight: 650; color: var(--color-fg); font-variant-numeric: tabular-nums; flex: none; }
+  .eng-rank-track { height: 5px; border-radius: 4px; background: var(--color-bg); overflow: hidden; }
+  .eng-rank-fill { height: 100%; border-radius: 4px; background: var(--eng-red); }
+
+  .eng-donut-wrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; min-width: 0; }
+  .eng-donut-wrap svg { flex: none; }
+  .eng-donut-legend { display: flex; flex-direction: column; gap: 7px; flex: 1 1 150px; min-width: 0; }
+  .eng-mes-legend { flex-direction: row; flex-wrap: wrap; gap: 10px 16px; margin-top: 8px; }
+  .eng-legend-row { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--color-fg); }
+  .eng-legend-swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+  .eng-legend-label { flex: 1; }
+
+  .eng-tooltip {
+    position: fixed; pointer-events: none; z-index: 50; background: var(--color-fg); color: var(--color-bg);
+    font-size: 12px; padding: 6px 9px; border-radius: 6px; line-height: 1.35; max-width: 240px; opacity: 0; transition: opacity 0.1s;
+  }
+
+  .eng-clientes-wrap { display: flex; flex-direction: column; gap: 16px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+  .eng-client-group-head { font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--eng-teal); display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border-line); padding-bottom: 5px; margin-bottom: 7px; }
+  .eng-client-row { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; padding: 5px 0; color: var(--color-fg); }
+  .eng-client-row + .eng-client-row { border-top: 1px dashed var(--color-border-line); }
+  .eng-client-row-top { display: flex; justify-content: space-between; gap: 10px; }
+  .eng-client-name { overflow-wrap: anywhere; }
+  .eng-client-codigo { color: var(--color-fg-muted); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .eng-client-date { color: var(--color-fg-muted); font-variant-numeric: tabular-nums; flex: none; white-space: nowrap; }
+  .eng-client-date.is-late { color: var(--eng-red); font-weight: 650; }
+  .eng-client-meta { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 11px; color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+  .eng-client-meta b { font-weight: 650; color: var(--color-fg); }
+  .eng-client-meta .is-late { color: var(--eng-red); font-weight: 650; }
+
+  .eng-exec-table-wrap { overflow-x: auto; }
+  .eng-exec-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .eng-exec-table th, .eng-exec-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .eng-exec-table th { font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--color-fg-muted); }
+  .eng-exec-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .eng-exec-table tr:hover td { background: var(--color-bg); }
+  .eng-pct-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 650; font-size: 11.5px; }
+  .eng-pct-pill--low { background: color-mix(in srgb, var(--eng-green) 18%, transparent); color: var(--eng-green); }
+  .eng-pct-pill--mid { background: color-mix(in srgb, var(--eng-orange) 18%, transparent); color: var(--eng-orange); }
+  .eng-pct-pill--high { background: color-mix(in srgb, var(--eng-red) 18%, transparent); color: var(--eng-red); }
+
+  .eng-meta-toggle-btn { align-self: end; white-space: nowrap; }
+  .eng-meta-panel {
+    margin-top: 14px; padding: 14px; border-radius: 10px; border: 1px solid var(--color-border-line);
+    background: var(--color-bg); display: flex; flex-direction: column; gap: 12px;
+  }
+  .eng-meta-panel-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .eng-meta-status { font-size: 11.5px; color: var(--color-fg-muted); }
+  .eng-meta-status.is-saved { color: var(--eng-green); }
+  .eng-meta-status.is-error { color: var(--eng-red); }
+  .eng-meta-retry-btn {
+    font-family: inherit; font-size: 11px; font-weight: 650; padding: 2px 9px; cursor: pointer;
+    border-radius: 999px; border: 1px solid var(--eng-red); background: transparent; color: var(--eng-red);
+  }
+  .eng-meta-retry-btn:hover { background: color-mix(in srgb, var(--eng-red) 12%, transparent); }
+  .eng-resumo-group { margin-bottom: 18px; }
+  .eng-resumo-group-title { font-size: 13px; font-weight: 700; color: var(--color-fg); margin: 0 0 6px; }
+  .eng-resumo-table-wrap { overflow-x: auto; }
+  .eng-resumo-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .eng-resumo-table th, .eng-resumo-table td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .eng-resumo-table th { font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--color-fg-muted); background: var(--color-bg); }
+  .eng-resumo-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .eng-resumo-table tr:hover td { background: var(--color-bg); }
+  .eng-resumo-cell-ok { color: var(--eng-green); font-weight: 650; background: color-mix(in srgb, var(--eng-green) 14%, transparent); }
+  .eng-resumo-cell-bad { color: var(--eng-red); font-weight: 650; background: color-mix(in srgb, var(--eng-red) 14%, transparent); }
+  .eng-resumo-subtotal td { font-weight: 700; background: var(--color-bg); border-top: 2px solid var(--color-border-line); }
+  .eng-resumo-grandtotal td { font-weight: 800; background: color-mix(in srgb, var(--eng-teal) 10%, transparent); border-top: 2px solid var(--eng-teal); }
+  .eng-resumo-empty { font-size: 12.5px; color: var(--color-fg-muted); padding: 10px 2px; }
+  .eng-meta-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .eng-meta-table { width: 100%; border-collapse: collapse; font-size: 10.5px; table-layout: fixed; min-width: 760px; }
+  .eng-meta-table th, .eng-meta-table td { padding: 5px 2px; text-align: center; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .eng-meta-table th:first-child, .eng-meta-table td:first-child { width: 150px; text-align: left; font-weight: 600; color: var(--color-fg); white-space: normal; overflow: visible; }
+  .eng-meta-table th:last-child, .eng-meta-table td:last-child { width: 80px; }
+  .eng-meta-table th { font-size: 9.5px; font-weight: 700; letter-spacing: 0.01em; text-transform: uppercase; color: var(--color-fg-muted); }
+  .eng-meta-cells { padding: 0 !important; overflow: visible !important; }
+  .eng-meta-cells-inner { display: grid; grid-template-columns: repeat(12, 1fr); }
+  .eng-meta-input {
+    width: 100%; min-width: 0; box-sizing: border-box; font-family: inherit; font-size: 10px; text-align: center;
+    padding: 5px 2px; border: 1px solid transparent; border-right: 1px solid var(--color-border-line);
+    background: transparent; color: var(--color-fg); font-variant-numeric: tabular-nums;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .eng-meta-cells-inner .eng-meta-input:last-child { border-right: none; }
+  .eng-meta-input:focus { outline: none; border-color: var(--eng-teal); background: var(--color-panel); position: relative; z-index: 1; }
+  .eng-meta-total { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-fg); font-size: 10px; overflow: hidden; text-overflow: ellipsis; }
+  .eng-meta-row-readonly td { background: color-mix(in srgb, var(--eng-teal) 7%, transparent); }
+  .eng-meta-row-readonly td:first-child { color: var(--eng-teal); font-weight: 650; }
+  .eng-meta-venda-cell { font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--eng-teal); font-weight: 600; }
+  .eng-meta-taxa-cell { font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--eng-orange); font-weight: 600; }
+  .eng-meta-row-readonly + .eng-meta-row-readonly td { color: var(--eng-orange); }
+  .eng-meta-row-readonly + .eng-meta-row-readonly td:first-child { color: var(--eng-orange); }
+  .eng-meta-total input.eng-meta-input--total { text-align: center; font-weight: 700; }
+  .eng-meta-panel-foot { display: flex; justify-content: flex-end; }
+  .eng-meta-save-btn { align-self: auto; }
+  .eng-meta-save-btn:disabled { opacity: 0.5; cursor: default; }
+  @media (min-width: 900px) { .eng-meta-table { min-width: 0; } }
+
+</style>
+<div id="dash-root">
+<div class="eng-wrap">
+  <header class="eng-band">
+    <div class="eng-band-left">
+      <div class="eng-band-eyebrow">GRONER CRM</div>
+      <div class="eng-band-title">Indicadores</div>
+    </div>
+    <div class="eng-band-right">
+      <div class="eng-band-stat"><span class="eng-band-dot"></span><span id="eng-band-total-text">— cards monitorados</span></div>
+      <div class="eng-band-sub">Consultado em <span id="eng-band-time"></span></div>
+    </div>
+  </header>
+
+  <nav class="eng-tabs">
+    <button class="eng-tab-btn is-active" data-tab="dash" type="button">Dashboard</button>
+    <button class="eng-tab-btn" data-tab="exec" type="button">Visão Executiva · por Etapa</button>
+    <button class="eng-tab-btn" data-tab="sales" type="button">Vendas · Sales</button>
+    <button class="eng-tab-btn" data-tab="funeng" type="button">Engenharia</button>
+  </nav>
+
+  <section class="eng-filterbar" id="eng-main-filterbar">
+    <div class="eng-filters-row">
+      <label class="eng-field">
+        <span>Cliente</span>
+        <input id="eng-f-nome" type="text" list="eng-clientes-list" placeholder="Todos">
+        <datalist id="eng-clientes-list"></datalist>
+      </label>
+      <label class="eng-field">
+        <span>Código</span>
+        <input id="eng-f-codigo" type="text" list="eng-codigos-list" placeholder="Todos" autocomplete="off">
+        <datalist id="eng-codigos-list"></datalist>
+      </label>
+      <label class="eng-field">
+        <span>Funil</span>
+        <select id="eng-f-funil"><option value="">Todos</option></select>
+      </label>
+      <label class="eng-field eng-multiselect" id="eng-f-etapa-wrap">
+        <span>Etapa</span>
+        <button type="button" class="eng-multiselect-btn" id="eng-f-etapa-btn">Todas</button>
+        <div class="eng-multiselect-pop" id="eng-f-etapa-pop" hidden></div>
+      </label>
+      <label class="eng-field">
+        <span>UF</span>
+        <select id="eng-f-uf"><option value="">Todas</option></select>
+      </label>
+      <label class="eng-field eng-multiselect" id="eng-f-ano-wrap">
+        <span>Ano</span>
+        <button type="button" class="eng-multiselect-btn" id="eng-f-ano-btn">Todos</button>
+        <div class="eng-multiselect-pop" id="eng-f-ano-pop" hidden></div>
+      </label>
+      <label class="eng-field eng-multiselect" id="eng-f-mes-wrap">
+        <span>Mês</span>
+        <button type="button" class="eng-multiselect-btn" id="eng-f-mes-btn">Todos</button>
+        <div class="eng-multiselect-pop" id="eng-f-mes-pop" hidden></div>
+      </label>
+      <label class="eng-field">
+        <span>Status SLA</span>
+        <select id="eng-f-sla">
+          <option value="">Todos</option>
+          <option value="atendido">Dentro do prazo</option>
+          <option value="atrasado">Atrasado</option>
+        </select>
+      </label>
+      <button id="eng-clear" class="eng-clear-btn" type="button">Limpar filtros</button>
+    </div>
+    <div class="eng-filter-summary" id="eng-filter-summary"></div>
+  </section>
+
+  <section class="eng-view" id="eng-view-dash">
+    <section class="eng-kpi-row">
+      <div class="eng-kpi eng-kpi--teal">
+        <div class="eng-kpi-label">TOTAL DE CARDS</div>
+        <div class="eng-kpi-value" id="eng-kpi-total">—</div>
+        <div class="eng-kpi-sub">100% da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--green">
+        <div class="eng-kpi-label">SLA ATENDIDO</div>
+        <div class="eng-kpi-value" id="eng-kpi-ok">—</div>
+        <div class="eng-kpi-sub" id="eng-kpi-ok-pct">— da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--red">
+        <div class="eng-kpi-label">SLA ATRASADO</div>
+        <div class="eng-kpi-value" id="eng-kpi-atrasado">—</div>
+        <div class="eng-kpi-sub" id="eng-kpi-atrasado-pct">— da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--orange">
+        <div class="eng-kpi-label">DIAS MÉDIO NO FLUXO</div>
+        <div class="eng-kpi-value" id="eng-kpi-dias">—</div>
+        <div class="eng-kpi-sub">média da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--gray">
+        <div class="eng-kpi-label">VALOR TOTAL</div>
+        <div class="eng-kpi-value" id="eng-kpi-valor">—</div>
+        <div class="eng-kpi-sub">soma da seleção</div>
+      </div>
+    </section>
+
+    <div class="eng-grid">
+      <aside class="eng-side">
+        <section class="eng-panel eng-panel--tight">
+          <div class="eng-panel-head">
+            <h2>Em aberto por etapa</h2>
+            <span class="eng-panel-note" id="eng-etapas-note"></span>
+          </div>
+          <div class="eng-ranklist eng-ranklist--scroll" id="eng-etapas-list"></div>
+        </section>
+
+        <section class="eng-panel eng-panel--tight">
+          <div class="eng-panel-head">
+            <h2>Cards por UF</h2>
+          </div>
+          <div class="eng-ranklist eng-ranklist--scroll" id="eng-uf-list"></div>
+        </section>
+
+        <section class="eng-panel eng-panel--tight">
+          <div class="eng-panel-head">
+            <h2>Cards por cidade</h2>
+            <span class="eng-panel-note" id="eng-cidade-note"></span>
+          </div>
+          <div class="eng-ranklist eng-ranklist--scroll" id="eng-cidade-list"></div>
+        </section>
+
+        <section class="eng-panel eng-panel--tight">
+          <div class="eng-panel-head">
+            <h2>Cards por ano</h2>
+          </div>
+          <div class="eng-vchart-wrap">
+            <svg id="eng-ano-bars" width="100%"></svg>
+          </div>
+        </section>
+      </aside>
+
+      <main class="eng-main">
+        <div class="eng-two-col">
+          <section class="eng-panel">
+            <div class="eng-panel-head">
+              <h2>SLA atendido</h2>
+              <span class="eng-panel-note">do volume filtrado</span>
+            </div>
+            <div class="eng-donut-wrap">
+              <svg id="eng-donut" width="100%"></svg>
+              <div id="eng-donut-legend" class="eng-donut-legend"></div>
+            </div>
+          </section>
+
+          <section class="eng-panel">
+            <div class="eng-panel-head">
+              <h2>Atendido × Atrasado por mês</h2>
+              <span class="eng-panel-note" id="eng-mes-note"></span>
+            </div>
+            <div class="eng-vchart-wrap">
+              <svg id="eng-mes-bars" width="100%"></svg>
+            </div>
+            <div id="eng-mes-legend" class="eng-donut-legend eng-mes-legend"></div>
+          </section>
+        </div>
+
+        <section class="eng-panel">
+          <div class="eng-panel-head">
+            <h2>Evolução de cards abertos</h2>
+            <span class="eng-panel-note" id="eng-evol-note">Meses anteriores + últimas 3 semanas, por data de abertura</span>
+          </div>
+          <div class="eng-vchart-wrap">
+            <svg id="eng-evol-bars" width="100%"></svg>
+          </div>
+        </section>
+
+        <section class="eng-panel">
+          <div class="eng-panel-head">
+            <h2>Cards por funil</h2>
+            <span class="eng-panel-note" id="eng-funil-note"></span>
+          </div>
+          <div class="eng-vchart-wrap">
+            <svg id="eng-funil-bars" width="100%"></svg>
+          </div>
+          <div id="eng-funil-legend" class="eng-donut-legend eng-mes-legend"></div>
+        </section>
+
+        <section class="eng-panel">
+          <div class="eng-panel-head">
+            <h2>Clientes com cards em aberto</h2>
+            <span class="eng-panel-note" id="eng-clientes-note"></span>
+          </div>
+          <div class="eng-clientes-wrap" id="eng-clientes-groups"></div>
+        </section>
+      </main>
+    </div>
+  </section>
+
+  <section class="eng-view" id="eng-view-exec" hidden>
+    <section class="eng-kpi-row">
+      <div class="eng-kpi eng-kpi--teal">
+        <div class="eng-kpi-label">TOTAL DE CARDS</div>
+        <div class="eng-kpi-value" id="eng-kpi-total-x">—</div>
+        <div class="eng-kpi-sub">100% da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--green">
+        <div class="eng-kpi-label">SLA ATENDIDO</div>
+        <div class="eng-kpi-value" id="eng-kpi-ok-x">—</div>
+        <div class="eng-kpi-sub" id="eng-kpi-ok-pct-x">— da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--red">
+        <div class="eng-kpi-label">SLA ATRASADO</div>
+        <div class="eng-kpi-value" id="eng-kpi-atrasado-x">—</div>
+        <div class="eng-kpi-sub" id="eng-kpi-atrasado-pct-x">— da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--orange">
+        <div class="eng-kpi-label">DIAS MÉDIO NO FLUXO</div>
+        <div class="eng-kpi-value" id="eng-kpi-dias-x">—</div>
+        <div class="eng-kpi-sub">média da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--gray">
+        <div class="eng-kpi-label">VALOR TOTAL</div>
+        <div class="eng-kpi-value" id="eng-kpi-valor-x">—</div>
+        <div class="eng-kpi-sub">soma da seleção</div>
+      </div>
+    </section>
+
+    <section class="eng-panel">
+      <div class="eng-panel-head">
+        <h2>Cards por grupo de funil — por mês</h2>
+        <span class="eng-panel-note" id="eng-grupo-note"></span>
+      </div>
+      <div class="eng-vchart-wrap">
+        <svg id="eng-grupo-bars" width="100%"></svg>
+      </div>
+      <div id="eng-grupo-legend" class="eng-donut-legend eng-mes-legend"></div>
+    </section>
+
+    <section class="eng-panel">
+      <div class="eng-panel-head">
+        <h2>Cards por funil — um gráfico por grupo</h2>
+      </div>
+      <div class="eng-tipo-grid">
+        <div class="eng-tipo-card">
+          <div class="eng-tipo-head">Vendas</div>
+          <span class="eng-panel-note" id="eng-tipo-note-Vendas"></span>
+          <div class="eng-donut-wrap">
+            <svg id="eng-tipo-donut-Vendas" width="100%"></svg>
+            <div id="eng-tipo-legend-Vendas" class="eng-donut-legend"></div>
+          </div>
+        </div>
+        <div class="eng-tipo-card">
+          <div class="eng-tipo-head">Financeiro</div>
+          <span class="eng-panel-note" id="eng-tipo-note-Financeiro"></span>
+          <div class="eng-donut-wrap">
+            <svg id="eng-tipo-donut-Financeiro" width="100%"></svg>
+            <div id="eng-tipo-legend-Financeiro" class="eng-donut-legend"></div>
+          </div>
+        </div>
+        <div class="eng-tipo-card">
+          <div class="eng-tipo-head">Engenharia</div>
+          <span class="eng-panel-note" id="eng-tipo-note-Engenharia"></span>
+          <div class="eng-donut-wrap">
+            <svg id="eng-tipo-donut-Engenharia" width="100%"></svg>
+            <div id="eng-tipo-legend-Engenharia" class="eng-donut-legend"></div>
+          </div>
+        </div>
+        <div class="eng-tipo-card">
+          <div class="eng-tipo-head">Outros</div>
+          <span class="eng-panel-note" id="eng-tipo-note-Outros"></span>
+          <div class="eng-donut-wrap">
+            <svg id="eng-tipo-donut-Outros" width="100%"></svg>
+            <div id="eng-tipo-legend-Outros" class="eng-donut-legend"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="eng-panel">
+      <div class="eng-panel-head">
+        <h2>Visão Executiva — por Etapa</h2>
+        <span class="eng-panel-note" id="eng-exec-note"></span>
+      </div>
+      <div class="eng-exec-table-wrap">
+        <table class="eng-exec-table" id="eng-exec-table" data-source="execEtapa" data-row-key="etapa">
+          <thead>
+            <tr>
+              <th data-field="etapa">Etapa</th>
+              <th data-field="funil">Funil</th>
+              <th data-field="qtd">Qtde</th>
+              <th data-field="atrasados">Atrasados</th>
+              <th data-field="pctAtrasado">% Atrasado</th>
+              <th data-field="diasMedio">Dias médio no fluxo</th>
+              <th data-field="valorTotal">Valor total</th>
+            </tr>
+          </thead>
+          <tbody id="eng-exec-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <section class="eng-view" id="eng-view-funeng" hidden>
+    <section class="eng-filterbar">
+      <div class="eng-filters-row">
+        <label class="eng-field">
+          <span>Funil</span>
+          <select id="eng-fe-filter-funil">
+            <option value="all">Todos os funis</option>
+            <option value="08">08 · Engenharia</option>
+            <option value="09">09 · Compras</option>
+            <option value="10">10 · Homologação</option>
+            <option value="11">11 · Instalação</option>
+            <option value="13">13 · Suporte Cliente</option>
+            <option value="14">14 · Manutenção (Pós Venda)</option>
+          </select>
+        </label>
+        <label class="eng-field">
+          <span>Etapa</span>
+          <select id="eng-fe-filter-etapa">
+            <option value="all">Todas as etapas</option>
+          </select>
+        </label>
+        <label class="eng-field">
+          <span>SLA</span>
+          <select id="eng-fe-filter-sla">
+            <option value="all">Todos</option>
+            <option value="ok">Dentro do SLA</option>
+            <option value="atrasado">Fora do SLA (atrasado)</option>
+          </select>
+        </label>
+        <button id="eng-fe-clear" class="eng-clear-btn" type="button">Limpar filtros</button>
+      </div>
+    </section>
+
+    <section class="eng-kpi-row">
+      <div class="eng-kpi eng-kpi--teal">
+        <div class="eng-kpi-label">TOTAL DE NEGÓCIOS</div>
+        <div class="eng-kpi-value" id="eng-kpi-total-fe">—</div>
+        <div class="eng-kpi-sub" id="eng-kpi-total-sub-fe">funis 08, 09, 10, 11, 13, 14</div>
+      </div>
+      <div class="eng-kpi eng-kpi--green">
+        <div class="eng-kpi-label">DENTRO DO SLA</div>
+        <div class="eng-kpi-value" id="eng-kpi-ok-fe">—</div>
+        <div class="eng-kpi-sub" id="eng-kpi-ok-pct-fe">— da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--red">
+        <div class="eng-kpi-label">FORA DO SLA (ATRASADO)</div>
+        <div class="eng-kpi-value" id="eng-kpi-atrasado-fe">—</div>
+        <div class="eng-kpi-sub" id="eng-kpi-atrasado-pct-fe">— da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--orange">
+        <div class="eng-kpi-label">DIAS MÉDIO NO CARD</div>
+        <div class="eng-kpi-value" id="eng-kpi-dias-fe">—</div>
+        <div class="eng-kpi-sub">média da seleção</div>
+      </div>
+      <div class="eng-kpi eng-kpi--gray">
+        <div class="eng-kpi-label">VALOR TOTAL</div>
+        <div class="eng-kpi-value" id="eng-kpi-valor-fe">—</div>
+        <div class="eng-kpi-sub">soma da seleção</div>
+      </div>
+    </section>
+
+    <section class="eng-panel">
+      <div class="eng-panel-head">
+        <h2>Engenharia — Cards por funil</h2>
+        <span class="eng-panel-note" id="eng-fe-funil-note"></span>
+      </div>
+      <div class="eng-donut-wrap">
+        <svg id="eng-fe-funil-donut" width="100%"></svg>
+        <div id="eng-fe-funil-legend" class="eng-donut-legend"></div>
+      </div>
+    </section>
+
+    <section class="eng-panel">
+      <div class="eng-panel-head">
+        <h2>Resumo — Indicador por Funil (08 + 09 + 10 + 11 + 13 + 14)</h2>
+        <span class="eng-panel-note" id="eng-fe-note"></span>
+      </div>
+      <div id="eng-fe-resumo"></div>
+    </section>
+  </section>
+
+  <section class="eng-view" id="eng-view-sales" hidden>
+    <section class="eng-filterbar">
+      <div class="eng-filters-row">
+        <label class="eng-field">
+          <span>Ano Venda</span>
+          <select id="es-f-ano"><option value="">Todos</option></select>
+        </label>
+        <label class="eng-field">
+          <span>Vendedor</span>
+          <select id="es-f-vendedor"><option value="">Todos</option></select>
+        </label>
+        <button id="es-clear" class="eng-clear-btn" type="button">Limpar filtros</button>
+        <button id="es-meta-toggle" class="eng-clear-btn eng-meta-toggle-btn" type="button">Cadastrar Meta por Vendedor</button>
+      </div>
+      <div class="eng-filter-summary" id="es-filter-summary"></div>
+
+      <section class="eng-meta-panel" id="es-meta-panel" hidden>
+        <div class="eng-meta-panel-head">
+          <label class="eng-field">
+            <span>Vendedor</span>
+            <select id="es-meta-vendedor"><option value="">Selecione…</option></select>
+          </label>
+          <label class="eng-field">
+            <span>Ano</span>
+            <select id="es-meta-ano"><option value="">Selecione…</option></select>
+          </label>
+          <span class="eng-meta-status" id="es-meta-status"></span>
+        </div>
+        <div class="eng-meta-table-wrap">
+          <table class="eng-meta-table" id="es-meta-table">
+            <thead>
+              <tr>
+                <th>Meta por vendedor</th>
+                <th>jan</th><th>fev</th><th>mar</th><th>abr</th><th>mai</th><th>jun</th>
+                <th>jul</th><th>ago</th><th>set</th><th>out</th><th>nov</th><th>dez</th>
+                <th>Total Geral</th>
+              </tr>
+            </thead>
+            <tbody id="es-meta-tbody"></tbody>
+          </table>
+        </div>
+        <div class="eng-meta-panel-foot">
+          <button id="es-meta-save" class="eng-clear-btn eng-meta-save-btn" type="button">Salvar Meta</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="eng-kpi-row">
+      <div class="eng-kpi eng-kpi--teal">
+        <div class="eng-kpi-label">QUANTIDADE</div>
+        <div class="eng-kpi-value" id="eng-sales-kpi-qtd">—</div>
+        <div class="eng-kpi-sub">cards sales</div>
+      </div>
+      <div class="eng-kpi eng-kpi--gray">
+        <div class="eng-kpi-label">SOMA DE VALOR TOTAL</div>
+        <div class="eng-kpi-value" id="eng-sales-kpi-valor">—</div>
+        <div class="eng-kpi-sub">soma do período</div>
+      </div>
+      <div class="eng-kpi eng-kpi--orange">
+        <div class="eng-kpi-label">TICKET MÉDIO</div>
+        <div class="eng-kpi-value" id="eng-sales-kpi-ticket">—</div>
+        <div class="eng-kpi-sub">sales</div>
+      </div>
+    </section>
+
+    <div class="eng-tipo-grid">
+      <div class="eng-tipo-card">
+        <div class="eng-tipo-head">Negócio</div>
+        <span class="eng-panel-note" id="eng-sales-negocio-note"></span>
+        <div class="eng-donut-wrap">
+          <svg id="eng-sales-negocio-donut" width="100%"></svg>
+          <div id="eng-sales-negocio-legend" class="eng-donut-legend"></div>
+        </div>
+      </div>
+      <div class="eng-tipo-card">
+        <div class="eng-tipo-head">Visão por Vendedor</div>
+        <span class="eng-panel-note" id="eng-sales-vendedor-note"></span>
+        <div class="eng-donut-wrap">
+          <svg id="eng-sales-vendedor-donut" width="100%"></svg>
+          <div id="eng-sales-vendedor-legend" class="eng-donut-legend"></div>
+        </div>
+      </div>
+      <div class="eng-tipo-card">
+        <div class="eng-tipo-head">Venda Mensal %</div>
+        <span class="eng-panel-note" id="eng-sales-mes-note"></span>
+        <div class="eng-donut-wrap">
+          <svg id="eng-sales-mes-donut" width="100%"></svg>
+          <div id="eng-sales-mes-legend" class="eng-donut-legend"></div>
+        </div>
+      </div>
+      <div class="eng-tipo-card">
+        <div class="eng-tipo-head">Negócio Estado</div>
+        <span class="eng-panel-note" id="eng-sales-uf-note"></span>
+        <div class="eng-donut-wrap">
+          <svg id="eng-sales-uf-donut" width="100%"></svg>
+          <div id="eng-sales-uf-legend" class="eng-donut-legend"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="eng-two-col">
+      <section class="eng-panel">
+        <div class="eng-panel-head">
+          <h2>Ano Venda</h2>
+          <span class="eng-panel-note" id="eng-sales-ano-note"></span>
+        </div>
+        <div class="eng-vchart-wrap">
+          <svg id="eng-sales-ano-bars" width="100%"></svg>
+        </div>
+      </section>
+
+      <section class="eng-panel">
+        <div class="eng-panel-head">
+          <h2>Venda Mensal (R$)</h2>
+          <span class="eng-panel-note" id="eng-sales-venda-mensal-note"></span>
+        </div>
+        <div class="eng-vchart-wrap">
+          <svg id="eng-sales-venda-mensal-bars" width="100%"></svg>
+        </div>
+      </section>
+    </div>
+
+    <section class="eng-panel eng-panel--tight">
+      <div class="eng-panel-head">
+        <h2>Vendas por Cidade</h2>
+        <span class="eng-panel-note" id="eng-sales-cidade-note"></span>
+      </div>
+      <div class="eng-ranklist eng-ranklist--scroll" id="eng-sales-cidade-list"></div>
+    </section>
+
+    <section class="eng-panel">
+      <div class="eng-panel-head">
+        <h2>Extrato</h2>
+        <span class="eng-panel-note" id="eng-sales-extrato-note"></span>
+      </div>
+      <div class="eng-exec-table-wrap">
+        <table class="eng-exec-table" id="eng-sales-extrato-table" data-source="sales" data-row-key="codigo">
+          <thead>
+            <tr>
+              <th data-field="codigo">Código</th>
+              <th data-field="vendedor">Vendedor</th>
+              <th data-field="tipoNegocio">Tipo de Negócio</th>
+              <th data-field="nome">Nome</th>
+              <th data-field="cidade">Cidade</th>
+              <th data-field="uf">UF</th>
+              <th data-field="dataVenda">Data da venda</th>
+              <th data-field="valorTotal">Valor total</th>
+            </tr>
+          </thead>
+          <tbody id="eng-sales-extrato-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</div>
+
+
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="/indicadores/shim.js"></script>
+<script>
+(function () {
+  const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const DONUT_PALETTE = ['#e8515b', '#0f9b94', '#9aa0a6', '#f2a74b', '#5b7fd6', '#b26fd6'];
+  const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+  const UF_NAME_MAP = {
+    'acre': 'AC', 'alagoas': 'AL', 'amapa': 'AP', 'amazonas': 'AM', 'bahia': 'BA', 'ceara': 'CE',
+    'distrito federal': 'DF', 'espirito santo': 'ES', 'goias': 'GO', 'maranhao': 'MA', 'mato grosso': 'MT',
+    'mato grosso do sul': 'MS', 'minas gerais': 'MG', 'para': 'PA', 'paraiba': 'PB', 'parana': 'PR',
+    'pernambuco': 'PE', 'piaui': 'PI', 'rio de janeiro': 'RJ', 'rio grande do norte': 'RN',
+    'rio grande do sul': 'RS', 'rondonia': 'RO', 'roraima': 'RR', 'santa catarina': 'SC',
+    'sao paulo': 'SP', 'sergipe': 'SE', 'tocantins': 'TO'
+  };
+  function normalizeUf(raw) {
+    if (!raw) return null;
+    const s = String(raw).trim();
+    if (!s) return null;
+    if (/^[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
+    const key = s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    return UF_NAME_MAP[key] || s;
+  }
+
+  function parseDate(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function escAttr(s) { return escHtml(s); }
+
+  let allRows = [];
+  let built = false;
+  let salesRows = [];
+  let salesBuilt = false;
+
+  function groupCount(rows, field) {
+    const m = new Map();
+    rows.forEach(r => {
+      const v = r[field];
+      if (v === undefined || v === null || v === '') return;
+      m.set(v, (m.get(v) || 0) + 1);
+    });
+    return Array.from(m, ([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  }
+
+  let etapaSelected = new Set();
+
+  function renderEtapaBtn() {
+    const btn = document.getElementById('eng-f-etapa-btn');
+    if (!etapaSelected.size) btn.textContent = 'Todas';
+    else if (etapaSelected.size <= 2) btn.textContent = Array.from(etapaSelected).join(', ');
+    else btn.textContent = `${etapaSelected.size} etapas selecionadas`;
+  }
+
+  function renderEtapaPop(etapas) {
+    const pop = document.getElementById('eng-f-etapa-pop');
+    const optsHtml = etapas.map(e => `
+      <label class="eng-multiselect-opt">
+        <input type="checkbox" data-etapa="${escAttr(e)}" ${etapaSelected.has(e) ? 'checked' : ''}>
+        <span>${escHtml(e)}</span>
+      </label>
+    `).join('');
+    pop.innerHTML = `
+      <label class="eng-multiselect-opt"><input type="checkbox" id="eng-f-etapa-all" ${etapaSelected.size === 0 ? 'checked' : ''}><span>Todas</span></label>
+      <div class="eng-multiselect-sep"></div>
+      ${optsHtml}
+    `;
+    pop.querySelector('#eng-f-etapa-all').addEventListener('change', (e) => {
+      if (e.target.checked) etapaSelected.clear();
+      renderEtapaPop(etapas);
+      renderEtapaBtn();
+      onFiltersChanged();
+    });
+    pop.querySelectorAll('input[data-etapa]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const v = e.target.dataset.etapa;
+        if (e.target.checked) etapaSelected.add(v); else etapaSelected.delete(v);
+        renderEtapaPop(etapas);
+        renderEtapaBtn();
+        onFiltersChanged();
+      });
+    });
+  }
+
+  function setupEtapaDropdown() {
+    const btn = document.getElementById('eng-f-etapa-btn');
+    const pop = document.getElementById('eng-f-etapa-pop');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pop.hidden = !pop.hidden;
+    });
+    document.addEventListener('click', (e) => {
+      if (!pop.hidden && !document.getElementById('eng-f-etapa-wrap').contains(e.target)) pop.hidden = true;
+    });
+  }
+
+  function buildEtapaOptions() {
+    const funilSel = document.getElementById('eng-f-funil');
+    const funil = funilSel.value;
+    const scope = funil ? allRows.filter(r => r.funil === funil) : allRows;
+    const etapas = Array.from(new Set(scope.map(r => r.etapa).filter(Boolean))).sort();
+    etapaSelected = new Set(Array.from(etapaSelected).filter(e => etapas.includes(e)));
+    renderEtapaPop(etapas);
+    renderEtapaBtn();
+  }
+
+  let anoSelected = new Set();
+
+  function renderAnoBtn() {
+    const btn = document.getElementById('eng-f-ano-btn');
+    if (!anoSelected.size) btn.textContent = 'Todos';
+    else if (anoSelected.size <= 2) btn.textContent = Array.from(anoSelected).sort((a, b) => b - a).join(', ');
+    else btn.textContent = `${anoSelected.size} anos selecionados`;
+  }
+
+  function renderAnoPop(anos) {
+    const pop = document.getElementById('eng-f-ano-pop');
+    const optsHtml = anos.map(a => `
+      <label class="eng-multiselect-opt">
+        <input type="checkbox" data-ano="${a}" ${anoSelected.has(a) ? 'checked' : ''}>
+        <span>${a}</span>
+      </label>
+    `).join('');
+    pop.innerHTML = `
+      <label class="eng-multiselect-opt"><input type="checkbox" id="eng-f-ano-all" ${anoSelected.size === 0 ? 'checked' : ''}><span>Todos</span></label>
+      <div class="eng-multiselect-sep"></div>
+      ${optsHtml}
+    `;
+    pop.querySelector('#eng-f-ano-all').addEventListener('change', (e) => {
+      if (e.target.checked) anoSelected.clear();
+      renderAnoPop(anos);
+      renderAnoBtn();
+      onFiltersChanged();
+    });
+    pop.querySelectorAll('input[data-ano]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const a = Number(e.target.dataset.ano);
+        if (e.target.checked) anoSelected.add(a); else anoSelected.delete(a);
+        renderAnoPop(anos);
+        renderAnoBtn();
+        onFiltersChanged();
+      });
+    });
+  }
+
+  function setupAnoDropdown() {
+    const btn = document.getElementById('eng-f-ano-btn');
+    const pop = document.getElementById('eng-f-ano-pop');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pop.hidden = !pop.hidden;
+    });
+    document.addEventListener('click', (e) => {
+      if (!pop.hidden && !document.getElementById('eng-f-ano-wrap').contains(e.target)) pop.hidden = true;
+    });
+  }
+
+  let mesSelected = new Set();
+
+  function renderMesBtn() {
+    const btn = document.getElementById('eng-f-mes-btn');
+    if (!mesSelected.size) btn.textContent = 'Todos';
+    else if (mesSelected.size <= 2) btn.textContent = Array.from(mesSelected).sort((a, b) => a - b).map(i => MESES[i]).join(', ');
+    else btn.textContent = `${mesSelected.size} meses selecionados`;
+  }
+
+  function renderMesPop() {
+    const pop = document.getElementById('eng-f-mes-pop');
+    const optsHtml = MESES.map((m, i) => `
+      <label class="eng-multiselect-opt">
+        <input type="checkbox" data-mes="${i}" ${mesSelected.has(i) ? 'checked' : ''}>
+        <span>${m}</span>
+      </label>
+    `).join('');
+    pop.innerHTML = `
+      <label class="eng-multiselect-opt"><input type="checkbox" id="eng-f-mes-all" ${mesSelected.size === 0 ? 'checked' : ''}><span>Todos</span></label>
+      <div class="eng-multiselect-sep"></div>
+      ${optsHtml}
+    `;
+    pop.querySelector('#eng-f-mes-all').addEventListener('change', (e) => {
+      if (e.target.checked) mesSelected.clear();
+      renderMesPop();
+      renderMesBtn();
+      onFiltersChanged();
+    });
+    pop.querySelectorAll('input[data-mes]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const i = Number(e.target.dataset.mes);
+        if (e.target.checked) mesSelected.add(i); else mesSelected.delete(i);
+        renderMesPop();
+        renderMesBtn();
+        onFiltersChanged();
+      });
+    });
+  }
+
+  function setupMesDropdown() {
+    const btn = document.getElementById('eng-f-mes-btn');
+    const pop = document.getElementById('eng-f-mes-pop');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pop.hidden = !pop.hidden;
+    });
+    document.addEventListener('click', (e) => {
+      if (!pop.hidden && !document.getElementById('eng-f-mes-wrap').contains(e.target)) pop.hidden = true;
+    });
+  }
+
+  function buildOptions() {
+    const funilSel = document.getElementById('eng-f-funil');
+    const ufSel = document.getElementById('eng-f-uf');
+
+    const anos = Array.from(new Set(allRows.map(r => r._ano).filter(Boolean))).sort((a, b) => b - a);
+    const funis = Array.from(new Set(allRows.map(r => r.funil).filter(Boolean))).sort();
+    const ufs = Array.from(new Set(allRows.map(r => r.uf).filter(Boolean))).sort();
+
+    const prevFunil = funilSel.value, prevUf = ufSel.value;
+
+    anoSelected = new Set(Array.from(anoSelected).filter(a => anos.includes(a)));
+    renderAnoPop(anos);
+    renderAnoBtn();
+
+    renderMesPop();
+    renderMesBtn();
+
+    funilSel.innerHTML = '<option value="">Todos</option>' + funis.map(f => `<option value="${escAttr(f)}">${escHtml(f)}</option>`).join('');
+    ufSel.innerHTML = '<option value="">Todas</option>' + ufs.map(u => `<option value="${escAttr(u)}">${escHtml(u)}</option>`).join('');
+
+    if (funis.includes(prevFunil)) funilSel.value = prevFunil;
+    if (ufs.includes(prevUf)) ufSel.value = prevUf;
+
+    buildEtapaOptions();
+
+    const clientesList = document.getElementById('eng-clientes-list');
+    const nomes = Array.from(new Set(allRows.map(r => r.nome).filter(Boolean))).sort();
+    clientesList.innerHTML = nomes.map(n => `<option value="${escAttr(n)}"></option>`).join('');
+
+    const codigosList = document.getElementById('eng-codigos-list');
+    const codigos = Array.from(new Set(allRows.map(r => r.codigo).filter(v => v !== null && v !== undefined && v !== '')))
+      .sort((a, b) => Number(a) - Number(b) || String(a).localeCompare(String(b)));
+    codigosList.innerHTML = codigos.map(c => {
+      const row = allRows.find(r => String(r.codigo) === String(c));
+      const label = row && row.nome ? row.nome : '';
+      return `<option value="${escAttr(c)}" label="${escAttr(label)}">${escHtml(label)}</option>`;
+    }).join('');
+  }
+
+  function updateCodigoHint() {
+    const val = document.getElementById('eng-f-codigo').value.trim();
+    const nomeField = document.getElementById('eng-f-nome');
+    if (!val) return;
+    const row = allRows.find(r => String(r.codigo) === val);
+    if (row) nomeField.value = row.nome || '';
+  }
+
+  function currentFilters() {
+    return {
+      ano: anoSelected,
+      mes: mesSelected,
+      funil: document.getElementById('eng-f-funil').value,
+      etapa: etapaSelected,
+      uf: document.getElementById('eng-f-uf').value,
+      sla: document.getElementById('eng-f-sla').value,
+      nome: document.getElementById('eng-f-nome').value.trim().toLowerCase(),
+      codigo: document.getElementById('eng-f-codigo').value.trim().toLowerCase()
+    };
+  }
+
+  function hasAnyFilter(f) {
+    return !!(f.ano.size || f.mes.size || f.funil || f.etapa.size || f.uf || f.sla || f.nome || f.codigo);
+  }
+
+  function filteredRows(excludeFunil) {
+    const f = currentFilters();
+    return allRows.filter((r) => {
+      if (f.ano.size && !f.ano.has(r._ano)) return false;
+      if (f.mes.size && !f.mes.has(r._mes)) return false;
+      if (f.etapa.size && !f.etapa.has(r.etapa)) return false;
+      if (f.uf && r.uf !== f.uf) return false;
+      if (f.sla === 'atendido' && (r.atraso || 0) > 0) return false;
+      if (f.sla === 'atrasado' && !((r.atraso || 0) > 0)) return false;
+      if (!excludeFunil && f.funil && r.funil !== f.funil) return false;
+      if (f.nome && !(r.nome || '').toLowerCase().includes(f.nome)) return false;
+      if (f.codigo && !String(r.codigo || '').toLowerCase().includes(f.codigo)) return false;
+      return true;
+    });
+  }
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'eng-tooltip';
+  document.body.appendChild(tooltip);
+  function showTooltip(evt, html) {
+    tooltip.innerHTML = html;
+    tooltip.style.opacity = '1';
+    const x = evt.clientX + 14, y = evt.clientY + 14;
+    tooltip.style.left = Math.min(x, window.innerWidth - 250) + 'px';
+    tooltip.style.top = Math.min(y, window.innerHeight - 70) + 'px';
+  }
+  function hideTooltip() { tooltip.style.opacity = '0'; }
+
+  function measureWrap(svg) {
+    const measureEl = svg.append('text').attr('class', 'eng-vbar-label').style('visibility', 'hidden');
+    return { measureEl, fn: t => { measureEl.text(t); return measureEl.node().getComputedTextLength(); } };
+  }
+
+  function wrapAndTruncate(measureWidth, availPx, label) {
+    function truncateToFit(str) {
+      if (measureWidth(str) <= availPx) return str;
+      let s = str;
+      while (s.length > 1 && measureWidth(s + '…') > availPx) s = s.slice(0, -1);
+      return s.length < str.length ? s + '…' : s;
+    }
+    if (measureWidth(label) <= availPx) return [label];
+    const rawWords = String(label).split(/\s+/);
+    const words = [];
+    rawWords.forEach(w => {
+      if (measureWidth(w) <= availPx) { words.push(w); return; }
+      let chunk = '';
+      for (const ch of w) {
+        const candidate = chunk + ch;
+        if (measureWidth(candidate) > availPx && chunk) { words.push(chunk); chunk = ch; } else { chunk = candidate; }
+      }
+      if (chunk) words.push(chunk);
+    });
+    const lines = [];
+    let cur = '';
+    words.forEach(w => {
+      const candidate = cur ? cur + ' ' + w : w;
+      if (measureWidth(candidate) > availPx && cur) { lines.push(cur); cur = w; } else { cur = candidate; }
+    });
+    if (cur) lines.push(cur);
+    if (lines.length > 2) {
+      const keep = lines.slice(0, 2);
+      keep[1] = truncateToFit(keep[1]);
+      return keep;
+    }
+    return lines.map(truncateToFit);
+  }
+
+  function drawVBarChart(svgSel, data, opts) {
+    const svg = d3.select(svgSel);
+    const wrap = svg.node().closest('.eng-vchart-wrap');
+    const minBarSlot = opts.minBarSlot || 46;
+    const width = Math.max(wrap.clientWidth, data.length * minBarSlot + 40, 220);
+    const margin = { top: 22, right: 10, bottom: 34, left: 10 };
+    const chartH = opts.height || 160;
+    const height = chartH + margin.top + margin.bottom;
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('height', height);
+    svg.selectAll('*').remove();
+
+    if (!data.length) { svg.attr('height', 1); return; }
+
+    const x = d3.scaleBand().domain(data.map((d, i) => i)).range([0, width - margin.left - margin.right]).padding(0.35);
+    const y = d3.scaleLinear().domain([0, d3.max(data, d => d.value) || 1]).range([chartH, 0]);
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const { measureEl, fn: measureWidth } = measureWrap(svg);
+    const availPx = x.bandwidth() + 6;
+    const linesByRow = data.map(d => wrapAndTruncate(measureWidth, availPx, d.label));
+    measureEl.remove();
+
+    g.selectAll('.eng-bar').data(data).join('rect')
+      .attr('class', 'eng-bar')
+      .attr('x', (d, i) => x(i))
+      .attr('y', d => y(d.value))
+      .attr('width', x.bandwidth())
+      .attr('height', d => chartH - y(d.value))
+      .attr('fill', opts.color || 'var(--eng-teal)')
+      .style('cursor', opts.onClick ? 'pointer' : 'default')
+      .on('mousemove', (evt, d) => showTooltip(evt, opts.tooltip ? opts.tooltip(d) : `<strong>${escHtml(d.label)}</strong><br>${d.value.toLocaleString('pt-BR')}`))
+      .on('mouseleave', hideTooltip)
+      .on('click', (evt, d) => { if (opts.onClick) opts.onClick(d); });
+
+    g.selectAll('.eng-vbar-value').data(data).join('text')
+      .attr('class', 'eng-vbar-value')
+      .attr('x', (d, i) => x(i) + x.bandwidth() / 2)
+      .attr('y', d => y(d.value) - 6)
+      .attr('text-anchor', 'middle')
+      .text(d => d.value.toLocaleString('pt-BR'));
+
+    const labelG = g.selectAll('.eng-vbar-label-g').data(data).join('g').attr('class', 'eng-vbar-label-g');
+    labelG.each(function (d, i) {
+      const lines = linesByRow[i];
+      d3.select(this).selectAll('text').data(lines).join('text')
+        .attr('class', 'eng-vbar-label')
+        .attr('text-anchor', 'middle')
+        .attr('x', x(i) + x.bandwidth() / 2)
+        .attr('y', (ln, li) => chartH + 14 + li * 12)
+        .text(ln => ln);
+    });
+  }
+
+  function drawVStackedBarChart(svgSel, legendSel, data, keys, color, opts) {
+    const svg = d3.select(svgSel);
+    const wrap = svg.node().closest('.eng-vchart-wrap');
+    const minBarSlot = opts.minBarSlot || 46;
+    const width = Math.max(wrap.clientWidth, data.length * minBarSlot + 40, 260);
+
+    const legend = document.querySelector(legendSel);
+    if (legend) {
+      legend.innerHTML = keys.map((k, i) => `
+        <div class="eng-legend-row">
+          <span class="eng-legend-swatch" style="background:${color(k, i)}"></span>
+          <span class="eng-legend-label">${escHtml(k)}</span>
+        </div>
+      `).join('');
+    }
+
+    if (!data.length) { svg.selectAll('*').remove(); svg.attr('height', 1); return; }
+
+    const margin = { top: 22, right: 10, bottom: 34, left: 10 };
+    const chartH = opts.height || 170;
+    const height = chartH + margin.top + margin.bottom;
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('height', height);
+    svg.selectAll('*').remove();
+
+    const x = d3.scaleBand().domain(data.map((d, i) => i)).range([0, width - margin.left - margin.right]).padding(0.35);
+    const y = d3.scaleLinear().domain([0, d3.max(data, d => d.total) || 1]).range([chartH, 0]);
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const { measureEl, fn: measureWidth } = measureWrap(svg);
+    const availPx = x.bandwidth() + 6;
+    const linesByRow = data.map(d => wrapAndTruncate(measureWidth, availPx, d.label));
+    measureEl.remove();
+
+    data.forEach((d, i) => {
+      let acc = 0;
+      const segs = keys.map(k => {
+        const seg = d.segments.find(s => s.key === k);
+        const value = seg ? seg.value : 0;
+        const y0 = acc; acc += value;
+        return { key: k, value, y0, y1: acc };
+      }).filter(s => s.value > 0);
+
+      g.selectAll(`.eng-stack-${i}`).data(segs).join('rect')
+        .attr('class', `eng-stack-${i}`)
+        .attr('x', x(i))
+        .attr('y', s => y(s.y1))
+        .attr('width', x.bandwidth())
+        .attr('height', s => y(s.y0) - y(s.y1))
+        .attr('fill', s => color(s.key, keys.indexOf(s.key)))
+        .style('cursor', opts.onClick ? 'pointer' : 'default')
+        .on('mousemove', (evt, s) => showTooltip(evt, `<strong>${escHtml(d.label)} · ${escHtml(s.key)}</strong><br>${s.value.toLocaleString('pt-BR')}`))
+        .on('mouseleave', hideTooltip)
+        .on('click', (evt, s) => { if (opts.onClick) opts.onClick(s, d); });
+    });
+
+    g.selectAll('.eng-vbar-value').data(data).join('text')
+      .attr('class', 'eng-vbar-value')
+      .attr('x', (d, i) => x(i) + x.bandwidth() / 2)
+      .attr('y', d => y(d.total) - 6)
+      .attr('text-anchor', 'middle')
+      .text(d => d.total.toLocaleString('pt-BR'));
+
+    const labelG = g.selectAll('.eng-vbar-label-g').data(data).join('g').attr('class', 'eng-vbar-label-g');
+    labelG.each(function (d, i) {
+      const lines = linesByRow[i];
+      d3.select(this).selectAll('text').data(lines).join('text')
+        .attr('class', 'eng-vbar-label')
+        .attr('text-anchor', 'middle')
+        .attr('x', x(i) + x.bandwidth() / 2)
+        .attr('y', (ln, li) => chartH + 14 + li * 12)
+        .text(ln => ln);
+    });
+  }
+
+  function drawDonut() {
+    const rows = filteredRows(false);
+    const ok = rows.filter(r => !((r.atraso || 0) > 0)).length;
+    const bad = rows.length - ok;
+    const data = [{ label: 'Atendido', value: ok }, { label: 'Atrasado', value: bad }];
+    const total = rows.length;
+
+    const svg = d3.select('#eng-donut');
+    const wrap = svg.node().closest('.eng-donut-wrap');
+    const size = Math.min(Math.max(wrap.clientWidth * 0.38, 150), 220);
+    svg.attr('viewBox', `0 0 ${size} ${size}`).attr('height', size).attr('width', size);
+    svg.selectAll('*').remove();
+
+    const radius = size / 2;
+    const g = svg.append('g').attr('transform', `translate(${radius},${radius})`);
+    const arc = d3.arc().innerRadius(radius * 0.62).outerRadius(radius - 2);
+    const pie = d3.pie().value(d => d.value).sort(null);
+    const colorOf = (label) => label === 'Atendido' ? 'var(--eng-green)' : 'var(--eng-red)';
+
+    g.selectAll('path').data(pie(data)).join('path')
+      .attr('d', arc)
+      .attr('fill', d => colorOf(d.data.label))
+      .style('cursor', 'default')
+      .on('mousemove', (evt, d) => showTooltip(evt, `<strong>${escHtml(d.data.label)}</strong><br>${d.data.value.toLocaleString('pt-BR')} (${total ? ((d.data.value / total) * 100).toFixed(1) : 0}%)`))
+      .on('mouseleave', hideTooltip);
+
+    g.append('text').attr('text-anchor', 'middle').attr('dy', '-0.1em')
+      .style('font-family', 'var(--font-anthropic-serif)')
+      .style('font-size', (radius * 0.26) + 'px')
+      .style('font-weight', '700')
+      .style('fill', 'var(--color-fg)')
+      .text(total ? ((ok / total) * 100).toFixed(1) + '%' : '—');
+    g.append('text').attr('text-anchor', 'middle').attr('dy', '1.3em')
+      .style('font-size', (radius * 0.12) + 'px')
+      .style('fill', 'var(--color-fg-muted)')
+      .text('dentro do prazo');
+
+    const legend = document.getElementById('eng-donut-legend');
+    legend.innerHTML = data.map(d => `
+      <div class="eng-legend-row">
+        <span class="eng-legend-swatch" style="background:${colorOf(d.label)}"></span>
+        <span class="eng-legend-label">${escHtml(d.label)}</span>
+        <span>${d.value.toLocaleString('pt-BR')}</span>
+      </div>
+    `).join('');
+  }
+
+  const FUNIL_GRUPOS = [
+    { nome: 'Vendas', cor: 'var(--eng-blue)', prefixos: ['01.', '02.', '03.', '04.'] },
+    { nome: 'Financeiro', cor: 'var(--eng-orange)', prefixos: ['05.', '06.', '07.', '09.'] },
+    { nome: 'Engenharia', cor: 'var(--eng-teal)', prefixos: ['08.', '10.', '11.', '12.', '13.', '14.', '15.'] },
+    { nome: 'Outros', cor: 'var(--eng-gray)', prefixos: [] }
+  ];
+  function funilGrupo(funil) {
+    if (!funil) return null;
+    const f = String(funil).trim();
+    const grupo = FUNIL_GRUPOS.find(g => g.prefixos.length && g.prefixos.some(p => f.startsWith(p)));
+    return grupo ? grupo.nome : 'Outros';
+  }
+
+  const FUNIL_DETAIL_CORES = ['var(--eng-blue)', 'var(--eng-teal)', 'var(--eng-orange)', 'var(--eng-purple)', 'var(--eng-green)', 'var(--eng-red)', 'var(--eng-gray)', '#7b4fa0'];
+
+  function drawGrupoMesChart() {
+    const rows = filteredRows(false).filter(r => r._ano && r._time);
+    const byMonth = new Map();
+    rows.forEach(r => {
+      const grupo = funilGrupo(r.funil);
+      if (!grupo) return;
+      const mkey = `${String(r._ano).slice(2)}-${String(r._mes + 1).padStart(2, '0')}`;
+      if (!byMonth.has(mkey)) byMonth.set(mkey, Object.fromEntries(FUNIL_GRUPOS.map(g => [g.nome, 0])));
+      const seg = byMonth.get(mkey);
+      seg[grupo]++;
+    });
+    const keys = FUNIL_GRUPOS.map(g => g.nome);
+    const colorMap = Object.fromEntries(FUNIL_GRUPOS.map(g => [g.nome, g.cor]));
+    const data = Array.from(byMonth, ([label, seg]) => ({
+      label,
+      total: keys.reduce((s, k) => s + seg[k], 0),
+      segments: keys.map(k => ({ key: k, value: seg[k] }))
+    })).sort((a, b) => a.label.localeCompare(b.label));
+
+    const totalAll = data.reduce((s, d) => s + d.total, 0);
+    document.getElementById('eng-grupo-note').textContent = `${totalAll.toLocaleString('pt-BR')} card(s) · ${data.length} mês(es).`;
+    const color = (k) => colorMap[k] || 'var(--eng-gray)';
+    drawVStackedBarChart('#eng-grupo-bars', '#eng-grupo-legend', data, keys, color, { height: 200, minBarSlot: 60 });
+  }
+
+  function drawSimplePie(svgSel, legendSel, data) {
+    const total = data.reduce((s, d) => s + d.value, 0);
+    const svg = d3.select(svgSel);
+    const size = 160;
+    svg.attr('viewBox', `0 0 ${size} ${size}`).attr('height', size).attr('width', size);
+    svg.selectAll('*').remove();
+
+    const radius = size / 2;
+    const g = svg.append('g').attr('transform', `translate(${radius},${radius})`);
+    const arc = d3.arc().innerRadius(radius * 0.6).outerRadius(radius - 2);
+    const pie = d3.pie().value(d => d.value).sort(null);
+
+    g.selectAll('path').data(pie(data)).join('path')
+      .attr('d', arc)
+      .attr('fill', d => d.data.color)
+      .style('cursor', 'default')
+      .on('mousemove', (evt, d) => showTooltip(evt, `<strong>${escHtml(d.data.label)}</strong><br>${d.data.value.toLocaleString('pt-BR')} (${total ? ((d.data.value / total) * 100).toFixed(1) : 0}%)`))
+      .on('mouseleave', hideTooltip);
+
+    g.append('text').attr('text-anchor', 'middle').attr('dy', '-0.1em')
+      .style('font-family', 'var(--font-anthropic-serif)')
+      .style('font-size', (radius * 0.26) + 'px')
+      .style('font-weight', '700')
+      .style('fill', 'var(--color-fg)')
+      .text(total.toLocaleString('pt-BR'));
+    g.append('text').attr('text-anchor', 'middle').attr('dy', '1.3em')
+      .style('font-size', (radius * 0.11) + 'px')
+      .style('fill', 'var(--color-fg-muted)')
+      .text('cards');
+
+    const legend = document.querySelector(legendSel);
+    legend.innerHTML = data.map(d => `
+      <div class="eng-legend-row" title="${escAttr(d.label)}">
+        <div class="eng-legend-row-top">
+          <span class="eng-legend-swatch" style="background:${d.color}"></span>
+          <span class="eng-legend-label">${escHtml(d.label)}</span>
+        </div>
+        <span class="eng-legend-value">${d.value.toLocaleString('pt-BR')} (${total ? ((d.value / total) * 100).toFixed(1) : 0}%)</span>
+      </div>
+    `).join('');
+  }
+
+  function drawTipoDonuts() {
+    const rows = filteredRows(false);
+    FUNIL_GRUPOS.forEach(g => {
+      const groupRows = rows.filter(r => funilGrupo(r.funil) === g.nome);
+      const byFunil = groupCount(groupRows, 'funil').sort((a, b) => b.value - a.value);
+      const data = byFunil.map((d, i) => ({ label: d.label, value: d.value, color: FUNIL_DETAIL_CORES[i % FUNIL_DETAIL_CORES.length] }));
+      document.getElementById('eng-tipo-note-' + g.nome).textContent = `${groupRows.length.toLocaleString('pt-BR')} card(s) · ${data.length} funil(is).`;
+      drawSimplePie('#eng-tipo-donut-' + g.nome, '#eng-tipo-legend-' + g.nome, data);
+    });
+  }
+
+  function drawFunilChart() {
+    const rows = filteredRows(false);
+    const byFunil = new Map();
+    rows.forEach(r => {
+      if (!byFunil.has(r.funil)) byFunil.set(r.funil, { ok: 0, bad: 0 });
+      const seg = byFunil.get(r.funil);
+      if ((r.atraso || 0) > 0) seg.bad++; else seg.ok++;
+    });
+    const keys = ['Atendido', 'Atrasado'];
+    const data = Array.from(byFunil, ([label, seg]) => ({
+      label, total: seg.ok + seg.bad,
+      segments: [{ key: 'Atendido', value: seg.ok }, { key: 'Atrasado', value: seg.bad }]
+    })).sort((a, b) => b.total - a.total);
+
+    document.getElementById('eng-funil-note').textContent = `${data.length} funil(is).`;
+    const color = (k) => k === 'Atendido' ? 'var(--eng-green)' : 'var(--eng-red)';
+    drawVStackedBarChart('#eng-funil-bars', '#eng-funil-legend', data, keys, color, {
+      height: 190, minBarSlot: 70,
+      onClick: (seg, d) => {
+        const sel = document.getElementById('eng-f-funil');
+        sel.value = sel.value === d.label ? '' : d.label;
+        onFiltersChanged();
+      }
+    });
+  }
+
+  function drawMesChart() {
+    const rows = filteredRows(false).filter(r => r._ano && r._time);
+    const byMonth = new Map();
+    rows.forEach(r => {
+      const mkey = `${String(r._ano).slice(2)}-${String(r._mes + 1).padStart(2, '0')}`;
+      if (!byMonth.has(mkey)) byMonth.set(mkey, { ok: 0, bad: 0 });
+      const seg = byMonth.get(mkey);
+      if ((r.atraso || 0) > 0) seg.bad++; else seg.ok++;
+    });
+    const keys = ['Atendido', 'Atrasado'];
+    const data = Array.from(byMonth, ([label, seg]) => ({
+      label, total: seg.ok + seg.bad,
+      segments: [{ key: 'Atendido', value: seg.ok }, { key: 'Atrasado', value: seg.bad }]
+    })).sort((a, b) => a.label.localeCompare(b.label));
+
+    document.getElementById('eng-mes-note').textContent = `${data.length} mês(es).`;
+    const color = (k) => k === 'Atendido' ? 'var(--eng-green)' : 'var(--eng-red)';
+    drawVStackedBarChart('#eng-mes-bars', '#eng-mes-legend', data, keys, color, { height: 170 });
+  }
+
+  const MESES_ABR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+  function drawEvolucaoChart() {
+    const rows = filteredRows(false).filter(r => r._time);
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    const cutoff = now - 21 * DAY;
+
+    const byMonth = new Map();
+    rows.filter(r => r._time < cutoff).forEach(r => {
+      const d = new Date(r._time);
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      byMonth.set(key, (byMonth.get(key) || 0) + 1);
+    });
+    const monthKeys = Array.from(byMonth.keys()).sort().slice(-6);
+    const monthData = monthKeys.map(k => {
+      const [y, m] = k.split('-').map(Number);
+      return { label: MESES_ABR[m - 1] + '/' + String(y).slice(2), value: byMonth.get(k) };
+    });
+
+    const weekBuckets = [0, 0, 0];
+    rows.filter(r => r._time >= cutoff).forEach(r => {
+      const daysAgo = Math.floor((now - r._time) / DAY);
+      const idx = daysAgo < 7 ? 0 : (daysAgo < 14 ? 1 : 2);
+      weekBuckets[idx]++;
+    });
+    const weekLabels = ['3 sem. atrás', '2 sem. atrás', 'Esta semana'];
+    const weekData = [
+      { label: weekLabels[0], value: weekBuckets[2] },
+      { label: weekLabels[1], value: weekBuckets[1] },
+      { label: weekLabels[2], value: weekBuckets[0] }
+    ];
+
+    const data = monthData.concat(weekData);
+    document.getElementById('eng-evol-note').textContent =
+      `${monthData.length} mês(es) + últimas 3 semanas, por data de abertura — ${rows.length.toLocaleString('pt-BR')} card(s).`;
+    drawVBarChart('#eng-evol-bars', data, { height: 170, color: 'var(--eng-teal)', minBarSlot: 60 });
+  }
+
+  function drawAnoChart() {
+    const rows = filteredRows(false);
+    const grouped = groupCount(rows, '_ano').map(d => ({ label: String(d.label), value: d.value })).sort((a, b) => a.label.localeCompare(b.label));
+    drawVBarChart('#eng-ano-bars', grouped, { height: 120, color: 'var(--eng-blue)', minBarSlot: 50 });
+  }
+
+  function drawEtapasList() {
+    const rows = filteredRows(false);
+    const grouped = groupCount(rows, 'etapa');
+    document.getElementById('eng-etapas-note').textContent = `${grouped.length} etapa(s).`;
+    const maxVal = d3.max(grouped, d => d.value) || 1;
+    const list = document.getElementById('eng-etapas-list');
+    list.innerHTML = grouped.map(d => `
+      <div class="eng-rank-row">
+        <div class="eng-rank-row-top">
+          <span class="eng-rank-label">${escHtml(d.label)}</span>
+          <span class="eng-rank-value">${d.value.toLocaleString('pt-BR')}</span>
+        </div>
+        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.value / maxVal) * 100, 2)}%"></div></div>
+      </div>
+    `).join('');
+  }
+
+  function drawUfList() {
+    const rows = filteredRows(false).filter(r => r.uf);
+    const grouped = groupCount(rows, 'uf').slice(0, 15);
+    const maxVal = d3.max(grouped, d => d.value) || 1;
+    const list = document.getElementById('eng-uf-list');
+    list.innerHTML = grouped.map(d => `
+      <div class="eng-rank-row">
+        <div class="eng-rank-row-top">
+          <span class="eng-rank-label">${escHtml(d.label)}</span>
+          <span class="eng-rank-value">${d.value.toLocaleString('pt-BR')}</span>
+        </div>
+        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.value / maxVal) * 100, 2)}%; background: var(--eng-blue);"></div></div>
+      </div>
+    `).join('');
+  }
+
+  function drawCidadeList() {
+    const rows = filteredRows(false).filter(r => r.cidade && String(r.cidade).trim());
+    const byKey = new Map();
+    rows.forEach(r => {
+      const label = String(r.cidade).trim();
+      const key = label.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+      if (!byKey.has(key)) byKey.set(key, { label, count: 0 });
+      byKey.get(key).count++;
+    });
+    const grouped = Array.from(byKey.values()).sort((a, b) => b.count - a.count).slice(0, 15);
+    document.getElementById('eng-cidade-note').textContent = `${byKey.size} cidade(s).`;
+    const maxVal = d3.max(grouped, d => d.count) || 1;
+    const list = document.getElementById('eng-cidade-list');
+    list.innerHTML = grouped.map(d => `
+      <div class="eng-rank-row">
+        <div class="eng-rank-row-top">
+          <span class="eng-rank-label">${escHtml(d.label)}</span>
+          <span class="eng-rank-value">${d.count.toLocaleString('pt-BR')}</span>
+        </div>
+        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.count / maxVal) * 100, 2)}%; background: var(--eng-purple);"></div></div>
+      </div>
+    `).join('');
+  }
+
+  function fmtDate(ms) {
+    if (!ms) return '—';
+    const d = new Date(ms);
+    return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+  }
+
+  function drawClientesGroups() {
+    const rows = filteredRows(false).filter(r => r.nome);
+    const byEtapa = new Map();
+    rows.forEach(r => {
+      if (!byEtapa.has(r.etapa)) byEtapa.set(r.etapa, []);
+      byEtapa.get(r.etapa).push(r);
+    });
+    const groups = Array.from(byEtapa, ([etapa, rs]) => ({ etapa, rows: rs.sort((a, b) => (b.atraso || 0) - (a.atraso || 0)) }))
+      .sort((a, b) => b.rows.length - a.rows.length);
+
+    document.getElementById('eng-clientes-note').textContent = `${rows.length.toLocaleString('pt-BR')} card(s) · ${groups.length} etapa(s).`;
+
+    const wrap = document.getElementById('eng-clientes-groups');
+    wrap.innerHTML = groups.map(g => `
+      <div class="eng-client-group">
+        <div class="eng-client-group-head"><span>${escHtml(g.etapa)}</span><span>${g.rows.length.toLocaleString('pt-BR')} card(s)</span></div>
+        ${g.rows.slice(0, 20).map(r => {
+          const atualDate = parseDate(r.dataAtualizacao);
+          return `
+          <div class="eng-client-row">
+            <div class="eng-client-row-top">
+              <span class="eng-client-name">${r.codigo !== null && r.codigo !== undefined && r.codigo !== '' ? '<span class="eng-client-codigo">#' + escHtml(r.codigo) + '</span> ' : ''}${escHtml(r.nome)}${r.cidade ? ' · ' + escHtml(r.cidade) : ''}</span>
+            </div>
+            <div class="eng-client-meta">
+              <span>Valor: <b>${BRL.format(r.valor || 0)}</b></span>
+              <span>Dias no fluxo: <b>${r.diasFluxo !== null && r.diasFluxo !== undefined ? r.diasFluxo.toFixed(1) + 'd' : '—'}</b></span>
+              <span${(r.atraso || 0) > 0 ? ' class="is-late"' : ''}>Atraso: <b>${r.atraso !== null && r.atraso !== undefined ? r.atraso.toFixed(1) + 'd' : '—'}</b></span>
+              <span>Atualizado em: <b>${atualDate ? fmtDate(atualDate.getTime()) : '—'}</b></span>
+            </div>
+          </div>
+        `;
+        }).join('')}
+      </div>
+    `).join('');
+  }
+
+  function updateSummary() {
+    const f = currentFilters();
+    const n = filteredRows(false).length;
+    const el = document.getElementById('eng-filter-summary');
+    el.textContent = hasAnyFilter(f)
+      ? `Filtros aplicados — exibindo ${n.toLocaleString('pt-BR')} de ${allRows.length.toLocaleString('pt-BR')} cards.`
+      : `Sem filtros — exibindo todos os ${allRows.length.toLocaleString('pt-BR')} cards.`;
+  }
+
+  function setKpiText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+    const elX = document.getElementById(id + '-x');
+    if (elX) elX.textContent = text;
+  }
+
+  function updateKpis() {
+    const rows = filteredRows(false);
+    const n = rows.length;
+    setKpiText('eng-kpi-total', n.toLocaleString('pt-BR'));
+    const ok = rows.filter(r => !((r.atraso || 0) > 0)).length;
+    const bad = n - ok;
+    setKpiText('eng-kpi-ok', ok.toLocaleString('pt-BR'));
+    setKpiText('eng-kpi-ok-pct', `${n ? ((ok / n) * 100).toFixed(1) : 0}% da seleção`);
+    setKpiText('eng-kpi-atrasado', bad.toLocaleString('pt-BR'));
+    setKpiText('eng-kpi-atrasado-pct', `${n ? ((bad / n) * 100).toFixed(1) : 0}% da seleção`);
+    const diasVals = rows.map(r => r.diasFluxo).filter(v => v !== null && v !== undefined);
+    const diasMedio = diasVals.length ? diasVals.reduce((s, v) => s + v, 0) / diasVals.length : 0;
+    setKpiText('eng-kpi-dias', diasMedio.toFixed(1) + 'd');
+    const valorTotal = rows.reduce((s, r) => s + (r.valor || 0), 0);
+    setKpiText('eng-kpi-valor', BRL.format(valorTotal));
+  }
+
+  function pctClass(pct) {
+    if (pct >= 60) return 'eng-pct-pill--high';
+    if (pct >= 30) return 'eng-pct-pill--mid';
+    return 'eng-pct-pill--low';
+  }
+
+  function updateExecTable() {
+    const rows = filteredRows(false);
+    const byKey = new Map();
+    rows.forEach(r => {
+      const key = r.funil + ' · ' + r.etapa;
+      if (!byKey.has(key)) byKey.set(key, { funil: r.funil, etapa: r.etapa, rows: [] });
+      byKey.get(key).rows.push(r);
+    });
+    const data = Array.from(byKey.values()).map(g => {
+      const qtd = g.rows.length;
+      const atrasados = g.rows.filter(r => (r.atraso || 0) > 0).length;
+      const pct = qtd ? (atrasados / qtd) * 100 : 0;
+      const diasVals = g.rows.map(r => r.diasFluxo).filter(v => v !== null && v !== undefined);
+      const diasMedio = diasVals.length ? diasVals.reduce((s, v) => s + v, 0) / diasVals.length : 0;
+      const valorTotal = g.rows.reduce((s, r) => s + (r.valor || 0), 0);
+      return { funil: g.funil, etapa: g.etapa, qtd, atrasados, pct, diasMedio, valorTotal };
+    }).sort((a, b) => b.qtd - a.qtd);
+
+    document.getElementById('eng-exec-note').textContent = `${data.length} combinação(ões) de funil/etapa.`;
+
+    const tbody = document.getElementById('eng-exec-tbody');
+    tbody.innerHTML = data.map(d => `
+      <tr>
+        <td>${escHtml(d.etapa)}</td>
+        <td>${escHtml(d.funil)}</td>
+        <td class="num">${d.qtd.toLocaleString('pt-BR')}</td>
+        <td class="num">${d.atrasados.toLocaleString('pt-BR')}</td>
+        <td class="num"><span class="eng-pct-pill ${pctClass(d.pct)}">${d.pct.toFixed(0)}%</span></td>
+        <td class="num">${d.diasMedio.toFixed(1)}d</td>
+        <td class="num">${BRL.format(d.valorTotal)}</td>
+      </tr>
+    `).join('');
+  }
+
+  const ENG_RESUMO_FUNIL_META = {
+    '08': 'Funil 08 - ENGENHARIA',
+    '09': 'Funil 09 - COMPRAS',
+    '10': 'Funil 10 - HOMOLOGAÇÃO',
+    '11': 'Funil 11 - INSTALAÇÃO',
+    '13': 'Funil 13 - SUPORTE CLIENTE',
+    '14': 'Funil 14 - MANUTENÇÃO (Pós Venda)',
+  };
+  const ENG_RESUMO_FUNIL_ORDER = ['08', '09', '10', '11', '13', '14'];
+  const ENG_RESUMO_ETAPA_ORDER = {
+    '08': ['Criar Projeto->Proposta', 'Aprovar Proposta Criada', 'Proposta Criada Aprovada', 'Aprovacao Tecnica - Venda'],
+    '09': ['Pedido a Pagar', 'Comp. Enviado ao Distribuidor', 'Pedido Faturado', 'Pedido em Rota de Entrega', 'Pedido Entregue'],
+    '10': ['Pieta - Criacao do Projeto', 'Pendencia ICF', 'Pieta - Parecer Solicitado', 'Parecer Emitido', 'Aguardando Vistoria', 'Pendencia Vist. Concessionaria', 'Vistoria Aprovada', 'Fazer Compensacao', 'Relogio Trocado'],
+    '11': ['Pendencia de Instalacao', 'Agendar Instalacao', 'Instalador Homologado', 'Instalacao Agendada', 'Diario de Obra / Obra Andamento', 'Pendencia de Obra', 'Instalacao Concluida', 'Instalacao App Monitoramento', 'Dossie', 'Termo de Aceite', 'Dossie Enviado', 'App Monitor Instalado'],
+    '13': ['Area Projetos/Engenharia', 'Em Andamento', 'Suporte Cliente', 'Suporte Concluido'],
+    '14': ['Relato da Pendencia', 'Orcamento Manutencao', 'Aguardo Aprovacao Cliente', 'Pos Venda Manutencao', 'Manutencao Concluida', 'Servico Descartado'],
+  };
+
+  let engResumoRows = [];
+  const engFeFilters = { funil: 'all', etapa: 'all', sla: 'all' };
+
+  function parseTempoCardDias(s) {
+    if (!s) return null;
+    const m = String(s).replace('+', '').match(/(\d+)d\s*(\d+)h\s*(\d+)m/);
+    if (!m) return null;
+    return parseInt(m[1], 10) + parseInt(m[2], 10) / 24 + parseInt(m[3], 10) / 1440;
+  }
+
+  function engFeFilteredRows() {
+    return engResumoRows.filter(r => {
+      if (engFeFilters.funil !== 'all' && r.funil !== engFeFilters.funil) return false;
+      if (engFeFilters.etapa !== 'all' && r.etapa !== engFeFilters.etapa) return false;
+      if (engFeFilters.sla === 'ok' && r.atraso) return false;
+      if (engFeFilters.sla === 'atrasado' && !r.atraso) return false;
+      return true;
+    });
+  }
+
+  function setKpiTextFe(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function updateFunEngKpis() {
+    const rows = engFeFilteredRows();
+    const n = rows.length;
+    setKpiTextFe('eng-kpi-total-fe', n.toLocaleString('pt-BR'));
+    const ok = rows.filter(r => !r.atraso).length;
+    const bad = n - ok;
+    setKpiTextFe('eng-kpi-ok-fe', ok.toLocaleString('pt-BR'));
+    setKpiTextFe('eng-kpi-ok-pct-fe', `${n ? ((ok / n) * 100).toFixed(1) : 0}% da seleção`);
+    setKpiTextFe('eng-kpi-atrasado-fe', bad.toLocaleString('pt-BR'));
+    setKpiTextFe('eng-kpi-atrasado-pct-fe', `${n ? ((bad / n) * 100).toFixed(1) : 0}% da seleção`);
+    const diasVals = rows.map(r => parseTempoCardDias(r.tempoCard)).filter(v => v !== null);
+    const diasMedio = diasVals.length ? diasVals.reduce((s, v) => s + v, 0) / diasVals.length : 0;
+    setKpiTextFe('eng-kpi-dias-fe', diasMedio.toFixed(1) + 'd');
+    const valorTotal = rows.reduce((s, r) => s + (r.valor || 0), 0);
+    setKpiTextFe('eng-kpi-valor-fe', BRL.format(valorTotal));
+  }
+
+  function drawFunEngFunilDonut() {
+    const rows = engFeFilteredRows();
+    const byFunil = groupCount(rows, 'funil').sort((a, b) => a.label.localeCompare(b.label));
+    const data = byFunil.map((d, i) => ({ label: ENG_RESUMO_FUNIL_META[d.label] || d.label, value: d.value, color: FUNIL_DETAIL_CORES[i % FUNIL_DETAIL_CORES.length] }));
+    document.getElementById('eng-fe-funil-note').textContent = `${rows.length.toLocaleString('pt-BR')} negócio(s) · ${data.length} funil(is).`;
+    drawSimplePie('#eng-fe-funil-donut', '#eng-fe-funil-legend', data);
+  }
+
+  function engFeBuildEtapaOptions() {
+    const sel = document.getElementById('eng-fe-filter-etapa');
+    if (!sel) return;
+    const prev = sel.value;
+    const funil = engFeFilters.funil;
+    const etapas = funil === 'all'
+      ? Array.from(new Set(ENG_RESUMO_FUNIL_ORDER.flatMap(f => ENG_RESUMO_ETAPA_ORDER[f] || [])))
+      : (ENG_RESUMO_ETAPA_ORDER[funil] || []);
+    sel.innerHTML = '<option value="all">Todas as etapas</option>' + etapas.map(e => `<option value="${escAttr(e)}">${escHtml(e)}</option>`).join('');
+    sel.value = etapas.includes(prev) ? prev : 'all';
+    engFeFilters.etapa = sel.value;
+  }
+
+  function renderEngResumoGroup(funilCode, rows) {
+    const etapaOrder = ENG_RESUMO_ETAPA_ORDER[funilCode] || [];
+    const byEtapa = new Map();
+    rows.forEach(r => {
+      if (!byEtapa.has(r.etapa)) byEtapa.set(r.etapa, []);
+      byEtapa.get(r.etapa).push(r);
+    });
+    const etapas = etapaOrder.filter(e => byEtapa.has(e));
+    Array.from(byEtapa.keys()).forEach(e => { if (!etapas.includes(e)) etapas.push(e); });
+    if (!etapas.length) return null;
+
+    let secCount = 0, secValor = 0, secIn = 0, secOut = 0;
+    const bodyRows = etapas.map(etapa => {
+      const grp = byEtapa.get(etapa) || [];
+      const qtd = grp.length;
+      const valor = grp.reduce((s, r) => s + (r.valor || 0), 0);
+      const out = grp.filter(r => r.atraso).length;
+      const ok = qtd - out;
+      const pct = qtd ? (out / qtd) * 100 : 0;
+      secCount += qtd; secValor += valor; secIn += ok; secOut += out;
+      return `
+        <tr>
+          <td>${escHtml(etapa)}</td>
+          <td class="num">${qtd.toLocaleString('pt-BR')}</td>
+          <td class="num">${BRL.format(valor)}</td>
+          <td class="num eng-resumo-cell-ok">${ok.toLocaleString('pt-BR')}</td>
+          <td class="num eng-resumo-cell-bad">${out.toLocaleString('pt-BR')}</td>
+          <td class="num">${pct.toFixed(1)}%</td>
+        </tr>`;
+    }).join('');
+    const secPct = secCount ? (secOut / secCount) * 100 : 0;
+    const subtotalRow = `
+      <tr class="eng-resumo-subtotal">
+        <td>SUBTOTAL ${escHtml(ENG_RESUMO_FUNIL_META[funilCode] || funilCode)}</td>
+        <td class="num">${secCount.toLocaleString('pt-BR')}</td>
+        <td class="num">${BRL.format(secValor)}</td>
+        <td class="num eng-resumo-cell-ok">${secIn.toLocaleString('pt-BR')}</td>
+        <td class="num eng-resumo-cell-bad">${secOut.toLocaleString('pt-BR')}</td>
+        <td class="num">${secPct.toFixed(1)}%</td>
+      </tr>`;
+
+    return {
+      html: `
+        <div class="eng-resumo-group">
+          <h3 class="eng-resumo-group-title">${escHtml(ENG_RESUMO_FUNIL_META[funilCode] || funilCode)}</h3>
+          <div class="eng-resumo-table-wrap">
+            <table class="eng-resumo-table">
+              <thead>
+                <tr>
+                  <th>Etapa</th><th>Qtde negócios</th><th>Valor total (R$)</th>
+                  <th>Dentro do SLA</th><th>Fora do SLA (atrasado)</th><th>% Fora do SLA</th>
+                </tr>
+              </thead>
+              <tbody>${bodyRows}${subtotalRow}</tbody>
+            </table>
+          </div>
+        </div>`,
+      totals: { count: secCount, valor: secValor, in: secIn, out: secOut },
+    };
+  }
+
+  function updateFunEngResumo() {
+    const rows = engFeFilteredRows();
+    const container = document.getElementById('eng-fe-resumo');
+    if (!container) return;
+    const funisToShow = engFeFilters.funil === 'all' ? ENG_RESUMO_FUNIL_ORDER : [engFeFilters.funil];
+    const grand = { count: 0, valor: 0, in: 0, out: 0 };
+    let html = '';
+    let groupsShown = 0;
+    funisToShow.forEach(fc => {
+      const fRows = rows.filter(r => r.funil === fc);
+      if (!fRows.length) return;
+      const g = renderEngResumoGroup(fc, fRows);
+      if (!g) return;
+      html += g.html;
+      grand.count += g.totals.count; grand.valor += g.totals.valor;
+      grand.in += g.totals.in; grand.out += g.totals.out;
+      groupsShown++;
+    });
+    if (!groupsShown) {
+      container.innerHTML = '<div class="eng-resumo-empty">Nenhum negócio para os filtros selecionados.</div>';
+      document.getElementById('eng-fe-note').textContent = '0 negócio(s).';
+      return;
+    }
+    if (funisToShow.length > 1) {
+      const pct = grand.count ? (grand.out / grand.count) * 100 : 0;
+      html += `
+        <div class="eng-resumo-table-wrap">
+          <table class="eng-resumo-table">
+            <tbody>
+              <tr class="eng-resumo-grandtotal">
+                <td>TOTAL GERAL (08 + 09 + 10 + 11 + 13 + 14)</td>
+                <td class="num">${grand.count.toLocaleString('pt-BR')}</td>
+                <td class="num">${BRL.format(grand.valor)}</td>
+                <td class="num eng-resumo-cell-ok">${grand.in.toLocaleString('pt-BR')}</td>
+                <td class="num eng-resumo-cell-bad">${grand.out.toLocaleString('pt-BR')}</td>
+                <td class="num">${pct.toFixed(1)}%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>`;
+    }
+    container.innerHTML = html;
+    document.getElementById('eng-fe-note').textContent = `${rows.length.toLocaleString('pt-BR')} negócio(s) · ${groupsShown} funil(is).`;
+  }
+
+  function drawFunEngView() {
+    updateFunEngKpis();
+    drawFunEngFunilDonut();
+    updateFunEngResumo();
+  }
+
+  function setupFunEngFilters() {
+    engFeBuildEtapaOptions();
+    const selFunil = document.getElementById('eng-fe-filter-funil');
+    const selEtapa = document.getElementById('eng-fe-filter-etapa');
+    const selSla = document.getElementById('eng-fe-filter-sla');
+    const clearBtn = document.getElementById('eng-fe-clear');
+    if (selFunil) selFunil.addEventListener('change', () => {
+      engFeFilters.funil = selFunil.value;
+      engFeBuildEtapaOptions();
+      drawFunEngView();
+    });
+    if (selEtapa) selEtapa.addEventListener('change', () => {
+      engFeFilters.etapa = selEtapa.value;
+      drawFunEngView();
+    });
+    if (selSla) selSla.addEventListener('change', () => {
+      engFeFilters.sla = selSla.value;
+      drawFunEngView();
+    });
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      engFeFilters.funil = 'all'; engFeFilters.etapa = 'all'; engFeFilters.sla = 'all';
+      if (selFunil) selFunil.value = 'all';
+      if (selSla) selSla.value = 'all';
+      engFeBuildEtapaOptions();
+      drawFunEngView();
+    });
+  }
+
+  const SALES_MESES_ABR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const SALES_DETAIL_CORES = ['var(--eng-blue)', 'var(--eng-teal)', 'var(--eng-orange)', 'var(--eng-purple)', 'var(--eng-green)', 'var(--eng-red)', 'var(--eng-gray)', '#7b4fa0', '#c65fa8', '#4fa5c6'];
+
+  function salesGroupCount(rows, field) {
+    const m = new Map();
+    rows.forEach(r => {
+      const v = r[field];
+      if (v === undefined || v === null || v === '') return;
+      m.set(v, (m.get(v) || 0) + 1);
+    });
+    return Array.from(m, ([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  }
+
+  function buildSalesFilterOptions() {
+    const anoSel = document.getElementById('es-f-ano');
+    const prevAno = anoSel.value;
+    const anos = Array.from(new Set(salesRows.map(r => r.ano).filter(Boolean))).sort((a, b) => b - a);
+    anoSel.innerHTML = '<option value="">Todos</option>' + anos.map(a => `<option value="${a}">${a}</option>`).join('');
+    if (anos.some(a => String(a) === prevAno)) anoSel.value = prevAno;
+
+    const vendedorSel = document.getElementById('es-f-vendedor');
+    const prevVendedor = vendedorSel.value;
+    const vendedores = Array.from(new Set(salesRows.map(r => r.vendedor).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
+    vendedorSel.innerHTML = '<option value="">Todos</option>' + vendedores.map(v => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join('');
+    if (vendedores.includes(prevVendedor)) vendedorSel.value = prevVendedor;
+  }
+
+  function currentSalesFilters() {
+    const v = (id) => document.getElementById(id).value;
+    return {
+      ano: v('es-f-ano'),
+      vendedor: v('es-f-vendedor')
+    };
+  }
+
+  function hasAnySalesFilter(f) {
+    return !!(f.ano || f.vendedor);
+  }
+
+  function salesFilteredRows() {
+    const f = currentSalesFilters();
+    return salesRows.filter(r => {
+      if (f.ano && String(r.ano || '') !== f.ano) return false;
+      if (f.vendedor && r.vendedor !== f.vendedor) return false;
+      return true;
+    });
+  }
+
+  function updateSalesSummary(rows) {
+    const f = currentSalesFilters();
+    const el = document.getElementById('es-filter-summary');
+    el.textContent = hasAnySalesFilter(f)
+      ? `Filtros aplicados — exibindo ${rows.length.toLocaleString('pt-BR')} de ${salesRows.length.toLocaleString('pt-BR')} negócio(s).`
+      : `Sem filtros — exibindo todos os ${salesRows.length.toLocaleString('pt-BR')} negócio(s).`;
+  }
+
+  function updateSalesKpis(rows) {
+    const n = rows.length;
+    document.getElementById('eng-sales-kpi-qtd').textContent = n.toLocaleString('pt-BR');
+    const valorTotal = rows.reduce((s, r) => s + (r.valorTotal || 0), 0);
+    document.getElementById('eng-sales-kpi-valor').textContent = BRL.format(valorTotal);
+    const ticket = n ? valorTotal / n : 0;
+    document.getElementById('eng-sales-kpi-ticket').textContent = BRL.format(ticket);
+  }
+
+  function drawSalesNegocioDonut(rows) {
+    const grouped = salesGroupCount(rows, 'tipoNegocio');
+    document.getElementById('eng-sales-negocio-note').textContent = `${rows.length.toLocaleString('pt-BR')} card(s) · ${grouped.length} tipo(s).`;
+    const data = grouped.map((d, i) => ({ label: d.label, value: d.value, color: SALES_DETAIL_CORES[i % SALES_DETAIL_CORES.length] }));
+    drawSimplePie('#eng-sales-negocio-donut', '#eng-sales-negocio-legend', data);
+  }
+
+  function drawSalesVendedorDonut(rows) {
+    const grouped = salesGroupCount(rows, 'vendedor');
+    document.getElementById('eng-sales-vendedor-note').textContent = `${rows.length.toLocaleString('pt-BR')} card(s) · ${grouped.length} vendedor(es).`;
+    const data = grouped.map((d, i) => ({ label: d.label, value: d.value, color: SALES_DETAIL_CORES[i % SALES_DETAIL_CORES.length] }));
+    drawSimplePie('#eng-sales-vendedor-donut', '#eng-sales-vendedor-legend', data);
+  }
+
+  function drawSalesMesDonut(rows) {
+    const mRows = rows.filter(r => r.mes);
+    const byMes = new Map();
+    mRows.forEach(r => {
+      const label = SALES_MESES_ABR[r.mes - 1];
+      byMes.set(label, (byMes.get(label) || 0) + 1);
+    });
+    const grouped = Array.from(byMes, ([label, value]) => ({ label, value }))
+      .sort((a, b) => SALES_MESES_ABR.indexOf(a.label) - SALES_MESES_ABR.indexOf(b.label));
+    document.getElementById('eng-sales-mes-note').textContent = `${mRows.length.toLocaleString('pt-BR')} card(s) · ${grouped.length} mês(es).`;
+    const data = grouped.map((d, i) => ({ label: d.label, value: d.value, color: SALES_DETAIL_CORES[i % SALES_DETAIL_CORES.length] }));
+    drawSimplePie('#eng-sales-mes-donut', '#eng-sales-mes-legend', data);
+  }
+
+  function drawSalesUfDonut(rows) {
+    const grouped = salesGroupCount(rows, 'uf');
+    document.getElementById('eng-sales-uf-note').textContent = `${rows.length.toLocaleString('pt-BR')} card(s) · ${grouped.length} estado(s).`;
+    const data = grouped.map((d, i) => ({ label: d.label, value: d.value, color: SALES_DETAIL_CORES[i % SALES_DETAIL_CORES.length] }));
+    drawSimplePie('#eng-sales-uf-donut', '#eng-sales-uf-legend', data);
+  }
+
+  function drawSalesAnoChart(rows) {
+    const grouped = salesGroupCount(rows, 'ano').map(d => ({ label: String(d.label), value: d.value })).sort((a, b) => a.label.localeCompare(b.label));
+    document.getElementById('eng-sales-ano-note').textContent = `${grouped.length} ano(s).`;
+    drawVBarChart('#eng-sales-ano-bars', grouped, { height: 150, color: 'var(--eng-blue)', minBarSlot: 50 });
+  }
+
+  function drawSalesVendaMensalChart(rows) {
+    const mRows = rows.filter(r => r.ano && r.mes);
+    const byMonth = new Map();
+    mRows.forEach(r => {
+      const key = `${String(r.ano).slice(2)}-${String(r.mes).padStart(2, '0')}`;
+      byMonth.set(key, (byMonth.get(key) || 0) + (r.valorTotal || 0));
+    });
+    const data = Array.from(byMonth, ([label, value]) => ({ label, value: Math.round(value) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    document.getElementById('eng-sales-venda-mensal-note').textContent = `${data.length} mês(es).`;
+    drawVBarChart('#eng-sales-venda-mensal-bars', data, {
+      height: 150, color: 'var(--eng-teal)', minBarSlot: 60,
+      tooltip: d => `<strong>${escHtml(d.label)}</strong><br>${BRL.format(d.value)}`
+    });
+  }
+
+  function drawSalesCidadeList(rows) {
+    const cRows = rows.filter(r => r.cidade && String(r.cidade).trim());
+    const byKey = new Map();
+    cRows.forEach(r => {
+      const label = String(r.cidade).trim();
+      const key = label.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+      if (!byKey.has(key)) byKey.set(key, { label, count: 0 });
+      byKey.get(key).count++;
+    });
+    const grouped = Array.from(byKey.values()).sort((a, b) => b.count - a.count).slice(0, 15);
+    document.getElementById('eng-sales-cidade-note').textContent = `${byKey.size} cidade(s).`;
+    const maxVal = d3.max(grouped, d => d.count) || 1;
+    const list = document.getElementById('eng-sales-cidade-list');
+    list.innerHTML = grouped.map(d => `
+      <div class="eng-rank-row">
+        <div class="eng-rank-row-top">
+          <span class="eng-rank-label">${escHtml(d.label)}</span>
+          <span class="eng-rank-value">${d.count.toLocaleString('pt-BR')}</span>
+        </div>
+        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.count / maxVal) * 100, 2)}%; background: var(--eng-purple);"></div></div>
+      </div>
+    `).join('');
+  }
+
+  function drawSalesExtratoTable(rows) {
+    const sorted = rows.slice().sort((a, b) => (b._time || 0) - (a._time || 0));
+    document.getElementById('eng-sales-extrato-note').textContent = `${sorted.length.toLocaleString('pt-BR')} negócio(s).`;
+    const tbody = document.getElementById('eng-sales-extrato-tbody');
+    tbody.innerHTML = sorted.map(r => `
+      <tr data-key="${escAttr(r.codigo)}">
+        <td>${escHtml(r.codigo)}</td>
+        <td>${escHtml(r.vendedor || '—')}</td>
+        <td>${escHtml(r.tipoNegocio || '—')}</td>
+        <td>${escHtml(r.nome || '—')}</td>
+        <td>${escHtml(r.cidade || '—')}</td>
+        <td>${escHtml(r.uf || '—')}</td>
+        <td>${r._time ? fmtDate(r._time) : '—'}</td>
+        <td class="num">${BRL.format(r.valorTotal || 0)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function drawSalesView() {
+    const rows = salesFilteredRows();
+    updateSalesKpis(rows);
+    drawSalesNegocioDonut(rows);
+    drawSalesVendedorDonut(rows);
+    drawSalesMesDonut(rows);
+    drawSalesUfDonut(rows);
+    drawSalesAnoChart(rows);
+    drawSalesVendaMensalChart(rows);
+    drawSalesCidadeList(rows);
+    drawSalesExtratoTable(rows);
+    updateSalesSummary(rows);
+  }
+
+  let salesFiltersWired = false;
+
+  function setupSalesFilters() {
+    if (salesFiltersWired) return;
+    salesFiltersWired = true;
+    ['es-f-ano', 'es-f-vendedor'].forEach(id =>
+      document.getElementById(id).addEventListener('change', drawSalesView));
+    document.getElementById('es-clear').addEventListener('click', () => {
+      ['es-f-ano', 'es-f-vendedor'].forEach(id => document.getElementById(id).value = '');
+      drawSalesView();
+    });
+  }
+
+  function setupSales() {
+    const res = dash.data('sales');
+    if (res.status !== 'ok') return;
+    salesRows = res.data.map(r => {
+      const d = parseDate(r.dataVenda);
+      return Object.assign({}, r, { _time: d ? d.getTime() : 0, uf: normalizeUf(r.uf) });
+    });
+    salesBuilt = true;
+    buildSalesFilterOptions();
+    setupSalesFilters();
+    setupMetaPanel();
+    if (!document.getElementById('eng-view-sales').hidden) drawSalesView();
+  }
+
+  // ---- Metas por vendedor (servidor: Neon via /api/indicadores/metas; reserva: navegador) ----
+  const META_MONTHS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const META_ROWS = [
+    { key: 'valorMinimo', label: 'Valor Mínimo de Venda Mensal', type: 'currency' },
+    { key: 'valorPrevisto', label: 'Valor Previsto de Venda Mensal', type: 'currency' }
+  ];
+  let metaPanelWired = false;
+  let metaDbInstance = null;
+  let metaDbPending = null;
+  let metaLoadToken = 0;
+  let metaDbLastError = null;
+
+  function metaDbReady() {
+    if (metaDbInstance) return Promise.resolve(metaDbInstance);
+    if (!metaDbPending) {
+      metaDbPending = (async () => {
+        try {
+          // Metas no servidor (Neon, /api/indicadores/metas) com reserva no navegador: ver shim.js.
+          const db = window.indicadoresMetas || null;
+          metaDbLastError = db ? null : 'serviço de metas não carregado';
+          return db;
+        } catch (err) {
+          metaDbLastError = (err && (err.code || err.message)) || String(err);
+          return null;
+        }
+      })();
+      metaDbPending.then(db => {
+        metaDbPending = null;
+        if (db) metaDbInstance = db;
+      });
+    }
+    return metaDbPending;
+  }
+
+  async function metaDbReadyRetried() {
+    let db = await metaDbReady();
+    if (db) return db;
+    await new Promise(r => setTimeout(r, 900));
+    db = await metaDbReady();
+    if (db) return db;
+    await new Promise(r => setTimeout(r, 1800));
+    return metaDbReady();
+  }
+
+  function slugifyVendedor(s) {
+    return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'sem_nome';
+  }
+
+  function formatMetaBRL(n) {
+    return 'R$ ' + (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  function formatMetaNumber(n) {
+    const v = Number(n) || 0;
+    if (!v) return '';
+    return v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  function parseMetaNumber(str) {
+    if (!str) return 0;
+    const cleaned = String(str).replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function renderMetaTable() {
+    const tbody = document.getElementById('es-meta-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = META_ROWS.map(r => {
+      const cells = META_MONTHS.map((m, i) =>
+        `<input type="text" inputmode="decimal" class="eng-meta-input eng-meta-input--currency" data-row="${r.key}" data-month="${i}" placeholder="0,00">`
+      ).join('');
+      const totalCell = `<td class="eng-meta-total" data-total="${r.key}">${formatMetaBRL(0)}</td>`;
+      return `<tr data-row="${r.key}"><td>${r.label}</td><td class="eng-meta-cells" colspan="12"><div class="eng-meta-cells-inner">${cells}</div></td>${totalCell}</tr>`;
+    }).join('') + `
+      <tr class="eng-meta-row-readonly" data-row="totalVenda">
+        <td>Total Venda</td>
+        ${META_MONTHS.map((m, i) => `<td class="eng-meta-venda-cell" data-venda-month="${i}">${formatMetaBRL(0)}</td>`).join('')}
+        <td class="eng-meta-total" data-venda-total="1">${formatMetaBRL(0)}</td>
+      </tr>
+      <tr class="eng-meta-row-readonly" data-row="taxaConversao">
+        <td>Taxa de conversão Mensal</td>
+        ${META_MONTHS.map((m, i) => `<td class="eng-meta-taxa-cell" data-taxa-month="${i}">—</td>`).join('')}
+        <td class="eng-meta-total" data-taxa-total="1">—</td>
+      </tr>`;
+  }
+
+  function metaMonthlyVendaTotals(vendedor, ano) {
+    const out = new Array(12).fill(0);
+    if (!vendedor) return out;
+    salesRows.forEach(r => {
+      if (r.vendedor !== vendedor) return;
+      if (ano && String(r.ano || '') !== String(ano)) return;
+      if (!r.mes) return;
+      const i = r.mes - 1;
+      if (i >= 0 && i < 12) out[i] += (r.valorTotal || 0);
+    });
+    return out;
+  }
+
+  function currentMetaSelection() {
+    const vSel = document.getElementById('es-meta-vendedor');
+    const aSel = document.getElementById('es-meta-ano');
+    return { vendedor: vSel ? vSel.value : '', ano: aSel ? aSel.value : '' };
+  }
+
+  function metaDocId(vendedor, ano) {
+    return slugifyVendedor(vendedor) + '_' + String(ano);
+  }
+
+  function updateTotalVendaRow() {
+    const { vendedor, ano } = currentMetaSelection();
+    const totals = metaMonthlyVendaTotals(vendedor, ano);
+    let sum = 0;
+    totals.forEach((v, i) => {
+      sum += v;
+      const td = document.querySelector(`.eng-meta-venda-cell[data-venda-month="${i}"]`);
+      if (td) td.textContent = formatMetaBRL(v);
+    });
+    const totalTd = document.querySelector('[data-venda-total]');
+    if (totalTd) totalTd.textContent = formatMetaBRL(sum);
+    updateTaxaConversaoRow();
+  }
+
+  function formatMetaPct(n) {
+    return (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+  }
+
+  function updateTaxaConversaoRow() {
+    const { vendedor, ano } = currentMetaSelection();
+    const vendaTotals = metaMonthlyVendaTotals(vendedor, ano);
+    const previstoInputs = document.querySelectorAll('.eng-meta-input[data-row="valorPrevisto"]');
+    const previstoByMonth = new Array(12).fill(0);
+    previstoInputs.forEach(inp => { previstoByMonth[Number(inp.dataset.month)] = parseMetaNumber(inp.value); });
+
+    let sumVenda = 0, sumPrevisto = 0;
+    for (let i = 0; i < 12; i++) {
+      const venda = vendaTotals[i], previsto = previstoByMonth[i];
+      sumVenda += venda; sumPrevisto += previsto;
+      const td = document.querySelector(`.eng-meta-taxa-cell[data-taxa-month="${i}"]`);
+      if (td) td.textContent = previsto > 0 ? formatMetaPct((venda / previsto) * 100) : '—';
+    }
+    const totalTd = document.querySelector('[data-taxa-total]');
+    if (totalTd) totalTd.textContent = sumPrevisto > 0 ? formatMetaPct((sumVenda / sumPrevisto) * 100) : '—';
+  }
+
+  function recomputeMetaTotals() {
+    ['valorMinimo', 'valorPrevisto'].forEach(key => {
+      let sum = 0;
+      document.querySelectorAll(`.eng-meta-input[data-row="${key}"]`).forEach(inp => { sum += parseMetaNumber(inp.value); });
+      const td = document.querySelector(`.eng-meta-total[data-total="${key}"]`);
+      if (td) td.textContent = formatMetaBRL(sum);
+    });
+  }
+
+  function metaMonthValues(key) {
+    const out = new Array(12).fill(0);
+    document.querySelectorAll(`.eng-meta-input[data-row="${key}"]`).forEach(inp => {
+      const i = Number(inp.dataset.month);
+      out[i] = parseMetaNumber(inp.value);
+    });
+    return out;
+  }
+
+  function applyMetaData(data) {
+    renderMetaTable();
+    if (data) {
+      ['valorMinimo', 'valorPrevisto'].forEach(key => {
+        const arr = data[key] || [];
+        document.querySelectorAll(`.eng-meta-input[data-row="${key}"]`).forEach(inp => {
+          const i = Number(inp.dataset.month);
+          if (arr[i] != null && arr[i] !== '') inp.value = formatMetaNumber(arr[i]);
+        });
+      });
+    }
+    recomputeMetaTotals();
+    updateTotalVendaRow();
+  }
+
+  function setMetaStatus(text, kind, retryable) {
+    const el = document.getElementById('es-meta-status');
+    if (!el) return;
+    el.classList.remove('is-saved', 'is-error');
+    if (kind) el.classList.add(kind);
+    if (retryable) {
+      el.textContent = '';
+      const span = document.createElement('span');
+      span.textContent = text + ' ';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'es-meta-retry';
+      btn.textContent = 'Tentar novamente';
+      btn.className = 'eng-meta-retry-btn';
+      el.appendChild(span);
+      el.appendChild(btn);
+    } else {
+      el.textContent = text;
+    }
+  }
+
+  async function loadMetaForSelection() {
+    const { vendedor, ano } = currentMetaSelection();
+    if (!vendedor || !ano) { applyMetaData(null); setMetaStatus('', null); return; }
+    const myToken = ++metaLoadToken;
+    setMetaStatus('Carregando…', null);
+    applyMetaData(null);
+    const db = await metaDbReadyRetried();
+    if (myToken !== metaLoadToken) return;
+    if (!db) { setMetaStatus('Indisponível (' + (metaDbLastError || 'motivo desconhecido') + ') .', 'is-error', true); return; }
+    const docId = metaDocId(vendedor, ano);
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled || myToken !== metaLoadToken) return;
+      settled = true;
+      setMetaStatus('Tempo esgotado ao carregar a meta.', 'is-error', true);
+    }, 10000);
+    try {
+      const snap = await db.doc('metas/' + docId).get();
+      if (settled || myToken !== metaLoadToken) return;
+      settled = true;
+      clearTimeout(timer);
+      const data = snap && snap.exists ? snap.data() : null;
+      applyMetaData(data);
+      setMetaStatus(data ? (snap.aviso || 'Meta carregada.') : 'Nenhuma meta cadastrada ainda para ' + ano + ' — preencha e salve.', null);
+    } catch (e) {
+      if (settled || myToken !== metaLoadToken) return;
+      settled = true;
+      clearTimeout(timer);
+      setMetaStatus('Erro ao carregar meta.', 'is-error', true);
+    }
+  }
+
+  async function saveMetaCurrent() {
+    const { vendedor, ano } = currentMetaSelection();
+    if (!vendedor) { setMetaStatus('Selecione um vendedor antes de salvar.', 'is-error'); return; }
+    if (!ano) { setMetaStatus('Selecione um ano antes de salvar.', 'is-error'); return; }
+    const saveBtn = document.getElementById('es-meta-save');
+    setMetaStatus('Conectando…', null);
+    const db = await metaDbReadyRetried();
+    if (!db) { setMetaStatus('Indisponível (' + (metaDbLastError || 'motivo desconhecido') + ') — verifique se você está conectado/logado.', 'is-error', true); return; }
+    saveBtn.disabled = true;
+    const docId = metaDocId(vendedor, ano);
+    const payload = {
+      vendedor,
+      ano: Number(ano),
+      valorMinimo: metaMonthValues('valorMinimo'),
+      valorPrevisto: metaMonthValues('valorPrevisto'),
+      updatedAt: Date.now()
+    };
+    try {
+      const r = await db.doc('metas/' + docId).set(payload);
+      setMetaStatus((r && r.aviso) || 'Meta salva.', 'is-saved');
+    } catch (e) {
+      setMetaStatus('Erro ao salvar meta.', 'is-error');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  function buildMetaVendedorOptions() {
+    const sel = document.getElementById('es-meta-vendedor');
+    if (!sel) return;
+    const prev = sel.value;
+    const vendedores = Array.from(new Set(salesRows.map(r => r.vendedor).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
+    sel.innerHTML = '<option value="">Selecione…</option>' + vendedores.map(v => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join('');
+    if (vendedores.includes(prev)) sel.value = prev;
+  }
+
+  function buildMetaAnoOptions() {
+    const sel = document.getElementById('es-meta-ano');
+    if (!sel) return;
+    const prev = sel.value;
+    const anosFromSales = salesRows.map(r => r.ano).filter(Boolean);
+    const anos = Array.from(new Set(anosFromSales.map(Number))).sort((a, b) => b - a);
+    const currentYear = new Date().getFullYear();
+    if (!anos.includes(currentYear)) anos.unshift(currentYear);
+    sel.innerHTML = '<option value="">Selecione…</option>' + anos.map(a => `<option value="${a}">${a}</option>`).join('');
+    if (anos.map(String).includes(prev)) sel.value = prev;
+  }
+
+  function setupMetaPanel() {
+    buildMetaVendedorOptions();
+    buildMetaAnoOptions();
+    if (metaPanelWired) return;
+    metaPanelWired = true;
+    renderMetaTable();
+    document.getElementById('es-meta-toggle').addEventListener('click', () => {
+      document.getElementById('es-meta-panel').hidden = !document.getElementById('es-meta-panel').hidden;
+    });
+    document.getElementById('es-meta-vendedor').addEventListener('change', loadMetaForSelection);
+    document.getElementById('es-meta-ano').addEventListener('change', loadMetaForSelection);
+    document.getElementById('es-meta-save').addEventListener('click', saveMetaCurrent);
+    document.getElementById('es-meta-status').addEventListener('click', (e) => {
+      if (e.target.id === 'es-meta-retry') {
+        metaDbInstance = null;
+        metaDbPending = null;
+        loadMetaForSelection();
+      }
+    });
+    document.getElementById('es-meta-tbody').addEventListener('input', (e) => {
+      if (e.target.classList.contains('eng-meta-input')) {
+        recomputeMetaTotals();
+        updateTaxaConversaoRow();
+      }
+    });
+    document.getElementById('es-meta-tbody').addEventListener('focusout', (e) => {
+      if (e.target.classList.contains('eng-meta-input--currency')) {
+        const n = parseMetaNumber(e.target.value);
+        e.target.value = n ? formatMetaNumber(n) : '';
+      }
+    });
+  }
+
+  function onFiltersChanged() {
+    updateKpis();
+    drawDonut();
+    drawFunilChart();
+    drawMesChart();
+    drawEvolucaoChart();
+    drawAnoChart();
+    drawEtapasList();
+    drawUfList();
+    drawCidadeList();
+    drawClientesGroups();
+    drawGrupoMesChart();
+    drawTipoDonuts();
+    updateExecTable();
+    drawFunEngView();
+    updateSummary();
+  }
+
+  function setupTabs() {
+    const btns = document.querySelectorAll('.eng-tab-btn');
+    btns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        btns.forEach(b => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        document.getElementById('eng-view-dash').hidden = btn.dataset.tab !== 'dash';
+        document.getElementById('eng-view-exec').hidden = btn.dataset.tab !== 'exec';
+        document.getElementById('eng-view-sales').hidden = btn.dataset.tab !== 'sales';
+        document.getElementById('eng-view-funeng').hidden = btn.dataset.tab !== 'funeng';
+        document.getElementById('eng-main-filterbar').hidden = btn.dataset.tab === 'sales';
+        if (btn.dataset.tab === 'dash') {
+          drawDonut(); drawFunilChart(); drawMesChart(); drawEvolucaoChart(); drawAnoChart();
+        } else if (btn.dataset.tab === 'exec') {
+          drawGrupoMesChart();
+          drawTipoDonuts();
+        } else if (btn.dataset.tab === 'sales') {
+          if (salesBuilt) drawSalesView();
+        } else if (btn.dataset.tab === 'funeng') {
+          drawFunEngView();
+        }
+      });
+    });
+  }
+
+  function loadEngResumoDataset() {
+    const r = dash.data('eng_resumo');
+    if (r.status === 'ok' && Array.isArray(r.data)) {
+      engResumoRows = r.data;
+    }
+  }
+
+  function setup() {
+    const res = dash.data('cards');
+    if (res.status !== 'ok') return;
+
+    allRows = res.data.map(r => {
+      const d = parseDate(r.dataAbertura);
+      return Object.assign({}, r, {
+        _ano: r.ano || (d ? d.getFullYear() : null),
+        _mes: r.mes ? r.mes - 1 : (d ? d.getMonth() : null),
+        _time: d ? d.getTime() : 0,
+        uf: normalizeUf(r.uf)
+      });
+    });
+
+    document.getElementById('eng-band-total-text').textContent = `${allRows.length.toLocaleString('pt-BR')} cards monitorados`;
+    document.getElementById('eng-band-time').textContent = new Date().toLocaleString('pt-BR');
+
+    if (!built) {
+      buildOptions();
+      setupTabs();
+      loadEngResumoDataset();
+      setupFunEngFilters();
+      setupAnoDropdown();
+      setupMesDropdown();
+      setupEtapaDropdown();
+      ['eng-f-uf', 'eng-f-sla'].forEach(id =>
+        document.getElementById(id).addEventListener('change', onFiltersChanged));
+      document.getElementById('eng-f-funil').addEventListener('change', () => {
+        buildEtapaOptions();
+        onFiltersChanged();
+      });
+      document.getElementById('eng-f-nome').addEventListener('input', onFiltersChanged);
+      document.getElementById('eng-f-codigo').addEventListener('input', () => {
+        updateCodigoHint();
+        onFiltersChanged();
+      });
+      document.getElementById('eng-clear').addEventListener('click', () => {
+        ['eng-f-funil', 'eng-f-uf', 'eng-f-sla'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('eng-f-nome').value = '';
+        document.getElementById('eng-f-codigo').value = '';
+        anoSelected.clear();
+        mesSelected.clear();
+        etapaSelected.clear();
+        updateCodigoHint();
+        buildOptions();
+        onFiltersChanged();
+      });
+      built = true;
+    } else {
+      buildOptions();
+    }
+
+    onFiltersChanged();
+  }
+
+  dash.onData(() => { setup(); setupSales(); });
+
+  window.addEventListener('resize', () => {
+    if (!built) return;
+    if (!document.getElementById('eng-view-dash').hidden) {
+      drawDonut(); drawFunilChart(); drawMesChart(); drawEvolucaoChart(); drawAnoChart();
+    } else if (!document.getElementById('eng-view-exec').hidden) {
+      drawGrupoMesChart();
+      drawTipoDonuts();
+    } else if (!document.getElementById('eng-view-sales').hidden) {
+      if (salesBuilt) drawSalesView();
+    } else if (!document.getElementById('eng-view-funeng').hidden) {
+      drawFunEngView();
+    }
+  });
+})();
+
+</script>
+</body></html>

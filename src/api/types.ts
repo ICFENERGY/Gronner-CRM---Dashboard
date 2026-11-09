@@ -209,6 +209,34 @@ export interface VendaRaw {
   lucroServico: number | null
 }
 
+/** Venda no formato de docs/data_sales.json (GET /api/indicadores/sales, montado do Neon). cep/logradouro sempre null. */
+export interface SaleIndicador {
+  codigo: number
+  idNegocio: number | null
+  nome: string | null
+  vendedor: string | null
+  tipoNegocio: string | null
+  tipoVenda: string | null
+  statusVenda: string | null
+  etapaNegocio: string | null
+  statusNegocio: string | null
+  origemContato: string | null
+  cidade: string | null
+  uf: string | null
+  cep: null
+  logradouro: null
+  valorTotal: number
+  valorEntrada: number | null
+  valorFinanciado: number | null
+  valorProduto: number | null
+  valorPago: number | null
+  valorServico: number | null
+  dataCadastro: string | null
+  dataVenda: string | null
+  ano: number | null
+  mes: number | null
+}
+
 export interface ProjetoRaw {
   id: number
   nome: string

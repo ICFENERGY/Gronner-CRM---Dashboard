@@ -18,6 +18,7 @@
     { "source": "/mcp/solarz/k/:chave", "destination": "/api/mcp-solarz?key=:chave" },
     { "source": "/mcp/solarz", "destination": "/api/mcp-solarz" },
     { "source": "/mcp", "destination": "/api/mcp" },
+    { "source": "/indicadores", "destination": "/indicadores/index.html" },
     { "source": "/api/:path*", "destination": "/api" }
   ]
 }

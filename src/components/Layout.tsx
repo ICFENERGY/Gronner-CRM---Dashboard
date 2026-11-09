@@ -34,6 +34,12 @@ export function Layout({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="/indicadores/index.html"
+              className="rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            >
+              Indicadores
+            </a>
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>
