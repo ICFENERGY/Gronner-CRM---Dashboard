@@ -157,6 +157,29 @@ export function etapaEngenharia(funilNumero, etapa) {
 
 /** Projeto gravado no Neon -> item de data_eng_resumo.json, ou null se o status principal não é de engenharia. */
 export function engResumoDoProjeto(p, { agora = Date.now(), prazos = {} } = {}) {
+  return engResumosDoProjeto(p, { agora, prazos })[0] ?? null
+}
+
+/** Uma linha por funil de engenharia (08 a 14) em que o card está. */
+export function engResumosDoProjeto(p, { agora = Date.now(), prazos = {} } = {}) {
+  const fluxos = Array.isArray(p.fluxos) ? p.fluxos : []
+  if (fluxos.length) {
+    return fluxos.flatMap((f) => {
+      const funil = numeroFunil(f.funil)
+      if (!funil || !ENG_ETAPAS[funil]) return []
+      const dias = f.tempoMin == null ? null : f.tempoMin / 1440
+      return [{
+        codigo: `#${p.id}`, funil, etapa: etapaEngenharia(funil, f.etapa), nome: texto(p.nome), cliente: null,
+        valor: valorDoCard(p), atraso: f.atrasoMin == null ? null : f.atrasoMin > 0 ? 1 : 0,
+        tempoCard: formatarTempoCard(dias), cidade: texto(p.cidade), uf: texto(p.estado),
+      }]
+    })
+  }
+  const unico = engResumoPrincipal(p, { agora, prazos })
+  return unico ? [unico] : []
+}
+
+function engResumoPrincipal(p, { agora = Date.now(), prazos = {} } = {}) {
   const funil = numeroFunil(p.funil)
   if (!funil || !ENG_ETAPAS[funil]) return null
   const dias = tempoNoStatus(p, agora)
@@ -224,15 +247,28 @@ export function saleDaVenda(v, { propostas = new Map(), enriquecimento = {} } = 
   }
 }
 
+/** Uma linha por funil em que o card está (como a exportação); sem `fluxos` gravados, só o status principal. */
+export function cardsDoProjeto(p, opcoes) {
+  const base = cardDoProjeto(p, opcoes)
+  const fluxos = Array.isArray(p.fluxos) ? p.fluxos : []
+  if (!fluxos.length) return [base]
+  return fluxos.map((f) => ({
+    ...base,
+    funil: texto(f.funil),
+    etapa: texto(f.etapa),
+    diasFluxo: f.tempoMin == null ? base.diasFluxo : f.tempoMin / 1440,
+    atraso: f.atrasoMin == null ? base.atraso : f.atrasoMin / 1440,
+  }))
+}
+
 export function montarCards(projetos, opcoes) {
-  return projetos.map((p) => cardDoProjeto(p, opcoes)).sort((a, b) => (b.codigo ?? 0) - (a.codigo ?? 0))
+  return projetos.flatMap((p) => cardsDoProjeto(p, opcoes)).sort((a, b) => (b.codigo ?? 0) - (a.codigo ?? 0))
 }
 
 export function montarEngResumo(projetos, opcoes) {
   const ordem = ['08', '09', '10', '11', '13', '14'] // Object.keys poria '10'..'14' antes de '08' (chaves numéricas)
   return projetos
-    .map((p) => engResumoDoProjeto(p, opcoes))
-    .filter(Boolean)
+    .flatMap((p) => engResumosDoProjeto(p, opcoes))
     .sort((a, b) => ordem.indexOf(a.funil) - ordem.indexOf(b.funil) || ENG_ETAPAS[a.funil].indexOf(a.etapa) - ENG_ETAPAS[b.funil].indexOf(b.etapa))
 }
 

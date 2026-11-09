@@ -311,6 +311,30 @@ function entradaNoStatusDaListagem(p) {
   return dataGronerValida(atual?.data)
 }
 
+/**
+ * Um card pode estar em vários funis ao mesmo tempo (um status por funil). A listagem do /Projeto traz isso em
+ * statusAtuais (status), etapasAtuais (funil) e contadoresFluxo (tempo e atraso em minutos, por funil e status).
+ */
+export function fluxosDoProjeto(p) {
+  const status = Array.isArray(p.statusAtuais) ? p.statusAtuais : []
+  const etapas = new Map((Array.isArray(p.etapasAtuais) ? p.etapasAtuais : []).map((e) => [e?.id, e?.nome]))
+  const contadores = Array.isArray(p.contadoresFluxo) ? p.contadoresFluxo : []
+  const saida = []
+  for (const st of status) {
+    const funil = etapas.get(st?.etapaId)
+    if (!funil || !st?.nome) continue
+    const c = contadores.find((x) => x?.etapaId === st.etapaId && x?.statusId === st.id)
+    saida.push({
+      funil,
+      etapa: st.nome,
+      entradaEm: dataGronerValida(c?.entradaColunaEm),
+      tempoMin: Number.isFinite(c?.tempoFluxoMinutos) ? c.tempoFluxoMinutos : null,
+      atrasoMin: Number.isFinite(c?.atrasoFluxoMinutos) ? c.atrasoFluxoMinutos : null,
+    })
+  }
+  return saida
+}
+
 export function mapProjeto(p, enriquecimento) {
   const espalhado = pareceDetalheEspalhado(p)
   const det = resumirDetalheProjeto(p.detalhe) ?? (espalhado ? resumirDetalheProjeto(p) : null) ?? {}
@@ -364,6 +388,7 @@ export function mapProjeto(p, enriquecimento) {
     diasDesdeVenda: diasDesde(dataVenda),
     dataEntradaStatus: entradaNoStatusDaListagem(p) ?? det.dataEntradaStatus ?? dataUltimoStatus,
     noFluxoEngenharia: estaNoFluxoEngenharia(funil, status, marco),
+    fluxos: fluxosDoProjeto(p),
     dataVenda,
     dataAceiteProposta: det.dataAceiteProposta ?? dataGronerValida(p.dataPropostaAceita) ?? dataGronerValida(p.dataAceiteProposta),
     kwp: numero(p.kwp) ?? det.kwp ?? numero(deal.kwp) ?? null,

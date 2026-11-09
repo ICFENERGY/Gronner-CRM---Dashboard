@@ -242,3 +242,24 @@ test('rotas: metas gravadas na tabela única (config/vendas) e protegidas por ME
     await fechar()
   }
 })
+
+test('um card em vários funis vira uma linha por funil, com tempo e atraso do próprio funil', async () => {
+  const { fluxosDoProjeto } = await import('../server/mappers.js')
+  const { montarCards } = await import('../server/indicadores.js')
+  const p = {
+    statusAtuais: [{ id: 136, nome: 'ATENDIMENTO POS VENDA', etapaId: 25 }, { id: 354, nome: 'VENDA REALIZADA', etapaId: 7 }],
+    etapasAtuais: [{ id: 25, nome: '12. POS VENDA CLIENTE' }, { id: 7, nome: '06. CONTRATO' }],
+    contadoresFluxo: [
+      { etapaId: 7, statusId: 354, entradaColunaEm: '2026-05-19T18:58:06', tempoFluxoMinutos: 2880, atrasoFluxoMinutos: 1440 },
+      { etapaId: 25, statusId: 136, entradaColunaEm: '2023-07-23T18:23:08', tempoFluxoMinutos: 0, atrasoFluxoMinutos: 0 },
+    ],
+  }
+  const fluxos = fluxosDoProjeto(p)
+  assert.equal(fluxos.length, 2)
+  const cards = montarCards([{ id: 1, nome: 'X', funil: '06. CONTRATO', etapa: 'VENDA REALIZADA', fluxos }])
+  assert.equal(cards.length, 2)
+  const contrato = cards.find((c) => c.funil === '06. CONTRATO')
+  assert.equal(contrato.diasFluxo, 2)
+  assert.equal(contrato.atraso, 1)
+  assert.equal(cards.find((c) => c.funil === '12. POS VENDA CLIENTE').atraso, 0)
+})
