@@ -65,7 +65,7 @@ const PISO_ATIVOS = 0.9
 /** Busca tudo de um recurso (gronerGetAll), carregada só quando usada. Devolve { items, totalItems }. */
 async function buscarTudoPadrao(recurso) {
   const { gronerGetAll } = await import('./gronerClient.js')
-  const { items, totalItems } = await gronerGetAll(recurso, {}, { pageSize: 500, maxItems: 100000, concurrency: 12, ...OPC_COMPLETA })
+  const { items, totalItems } = await gronerGetAll(recurso, {}, { pageSize: 500, maxItems: 100000, concurrency: 3, pausaMs: 150, ...OPC_COMPLETA })
   return { items, totalItems }
 }
 

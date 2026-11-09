@@ -167,20 +167,26 @@ function buildPorCategoria(porFunil) {
 // /api/raw/* para não bater na API do Groner mais de uma vez por TTL.
 
 export function loadProjetosBrutos() {
-  return cached('projetos-brutos', TTL_MS, () => gronerGetAll('Projeto', {}, { pageSize: 500, maxPages: 40, concurrency: 12 }))
+  return cached('projetos-brutos', TTL_MS, () => gronerGetAll('Projeto', {}, { pageSize: 500, maxPages: 40, concurrency: 3 }))
 }
 
 export function loadVendasBrutas() {
-  return cached('vendas-brutas', TTL_MS, () => gronerGetAll('Venda', {}, { pageSize: 500, concurrency: 12 }))
+  return cached('vendas-brutas', TTL_MS, () => gronerGetAll('Venda', {}, { pageSize: 500, concurrency: 3 }))
 }
 
 export function loadPropostasBrutas() {
-  return cached('propostas-brutas', TTL_MS, () => gronerGetAll('PreProposta', {}, { pageSize: 500, maxPages: 40, concurrency: 12 }))
+  return cached('propostas-brutas', TTL_MS, () => gronerGetAll('PreProposta', {}, { pageSize: 500, maxPages: 40, concurrency: 3 }))
 }
 
 export function loadTarefasBrutas() {
-  return cached('tarefas-brutas', TTL_MS, () => gronerGetAll('Tarefa', {}, { pageSize: 500, maxPages: 20, concurrency: 12 }))
+  return cached('tarefas-brutas', TTL_MS, () => gronerGetAll('Tarefa', {}, { pageSize: 500, maxPages: 20, concurrency: 3 }))
 }
+
+/**
+ * A busca ao vivo no Groner (até 40 páginas por entidade) só roda com GRONER_BUSCA_AO_VIVO=1. Sem isso, o painel lê
+ * só o banco: o Groner limita a taxa de pedidos e o token já foi bloqueado por essa busca em cada função que sobe.
+ */
+const buscaAoVivoLigada = () => process.env.GRONER_BUSCA_AO_VIVO === '1'
 
 async function preferirSincronizado(entity, fallback) {
   try {
@@ -189,6 +195,7 @@ async function preferirSincronizado(entity, fallback) {
   } catch (err) {
     console.error(`[sync] falha ao ler ${entity}; usando API do Groner:`, err.message)
   }
+  if (!buscaAoVivoLigada()) return { items: [], totalItems: 0 }
   return fallback()
 }
 

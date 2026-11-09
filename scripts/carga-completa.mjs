@@ -2,8 +2,9 @@
  * Carga completa direta no armazenamento do dashboard (Neon/Postgres), sem n8n.
  *
  * Uso: node --env-file=.env scripts/carga-completa.mjs [projetos propostas tarefas vendas]
+ * CARGA_SEM_DETALHE=1 pula o detalhe por card (só a listagem).
  *
- * Para cada entidade busca tudo no Groner (gronerGetAll, concorrência 12), normaliza com os
+ * Para cada entidade busca tudo no Groner (gronerGetAll, concorrência 2, pausas, sem repetir 429), normaliza com os
  * mesmos normalizadores das rotas de sincronização e grava pelo store (upsertBatch em lotes
  * de 50 + finalize). Em projetos, busca detalhe e campos personalizados só dos cards com
  * marco da Engenharia (como server/syncTick.js). Imprime só contagens e tempos.
@@ -21,8 +22,13 @@ const ENTIDADES = {
   vendas: { recurso: 'Venda', normalizar: (i) => mapVenda(i, salesEnriquecido) },
 }
 const TAMANHO_LOTE = 50
-const CONCORRENCIA = 12
-const OPC = { timeoutMs: 60000, retries: 4, retryDelayMs: 2000 }
+// O Groner aceita cerca de 20 pedidos por 1,5 s (~13/s): concorrência 2 + pausa por página fica em ~3 a 5/s.
+// Lotes de 500 itens (25 páginas de 20) com pausa longa entre eles; 429 para tudo na hora (sem nova tentativa).
+const CONCORRENCIA = Number(process.env.CARGA_CONCORRENCIA) || 2
+const PAUSA_MS = Number(process.env.CARGA_PAUSA_MS) || 250
+const PAUSA_LOTE_MS = Number(process.env.CARGA_PAUSA_LOTE_MS) || 5000
+const SEM_DETALHE = process.env.CARGA_SEM_DETALHE === '1'
+const OPC = { timeoutMs: 60000, retries: 1, retryDelayMs: 2000, parar429: true }
 let falhasDetalhe = 0
 const tolerante = () => { falhasDetalhe++; return {} }
 
@@ -62,9 +68,9 @@ for (const entity of nomes) {
   const runId = `${entity}-${runStartedAt.replace(/[-:.]/g, '')}`
   const normalize = (item) => stripSensitive(def.normalizar(item))
 
-  let { items } = await gronerGetAll(def.recurso, {}, { pageSize: 500, maxItems: 100000, concurrency: CONCORRENCIA, timeoutMs: 60000, retries: 4, retryDelayMs: 2000 })
+  let { items } = await gronerGetAll(def.recurso, {}, { pageSize: 500, maxItems: 100000, concurrency: CONCORRENCIA, pausaMs: PAUSA_MS, pausaACadaPaginas: 25, pausaLongaMs: PAUSA_LOTE_MS, ...OPC })
   let comDetalhe = 0
-  if (entity === 'projetos') ({ itens: items, comDetalhe } = await detalharProjetos(items))
+  if (entity === 'projetos' && !SEM_DETALHE) ({ itens: items, comDetalhe } = await detalharProjetos(items))
   const tBusca = Date.now() - t0
 
   const expectedTotal = items.length

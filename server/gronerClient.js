@@ -15,10 +15,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /**
  * GET com timeout por chamada e novas tentativas (só erro de rede/timeout, 5xx e 429).
- * opts: { timeoutMs = 12000, retries = 2, retryDelayMs = 300, onRetry }
+ * opts: { timeoutMs = 12000, retries = 2, retryDelayMs = 300, onRetry, parar429 = false }
+ * parar429: um 429 vira erro na hora, sem nova tentativa (cargas grandes: o Groner bloqueia o token por taxa).
  */
 export async function gronerGet(resource, params = {}, opts = {}) {
-  const { timeoutMs = 12000, retries = 2, retryDelayMs = 300, onRetry } = opts
+  const { timeoutMs = 12000, retries = 2, retryDelayMs = 300, onRetry, parar429 = false } = opts
   const url = new URL(`${BASE_URL}/${resource}`)
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== '') {
@@ -58,7 +59,7 @@ export async function gronerGet(resource, params = {}, opts = {}) {
       const message = body?.ResponseException?.ExceptionMessage || body?.Message || `Erro ${res.status} ao consultar ${resource}`
       const error = new Error(message)
       error.status = res.status
-      if (res.status === 429 || res.status >= 500) {
+      if ((res.status === 429 && !parar429) || res.status >= 500) {
         lastError = error
         continue
       }
@@ -74,11 +75,13 @@ export async function gronerGet(resource, params = {}, opts = {}) {
  * Busca todas as páginas de um recurso paginado (uso interno para agregações).
  * A API pode devolver menos itens por página que o pageSize pedido (hoje 20),
  * então o total de páginas vem da resposta, não de totalItems / pageSize.
- * opts: { pageSize = 500, maxPages = 40, maxItems, concurrency = 8, ...opçõesDoGronerGet }
+ * opts: { pageSize = 500, maxPages = 40, maxItems, concurrency = 3, pausaMs = 0, pausaACadaPaginas = 0, pausaLongaMs = 0, ...opçõesDoGronerGet }
+ * O Groner aceita cerca de 20 pedidos por 1,5 s: manter bem abaixo (concorrência baixa; pausa curta por página e
+ * uma pausa longa a cada lote de páginas).
  * O teto efetivo é em ITENS: maxItems (ou maxPages * pageSize pedido, compatível com os chamadores).
  */
 export async function gronerGetAll(resource, params = {}, opts = {}) {
-  const { pageSize = 500, maxPages = 40, concurrency = 8, ...getOpts } = opts
+  const { pageSize = 500, maxPages = 40, concurrency = 3, pausaMs = 0, pausaACadaPaginas = 0, pausaLongaMs = 0, ...getOpts } = opts
   const maxItems = opts.maxItems ?? maxPages * pageSize
   delete getOpts.maxItems
 
@@ -96,6 +99,7 @@ export async function gronerGetAll(resource, params = {}, opts = {}) {
 
   let next = 2
   let stop = false
+  let concluidas = 0
   const worker = async () => {
     while (!stop) {
       const page = next++
@@ -107,6 +111,9 @@ export async function gronerGetAll(resource, params = {}, opts = {}) {
         return
       }
       pages[page - 1] = list
+      concluidas++
+      if (pausaACadaPaginas && pausaLongaMs && concluidas % pausaACadaPaginas === 0) await sleep(pausaLongaMs)
+      else if (pausaMs) await sleep(pausaMs)
     }
   }
   const n = Math.max(1, Math.min(concurrency, totalPages - 1))
