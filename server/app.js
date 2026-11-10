@@ -16,6 +16,7 @@ import { createSyncRouter } from './syncRoutes.js'
 import { createEngenhariaRouter } from './engenhariaRoutes.js'
 import { createDealsRouter } from './dealsRoutes.js'
 import { createIndicadoresRouter } from './indicadoresRoutes.js'
+import { depsReais as gronerAcoesReais } from './gronerAcoes.js'
 import { getSyncStatuses, loadSyncedEntity } from './syncStore.js'
 
 const app = express()
@@ -245,7 +246,8 @@ app.use(cors())
 app.use(express.json({ limit: '6mb' }))
 
 // Indicadores (painel /indicadores e aba Vendas): só leitura do Neon, nunca do Groner.
-const indicadoresRouter = createIndicadoresRouter()
+// A ação combinada na Gestão diária da Engenharia também é gravada no card do Groner (GRONER_ESCREVER_ACOES=0 desliga).
+const indicadoresRouter = createIndicadoresRouter({ gronerAcoes: process.env.GRONER_ESCREVER_ACOES === '0' ? null : gronerAcoesReais })
 
 const syncCacheKeys = {
   projetos: 'projetos-dados',

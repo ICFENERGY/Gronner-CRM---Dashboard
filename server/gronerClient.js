@@ -72,6 +72,33 @@ export async function gronerGet(resource, params = {}, opts = {}) {
 }
 
 /**
+ * POST com timeout, SEM nova tentativa: repetir uma escrita pode duplicar (o Groner às vezes grava e responde tarde).
+ * Quem chama decide como conferir antes de tentar de novo.
+ */
+export async function gronerPost(resource, body = {}, { timeoutMs = 40000 } = {}) {
+  let res
+  try {
+    res = await fetch(new URL(`${BASE_URL}/${resource}`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${TOKEN}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  } catch (err) {
+    const erro = new Error(err?.name === 'TimeoutError' || err?.name === 'AbortError' ? `Tempo esgotado (${timeoutMs} ms) ao gravar em ${resource}` : `Falha de rede ao gravar em ${resource}`)
+    erro.status = 504
+    throw erro
+  }
+  const corpo = await res.json().catch(() => null)
+  if (!res.ok) {
+    const erro = new Error(corpo?.ResponseException?.ExceptionMessage || corpo?.Message || `Erro ${res.status} ao gravar em ${resource}`)
+    erro.status = res.status
+    throw erro
+  }
+  return corpo?.Content ?? corpo
+}
+
+/**
  * Busca todas as páginas de um recurso paginado (uso interno para agregações).
  * A API pode devolver menos itens por página que o pageSize pedido (hoje 20),
  * então o total de páginas vem da resposta, não de totalItems / pageSize.

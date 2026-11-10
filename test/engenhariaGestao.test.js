@@ -4,6 +4,7 @@ import http from 'node:http'
 import express from 'express'
 import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao } from '../server/engenhariaGestao.js'
 import { createIndicadoresRouter } from '../server/indicadoresRoutes.js'
+import { registrarNoGroner, textoComentario, tituloDaTarefa } from '../server/gronerAcoes.js'
 
 const card = (extra = {}) => ({
   codigo: 100, funil: '10. HOMOLOGAÇÃO', etapa: 'PIETA_CRIACAO DO PROJETO', nome: 'Cliente Teste', cidade: 'Londrina', uf: 'PR', valor: 20000, diasFluxo: 9, ...extra,
@@ -126,6 +127,106 @@ test('rotas: gestão devolve o diagnóstico, grava a ação, mantém e conclui',
     g = await (await fetch(`${base}/gestao`)).json()
     assert.equal(g.itens[0].acao, null)
     assert.equal((await fetch(`${base}/acoes/100/10/concluir`, { method: 'POST' })).status, 404)
+  } finally {
+    if (anterior === undefined) delete process.env.METAS_TOKEN
+    else process.env.METAS_TOKEN = anterior
+    await new Promise((r) => srv.close(r))
+  }
+})
+
+// ─── Gravação no card do Groner (sempre com Groner falso nos testes) ────────────────────────────────────────────
+
+const itemCard = { codigo: 100, funil: '10', etapa: 'PIETA_CRIACAO DO PROJETO', problema: '9 dias na etapa, prazo 5.' }
+
+function gronerFalso({ tarefas = [], falhaCriar = false, falhaComentar = false } = {}) {
+  const chamadas = { criadas: [], comentarios: [] }
+  return {
+    chamadas,
+    deps: {
+      criarTarefa: async (corpo) => { chamadas.criadas.push(corpo); if (falhaCriar) throw new Error('Tempo esgotado'); return { id: 555 } },
+      comentar: async (id, texto) => { if (falhaComentar) throw new Error('Erro 500'); chamadas.comentarios.push({ id, texto }) },
+      tarefasDoCard: async () => tarefas,
+      usuarios: async () => [{ id: 29, nome: 'Eliardo Lemos' }, { id: 67, nome: 'João Martins' }],
+    },
+  }
+}
+
+test('comentário traz o que foi combinado, o @ do responsável e o prazo para finalizar', () => {
+  const t = textoComentario({ item: itemCard, acao: 'Cobrar o parecer', responsavel: 'Eliardo Lemos', prazo: '2026-11-13' })
+  assert.match(t, /Combinado na reunião/)
+  assert.match(t, /O que foi combinado: Cobrar o parecer/)
+  assert.match(t, /Responsável: @Eliardo Lemos/)
+  assert.ok(t.includes('Prazo para finalizar: 13/11/2026'))
+  assert.match(textoComentario({ item: itemCard, acao: 'x', responsavel: 'Y', prazo: '2026-11-13', tipo: 'feito' }), /marcada como feita/)
+})
+
+test('ação nova cria a tarefa no card (prazo e responsável) e comenta', async () => {
+  const g = gronerFalso()
+  const r = await registrarNoGroner({ deps: g.deps, item: itemCard, acao: 'Cobrar o parecer', responsavel: 'Eliardo Lemos', responsavelId: 29, prazo: '2026-11-13' })
+  assert.equal(r.tarefaId, 555)
+  assert.ok(r.gronerEm)
+  assert.equal(r.gronerErro, null)
+  assert.equal(g.chamadas.criadas[0].ProjetoId, 100)
+  assert.equal(g.chamadas.criadas[0].DataEntrega, '2026-11-13T18:00:00')
+  assert.deepEqual(g.chamadas.criadas[0].UsuariosIds, [29])
+  assert.ok(g.chamadas.criadas[0].TipoId > 0)
+  assert.equal(g.chamadas.comentarios.length, 1)
+})
+
+test('ação já gravada só ganha novo comentário (não cria outra tarefa)', async () => {
+  const g = gronerFalso()
+  const r = await registrarNoGroner({ deps: g.deps, item: itemCard, acao: 'Novo plano', responsavel: 'João Martins', prazo: '2026-11-20', tarefaId: 555 })
+  assert.equal(g.chamadas.criadas.length, 0)
+  assert.equal(r.tarefaId, 555)
+  assert.match(g.chamadas.comentarios[0].texto, /atualizado/)
+})
+
+test('se a tarefa já existe no card (tentativa anterior), reaproveita em vez de duplicar', async () => {
+  const g = gronerFalso({ tarefas: [{ id: 321, titulo: tituloDaTarefa(itemCard), dataConclusao: null }] })
+  const r = await registrarNoGroner({ deps: g.deps, item: itemCard, acao: 'x', responsavel: 'Y', prazo: '2026-11-13' })
+  assert.equal(g.chamadas.criadas.length, 0)
+  assert.equal(r.tarefaId, 321)
+})
+
+test('falha no Groner não perde a ação: devolve o erro para o painel mostrar', async () => {
+  const falhaCriar = await registrarNoGroner({ deps: gronerFalso({ falhaCriar: true }).deps, item: itemCard, acao: 'x', responsavel: 'Y', prazo: '2026-11-13' })
+  assert.equal(falhaCriar.tarefaId, null)
+  assert.match(falhaCriar.gronerErro, /Tempo esgotado/)
+  const falhaComentar = await registrarNoGroner({ deps: gronerFalso({ falhaComentar: true }).deps, item: itemCard, acao: 'x', responsavel: 'Y', prazo: '2026-11-13' })
+  assert.equal(falhaComentar.tarefaId, 555) // a tarefa foi criada: o próximo salvar só comenta
+  assert.match(falhaComentar.gronerErro, /Erro 500/)
+})
+
+test('rotas: salvar a ação grava no Groner, guarda a tarefa e lista as pessoas para o @', async () => {
+  const pg = pgAcoes()
+  const g = gronerFalso()
+  const projeto = { id: 100, nome: 'Cliente Teste', funil: '10. HOMOLOGAÇÃO', etapa: 'PIETA_CRIACAO DO PROJETO', dataEntradaStatus: '2026-10-20T10:00:00-03:00', dataInclusao: '2026-10-01T10:00:00-03:00', valorVenda: 1000 }
+  const app = express()
+  app.use(express.json())
+  app.use('/api/indicadores', createIndicadoresRouter({
+    carregar: async (e) => (e === 'projetos' ? { items: [projeto], sync: { finishedAt: '2026-11-02T10:00:00Z' } } : null),
+    pg: () => pg, prazos: PRAZO_5, agora: () => Date.parse('2026-11-02T20:00:00-03:00'), gronerAcoes: async () => g.deps,
+  }))
+  const srv = http.createServer(app)
+  await new Promise((r) => srv.listen(0, r))
+  const base = `http://127.0.0.1:${srv.address().port}/api/indicadores/engenharia`
+  const anterior = process.env.METAS_TOKEN
+  try {
+    delete process.env.METAS_TOKEN
+    assert.deepEqual((await (await fetch(`${base}/usuarios`)).json()).map((u) => u.nome), ['Eliardo Lemos', 'João Martins'])
+    const corpo = { acao: 'Cobrar o parecer', responsavel: 'Eliardo Lemos', responsavelId: 29, prazo: '2026-11-05' }
+    const put = (c) => fetch(`${base}/acoes/100/10`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(c) })
+    let r = await (await put(corpo)).json()
+    assert.equal(r.dados.tarefaId, 555)
+    assert.ok(r.dados.gronerEm)
+    assert.equal(g.chamadas.criadas.length, 1)
+    r = await (await put({ ...corpo, acao: 'Plano novo' })).json()
+    assert.equal(g.chamadas.criadas.length, 1) // não duplicou a tarefa
+    assert.equal(g.chamadas.comentarios.length, 2)
+    const gestao = await (await fetch(`${base}/gestao`)).json()
+    assert.equal(gestao.itens[0].acao.tarefaId, 555)
+    assert.equal((await fetch(`${base}/acoes/100/10/concluir`, { method: 'POST' })).status, 200)
+    assert.match(g.chamadas.comentarios.at(-1).texto, /marcada como feita/)
   } finally {
     if (anterior === undefined) delete process.env.METAS_TOKEN
     else process.env.METAS_TOKEN = anterior

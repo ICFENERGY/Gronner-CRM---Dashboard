@@ -8,7 +8,7 @@
   var BASE = '/api/indicadores/engenharia';
   var CHAVE_CODIGO = 'indicadores-metas-codigo';
   var POR_PAGINA = 40;
-  var S = { dados: null, carregando: false, erro: null, abertos: {}, pagina: 1, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
+  var S = { usuarios: [], salvando: {}, dados: null, carregando: false, erro: null, abertos: {}, pagina: 1, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
   var MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   var BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
   var ROTULO = { late: 'Atrasado', risk: 'Em risco', cobrar: 'Cobrar', ok: 'No prazo', repouso: 'Repouso' };
@@ -143,6 +143,23 @@
     return h + '</div>';
   }
 
+  function campoResponsavel(id, a, i) {
+    if (!S.usuarios.length) return '<input id="' + id + '" name="responsavel" value="' + esc(a ? a.responsavel : '') + '" placeholder="' + esc(i.papel || 'Nome') + '" required>';
+    var atual = a ? a.responsavel : '';
+    var lista = S.usuarios.slice();
+    if (atual && !lista.some(function (u) { return u.nome === atual; })) lista.unshift({ id: '', nome: atual });
+    return '<select id="' + id + '" name="responsavel" required><option value=""' + (atual ? '' : ' selected') + ' disabled>Escolha a pessoa…</option>' +
+      lista.map(function (u) { return '<option value="' + esc(u.nome) + '" data-id="' + esc(u.id) + '"' + (u.nome === atual ? ' selected' : '') + '>' + esc(u.nome) + '</option>'; }).join('') + '</select>';
+  }
+
+  function avisoGroner(a) {
+    if (!a) return 'Ao salvar, fica no painel e vira tarefa com comentário dentro do card no Groner. Dura até o card sair da etapa ou ser marcada como feita.';
+    var base = 'Salva desde ' + br((a.criadaEm || '').slice(0, 10)) + '. ';
+    if (a.gronerErro) return base + '<b class="ge-venc">Não gravou no Groner (' + esc(a.gronerErro) + ').</b> Clique em "Salvar alterações" para tentar de novo.';
+    if (a.gronerEm) return base + 'Gravada no card do Groner em ' + new Date(a.gronerEm).toLocaleString('pt-BR') + (a.tarefaId ? ' (tarefa #' + a.tarefaId + ')' : '') + '.';
+    return base + 'Ainda não foi gravada no card do Groner.';
+  }
+
   function detalhe(i) {
     var a = i.acao;
     var id = 'ge-' + chave(i).replace(':', '-');
@@ -155,11 +172,11 @@
       '<form class="ge-form" data-k="' + chave(i) + '">' +
       '<h4 style="margin:10px 0 0">Ação combinada</h4>' +
       '<label for="' + id + '-a">O que será feito<textarea id="' + id + '-a" name="acao" rows="3" required>' + esc(a ? a.acao : i.planoSugerido) + '</textarea></label>' +
-      '<div class="ge-r2"><label for="' + id + '-r">Responsável (pessoa)<input id="' + id + '-r" name="responsavel" value="' + esc(a ? a.responsavel : '') + '" placeholder="' + esc(i.papel || 'Nome') + '" required></label>' +
+      '<div class="ge-r2"><label for="' + id + '-r">Responsável (@ no Groner)' + campoResponsavel(id + '-r', a, i) + '</label>' +
       '<label for="' + id + '-p">Prazo<input id="' + id + '-p" name="prazo" type="date" value="' + esc(a ? a.prazo : hoje(2)) + '" required></label></div>' +
-      '<div class="ge-btns"><button class="ge-btn prim" type="submit">' + (a ? 'Salvar alterações' : 'Salvar ação') + '</button>' +
+      '<div class="ge-btns"><button class="ge-btn prim" type="submit"' + (S.salvando[chave(i)] ? ' disabled' : '') + '>' + (S.salvando[chave(i)] ? 'Salvando no Groner…' : (a ? 'Salvar alterações' : 'Salvar ação')) + '</button>' +
       (a ? '<button class="ge-btn" type="button" data-feito="1">Marcar como feita</button>' : '') +
-      '<span class="ge-aviso">' + (a ? 'Salva desde ' + br((a.criadaEm || '').slice(0, 10)) + '. Fica aqui até o card sair da etapa ou ser marcada como feita.' : 'Fica salva até o card sair da etapa ou ser marcada como feita.') + '</span></div>' +
+      '<span class="ge-aviso">' + avisoGroner(a) + '</span></div>' +
       '</form></div>';
   }
 
@@ -215,9 +232,14 @@
       f.onsubmit = function (e) {
         e.preventDefault();
         var fd = new FormData(f);
-        enviar(caminho, 'PUT', { acao: fd.get('acao'), responsavel: fd.get('responsavel'), prazo: fd.get('prazo') })
-          .then(function () { return carregar(true); })
-          .catch(function (err) { window.alert('Não foi possível salvar: ' + err.message); });
+        var sel = f.querySelector('select[name="responsavel"]');
+        var opt = sel && sel.selectedOptions[0];
+        var k = f.dataset.k;
+        S.salvando[k] = true;
+        desenhar();
+        enviar(caminho, 'PUT', { acao: fd.get('acao'), responsavel: fd.get('responsavel'), responsavelId: opt && opt.dataset.id ? Number(opt.dataset.id) : undefined, prazo: fd.get('prazo') })
+          .then(function () { delete S.salvando[k]; return carregar(true); })
+          .catch(function (err) { delete S.salvando[k]; desenhar(); window.alert('Não foi possível salvar: ' + err.message); });
       };
       var feito = f.querySelector('[data-feito]');
       if (feito) feito.onclick = function () {
@@ -239,6 +261,9 @@
   }
 
   window.engGestao = {
-    mostrar: function () { css(); desenhar(); carregar(); },
+    mostrar: function () {
+      css(); desenhar(); carregar();
+      if (!S.usuarios.length) fetch(BASE + '/usuarios').then(function (r) { return r.ok ? r.json() : []; }).then(function (u) { if (Array.isArray(u) && u.length) { S.usuarios = u; desenhar(); } }, function () { /* sem lista: campo livre */ });
+    },
   };
 })();

@@ -11,6 +11,9 @@
  *   GET /api/indicadores/engenharia/gestao   cards de engenharia com problema, plano sugerido e ação combinada
  *   PUT /api/indicadores/engenharia/acoes/:codigo/:funil   grava a ação combinada (fica até o card sair da etapa)
  *   POST /api/indicadores/engenharia/acoes/:codigo/:funil/concluir   marca a ação como feita
+ *   GET /api/indicadores/engenharia/usuarios   pessoas do Groner para escolher o responsável
+ *
+ * A ação salva também vira Tarefa + comentário no card do Groner (server/gronerAcoes.js), quando `gronerAcoes` está ligado.
  *
  * Leitura SÓ do Neon (loadSyncedEntity): sem fallback para a API do Groner, nem com o
  * banco vazio. Cache curto em memória (2 min).
@@ -29,6 +32,7 @@ import { loadSyncedEntity } from './syncStore.js'
 import { ID_META, LACUNAS, montarCards, montarEngResumo, montarSales, validarMeta } from './indicadores.js'
 import { lerPietaParaSla, montarChamadosSla, resumoDaCobertura } from './pietaSla.js'
 import { chaveAcao, ENTIDADE_ACOES, juntarAcoes, montarGestao, resumoGestao, validarAcao } from './engenhariaGestao.js'
+import { registrarNoGroner } from './gronerAcoes.js'
 import prazosArquivo from './data/sla-etapas.json' with { type: 'json' }
 
 const TTL_MS = 2 * 60 * 1000
@@ -54,6 +58,7 @@ export function createIndicadoresRouter({
   pg = getPgSql,
   prazos = prazosArquivo.prazos,
   enriquecimento = salesEnriquecido,
+  gronerAcoes = null, // () => Promise<{ criarTarefa, comentar, tarefasDoCard, usuarios }> — grava a ação no card do Groner; null = não grava
   carregarPieta = null, // () => { resumoProjetos, registros, resumoEm, estado } — padrão: lê do Neon
   agora = () => Date.now(),
   ttlMs = TTL_MS,
@@ -201,6 +206,15 @@ export function createIndicadoresRouter({
     } catch (err) { responderErro(res, err) }
   })
 
+  const usuariosGroner = () => cached(`${prefixo}-usuarios`, 10 * 60 * 1000, async () => {
+    if (!gronerAcoes) return []
+    return (await gronerAcoes()).usuarios()
+  })
+
+  router.get('/engenharia/usuarios', async (_req, res) => {
+    try { res.set('Cache-Control', 'private, max-age=300'); res.json(await usuariosGroner()) } catch (err) { responderErro(res, err) }
+  })
+
   router.put('/engenharia/acoes/:codigo/:funil', async (req, res) => {
     try {
       if (!escritaLiberada(req)) return res.status(401).json({ error: 'Código de edição inválido' })
@@ -211,11 +225,24 @@ export function createIndicadoresRouter({
       const chave = chaveAcao(codigo, funil)
       const antes = (await clientePg().todas('config', ENTIDADE_ACOES)).find((x) => x.chave === chave)?.dados
       const agoraIso = new Date(agora()).toISOString()
+      const aberta = antes && !antes.concluida ? antes : null
       const dados = {
         ...campos, codigo: Number(codigo), funil, etapa: card.etapa, concluida: false,
-        criadaEm: antes && !antes.concluida ? antes.criadaEm : agoraIso, atualizadaEm: agoraIso,
+        criadaEm: aberta ? aberta.criadaEm : agoraIso, atualizadaEm: agoraIso,
+        tarefaId: aberta?.tarefaId ?? null,
       }
+      // 1) Salva no painel (Neon) primeiro: o combinado nunca se perde se o Groner estiver lento ou fora.
       await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
+      // 2) Grava no card do Groner (tarefa com prazo e responsável + comentário do que foi combinado).
+      if (gronerAcoes) {
+        const responsavelId = Number(req.body?.responsavelId) || null
+        const registro = await registrarNoGroner({
+          deps: await gronerAcoes(), item: card, acao: campos.acao, responsavel: campos.responsavel, responsavelId,
+          prazo: campos.prazo, tarefaId: dados.tarefaId, agora: new Date(agora()),
+        })
+        Object.assign(dados, { tarefaId: registro.tarefaId, gronerEm: registro.gronerEm, gronerErro: registro.gronerErro, responsavelId })
+        await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
+      }
       res.json({ ok: true, dados })
     } catch (err) { responderErro(res, err) }
   })
@@ -229,7 +256,16 @@ export function createIndicadoresRouter({
       if (!atual || atual.concluida) return res.status(404).json({ error: 'Não há ação aberta para este card' })
       const dados = { ...atual, concluida: true, concluidaEm: new Date(agora()).toISOString(), motivo: 'marcada como feita' }
       await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
-      res.json({ ok: true })
+      let groner = null
+      if (gronerAcoes && atual.tarefaId) {
+        const { itens } = await gestao()
+        const card = itens.find((i) => String(i.codigo) === codigo && i.funil === funil)
+        groner = await registrarNoGroner({
+          deps: await gronerAcoes(), item: card ?? { codigo: Number(codigo), funil, etapa: atual.etapa, problema: '' }, acao: atual.acao,
+          responsavel: atual.responsavel, prazo: atual.prazo, tarefaId: atual.tarefaId, tipo: 'feito', agora: new Date(agora()),
+        })
+      }
+      res.json({ ok: true, groner })
     } catch (err) { responderErro(res, err) }
   })
 
