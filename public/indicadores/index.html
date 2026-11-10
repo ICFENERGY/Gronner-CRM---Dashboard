@@ -626,6 +626,20 @@ body {
           <select id="eng-fe-filter-uf"><option value="all">Todas</option></select>
         </label>
         <label class="eng-field">
+          <span>Ano</span>
+          <select id="eng-fe-filter-ano"><option value="all">Todos</option></select>
+        </label>
+        <label class="eng-field">
+          <span>Mês</span>
+          <select id="eng-fe-filter-mes">
+            <option value="all">Todos</option>
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+          </select>
+        </label>
+        <label class="eng-field">
           <span>SLA</span>
           <select id="eng-fe-filter-sla">
             <option value="all">Todos</option>
@@ -1776,7 +1790,19 @@ body {
   };
 
   let engResumoRows = [];
-  const engFeFilters = { funil: 'all', etapa: 'all', sla: 'all', uf: 'all', nome: '', codigo: '' };
+  const engFeFilters = { funil: 'all', etapa: 'all', sla: 'all', uf: 'all', nome: '', codigo: '', ano: 'all', mes: 'all' };
+
+  // Ano e mês de abertura do card (mesma data da barra do Dashboard), buscados na lista de cards pelo código.
+  let engFeAnoMesPorCodigo = null;
+  function engFeAnoMes(r) {
+    if (!engFeAnoMesPorCodigo) {
+      engFeAnoMesPorCodigo = new Map();
+      allRows.forEach(c => {
+        if (c._ano && c._mes != null) engFeAnoMesPorCodigo.set(String(c.codigo), { ano: String(c._ano), mes: String(c._mes + 1) });
+      });
+    }
+    return engFeAnoMesPorCodigo.get(String(r.codigo || '').replace('#', '')) || { ano: null, mes: null };
+  }
 
   function parseTempoCardDias(s) {
     if (!s) return null;
@@ -1792,7 +1818,12 @@ body {
       if (engFeFilters.sla === 'ok' && r.atraso) return false;
       if (engFeFilters.sla === 'atrasado' && !r.atraso) return false;
       if (engFeFilters.uf !== 'all' && r.uf !== engFeFilters.uf) return false;
-      if (engFeFilters.nome && !String(r.nome || '').toLowerCase().includes(engFeFilters.nome)) return false;
+      if (engFeFilters.ano !== 'all' || engFeFilters.mes !== 'all') {
+        const am = engFeAnoMes(r);
+        if (engFeFilters.ano !== 'all' && am.ano !== engFeFilters.ano) return false;
+        if (engFeFilters.mes !== 'all' && am.mes !== engFeFilters.mes) return false;
+      }
+      if (engFeFilters.nome &&!String(r.nome || '').toLowerCase().includes(engFeFilters.nome)) return false;
       if (engFeFilters.codigo && !String(r.codigo || '').toLowerCase().includes(engFeFilters.codigo)) return false;
       return true;
     });
@@ -1965,6 +1996,14 @@ body {
   function setupFunEngFilters() {
     engFeBuildEtapaOptions();
     engFeBuildUfOptions();
+    const selAno = document.getElementById('eng-fe-filter-ano');
+    const selMes = document.getElementById('eng-fe-filter-mes');
+    if (selAno) {
+      const anos = Array.from(new Set(engResumoRows.map(r => engFeAnoMes(r).ano).filter(Boolean))).sort().reverse();
+      selAno.innerHTML = '<option value="all">Todos</option>' + anos.map(a => `<option value="${a}">${a}</option>`).join('');
+      selAno.addEventListener('change', () => { engFeFilters.ano = selAno.value; drawFunEngView(); });
+    }
+    if (selMes) selMes.addEventListener('change', () => { engFeFilters.mes = selMes.value; drawFunEngView(); });
     const inNome = document.getElementById('eng-fe-filter-nome');
     const inCodigo = document.getElementById('eng-fe-filter-codigo');
     const selUf = document.getElementById('eng-fe-filter-uf');
@@ -1991,6 +2030,9 @@ body {
     if (clearBtn) clearBtn.addEventListener('click', () => {
       engFeFilters.funil = 'all'; engFeFilters.etapa = 'all'; engFeFilters.sla = 'all';
       engFeFilters.uf = 'all'; engFeFilters.nome = ''; engFeFilters.codigo = '';
+      engFeFilters.ano = 'all'; engFeFilters.mes = 'all';
+      if (selAno) selAno.value = 'all';
+      if (selMes) selMes.value = 'all';
       if (inNome) inNome.value = '';
       if (inCodigo) inCodigo.value = '';
       if (selUf) selUf.value = 'all';
