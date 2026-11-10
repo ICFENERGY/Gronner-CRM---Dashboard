@@ -1,6 +1,6 @@
 name: sync-base
 
-# Atualização da base do painel (Dashboard, Vendas e Engenharia) quatro vezes por dia.
+# Atualização da base do painel (Dashboard, Vendas e Engenharia) quatro vezes por dia: projetos (tick) e vendas.
 # O GitHub agenda em UTC; Brasília é UTC-3 (sem horário de verão):
 #   07:00 -> 10:00 UTC   12:00 -> 15:00 UTC   15:00 -> 18:00 UTC   19:00 -> 22:00 UTC
 # O GitHub pode atrasar alguns minutos o início de uma tarefa agendada em horários de pico.
@@ -46,10 +46,9 @@ jobs:
           # 1) Projetos (Dashboard e Engenharia): só os cards que mudaram desde o último tick.
           chamar "projetos (tick)" "projetos/tick"
           sleep 5
-          # 2) Propostas: o Negócio das vendas (tipo, etapa e status) vem delas, então vão antes das vendas.
-          chamar "propostas" "completa/propostas"
-          sleep 5
-          # 3) Vendas: lista completa e, só das vendas novas, o detalhe que liga a venda ao card do Groner.
+          # 2) Vendas: lista completa e, só das vendas novas, o detalhe que liga a venda ao card do Groner.
+          # As propostas (3,7 mil registros) NÃO entram aqui: a carga completa passa dos 60 s da função da Vercel
+          # (deu HTTP 504 no teste). Elas já são atualizadas uma vez por dia pelo cron da Vercel (vercel.json).
           chamar "vendas" "completa/vendas"
 
           if [ "$falhou" != "0" ]; then
