@@ -223,11 +223,13 @@ body {
   .es-mapa-escala i { display: block; width: 110px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, color-mix(in srgb, var(--eng-teal) 14%, var(--color-bg)), var(--eng-teal)); }
   .es-mapa-wrap { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(220px, 0.7fr); gap: 20px; align-items: start; }
   @media (max-width: 800px) { .es-mapa-wrap { grid-template-columns: 1fr; } }
-  #eng-sales-mapa { width: 100%; max-width: 560px; height: auto; margin: 0 auto; display: block; }
+  #eng-sales-mapa { width: 100%; max-width: 640px; height: auto; margin: 0 auto; display: block; }
   #eng-sales-mapa path { stroke: var(--color-border-line); stroke-width: 1; stroke-linejoin: round; transition: opacity .12s; }
   #eng-sales-mapa path:hover { opacity: .8; stroke: var(--color-fg); }
   #eng-sales-mapa text { font-size: 15px; font-weight: 700; fill: var(--color-fg); pointer-events: none; text-anchor: middle; }
   #eng-sales-mapa text.es-mapa-valor { font-size: 12px; font-weight: 600; }
+  #eng-sales-mapa text.es-mapa-call { text-anchor: start; font-size: 13px; }
+  #eng-sales-mapa line.es-mapa-linha { stroke: var(--color-fg-muted); stroke-width: 1; }
   #eng-sales-mapa text.es-mapa-sem { fill: var(--color-fg-muted); font-weight: 600; }
   #eng-sales-mapa text.es-mapa-peq { font-size: 11px; }
   .es-mapa-sem-lista { margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: var(--color-fg-muted); }
@@ -2290,11 +2292,13 @@ body {
   const BRL_CURTO = v => v >= 1e6 ? 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi' : v >= 1e3 ? 'R$ ' + Math.round(v / 1e3).toLocaleString('pt-BR') + ' mil' : BRL.format(v);
 
   const ES_UF_PEQUENAS = new Set(['AL', 'SE', 'DF', 'ES', 'RJ', 'PB', 'RN', 'PE']);
+  const ES_UF_CHAMADA = new Set(['AL', 'SE', 'ES', 'PB', 'RN', 'PE']);
 
   function drawSalesMapa(rows) {
     const svg = document.getElementById('eng-sales-mapa');
     const mapa = window.MAPA_BRASIL;
     if (!svg || !mapa) return;
+    svg.setAttribute('viewBox', '0 0 ' + (mapa.largura + 120) + ' ' + mapa.altura); // folga à direita para as chamadas
     const porUf = new Map();
     rows.forEach(r => {
       const uf = r.uf && /^[A-Z]{2}$/.test(r.uf) ? r.uf : null;
@@ -2320,10 +2324,20 @@ body {
       return '<path data-tip="' + escAttr(dica) + '" d="' + c.d + '" fill="' + cor(d) + '"></path>';
     }).join('') + mapa.ufs.map(c => {
       const d = porUf.get(c.uf);
+      if (d && ES_UF_CHAMADA.has(c.uf)) return ''; // estados pequenos do litoral: a quantidade vai numa chamada ao lado
       const classe = (d ? '' : 'es-mapa-sem ') + (ES_UF_PEQUENAS.has(c.uf) ? 'es-mapa-peq' : '');
-      return '<text class="' + classe.trim() + '" x="' + c.cx + '" y="' + c.cy + '">' + c.uf + '</text>' +
-        (d && top.has(c.uf) ? '<text class="es-mapa-valor" x="' + c.cx + '" y="' + (c.cy + 15) + '">' + escHtml(fmt(valorDe(d))) + '</text>' : '');
-    }).join('');
+      return '<text class="' + classe.trim() + '" x="' + c.cx + '" y="' + (d ? c.cy - 2 : c.cy + 4) + '">' + c.uf + '</text>' +
+        (d ? '<text class="es-mapa-valor' + (ES_UF_PEQUENAS.has(c.uf) ? ' es-mapa-peq' : '') + '" x="' + c.cx + '" y="' + (c.cy + 13) + '">' + escHtml(fmt(valorDe(d))) + '</text>' : '');
+    }).join('') + (() => {
+      // Chamadas à direita do mapa, de cima para baixo, sem se sobrepor.
+      let yAnterior = -Infinity;
+      return mapa.ufs.filter(c => porUf.has(c.uf) && ES_UF_CHAMADA.has(c.uf)).sort((a, b) => a.cy - b.cy).map(c => {
+        const y = Math.max(c.cy, yAnterior + 22);
+        yAnterior = y;
+        return '<line class="es-mapa-linha" x1="' + c.cx + '" y1="' + c.cy + '" x2="' + (mapa.largura + 6) + '" y2="' + (y - 4) + '"></line>' +
+          '<text class="es-mapa-call" x="' + (mapa.largura + 10) + '" y="' + y + '">' + c.uf + ' · ' + escHtml(fmt(valorDe(porUf.get(c.uf)))) + '</text>';
+      }).join('');
+    })();
     svg.querySelectorAll('path').forEach(p => {
       p.addEventListener('mousemove', e => showTooltip(e, p.dataset.tip));
       p.addEventListener('mouseleave', hideTooltip);
