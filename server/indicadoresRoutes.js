@@ -58,6 +58,7 @@ export function createIndicadoresRouter({
   pg = getPgSql,
   prazos = prazosArquivo.prazos,
   enriquecimento = salesEnriquecido,
+  statusSync = null, // (entidade) => Promise<status|null> — data do último tick (sourceUpdatedAt); null = só a da última carga
   gronerAcoes = null, // () => Promise<{ criarTarefa, comentar, tarefasDoCard, usuarios }> — grava a ação no card do Groner; null = não grava
   carregarPieta = null, // () => { resumoProjetos, registros, resumoEm, estado } — padrão: lê do Neon
   agora = () => Date.now(),
@@ -68,12 +69,22 @@ export function createIndicadoresRouter({
 
   const ler = async (entidade) => (await carregar(entidade)) ?? null
 
+  /**
+   * Quando os dados foram atualizados de verdade: o manifesto só guarda a última carga COMPLETA (de madrugada);
+   * o tick incremental (a cada poucos minutos) grava a data dele no status. Vale a mais recente das duas.
+   */
+  const atualizadoEm = async (entidade, dados) => {
+    const st = statusSync ? await statusSync(entidade).catch(() => null) : null
+    const datas = [dados?.sync?.finishedAt, st?.lastSuccessfulRunAt, st?.sourceUpdatedAt].filter((d) => Number.isFinite(Date.parse(d)))
+    return datas.length ? datas.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a)) : null
+  }
+
   const projetos = () => cached(`${prefixo}-projetos`, ttlMs, async () => {
     const dados = await ler('projetos')
     const t = agora()
     const items = (dados?.items ?? []).map((p) => normalizarProjetoLido(p, dealsEnriquecido, t))
     return {
-      atualizadoEm: dados?.sync?.finishedAt ?? null,
+      atualizadoEm: await atualizadoEm('projetos', dados),
       cards: montarCards(items, { agora: t, prazos }),
       engResumo: montarEngResumo(items, { agora: t, prazos }),
     }

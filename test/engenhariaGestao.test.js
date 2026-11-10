@@ -261,3 +261,25 @@ test('vendas: falha no detalhe não derruba a carga', async () => {
   assert.equal(r.falhas, 1)
   assert.equal(r.itens.length, 1)
 })
+
+// ─── Data de atualização mostrada na faixa do painel ────────────────────────────────────────────────────────────
+
+test('faixa: a data dos projetos é a do último tick quando for mais recente que a carga completa', async () => {
+  const projeto = { id: 1, nome: 'A', funil: '10. HOMOLOGAÇÃO', etapa: 'PIETA_CRIACAO DO PROJETO', dataEntradaStatus: '2026-10-20T10:00:00-03:00', dataInclusao: '2026-10-01T10:00:00-03:00' }
+  const montar = async (statusSync) => {
+    const app = express()
+    app.use('/api/indicadores', createIndicadoresRouter({
+      carregar: async (e) => (e === 'projetos' ? { items: [projeto], sync: { finishedAt: '2026-11-09T21:06:41.062Z' } } : null),
+      pg: () => null, statusSync, agora: () => Date.parse('2026-11-10T20:00:00Z'),
+    }))
+    const srv = http.createServer(app)
+    await new Promise((r) => srv.listen(0, r))
+    const corpo = await (await fetch(`http://127.0.0.1:${srv.address().port}/api/indicadores/status`)).json()
+    await new Promise((r) => srv.close(r))
+    return corpo.cards.atualizadoEm
+  }
+  assert.equal(await montar(async () => ({ lastSuccessfulRunAt: '2026-11-10T18:48:59.022Z', sourceUpdatedAt: '2026-11-10T18:48:59.022Z' })), '2026-11-10T18:48:59.022Z')
+  assert.equal(await montar(async () => ({ sourceUpdatedAt: '2026-11-01T00:00:00Z' })), '2026-11-09T21:06:41.062Z') // tick mais antigo não vence
+  assert.equal(await montar(async () => { throw new Error('banco fora') }), '2026-11-09T21:06:41.062Z') // falha no status não derruba
+  assert.equal(await montar(null), '2026-11-09T21:06:41.062Z') // sem status: só a carga
+})

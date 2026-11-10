@@ -248,7 +248,7 @@ app.use(express.json({ limit: '6mb' }))
 
 // Indicadores (painel /indicadores e aba Vendas): só leitura do Neon, nunca do Groner.
 // A ação combinada na Gestão diária da Engenharia também é gravada no card do Groner (GRONER_ESCREVER_ACOES=0 desliga).
-const indicadoresRouter = createIndicadoresRouter({ gronerAcoes: process.env.GRONER_ESCREVER_ACOES === '0' ? null : gronerAcoesReais })
+const indicadoresRouter = createIndicadoresRouter({ statusSync: async (entidade) => (await getSyncStatuses()).entities?.[entidade] ?? null, gronerAcoes: process.env.GRONER_ESCREVER_ACOES === '0' ? null : gronerAcoesReais })
 
 const syncCacheKeys = {
   projetos: 'projetos-dados',
