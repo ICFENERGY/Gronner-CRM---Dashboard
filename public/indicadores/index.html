@@ -155,6 +155,15 @@ body {
   .eng-tipo-card .eng-legend-row-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
   .eng-tipo-card .eng-legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .eng-tipo-card .eng-legend-value { padding-left: 16px; color: var(--color-fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* Pizza em cima, legenda embaixo: dois retângulos deitados por linha, cada um com a cor, o nome e o indicador. */
+  .eng-tipo-card .eng-donut-wrap, #eng-view-funeng .eng-donut-wrap { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 12px; }
+  .eng-tipo-card .eng-donut-wrap svg, #eng-view-funeng .eng-donut-wrap svg { max-width: 240px; align-self: center; }
+  .eng-tipo-card .eng-donut-legend, #eng-fe-funil-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: none; width: 100%; }
+  .eng-tipo-card .eng-legend-row, #eng-fe-funil-legend .eng-legend-row { flex-direction: column; align-items: stretch; gap: 2px; padding: 7px 10px; border: 1px solid var(--color-border-line); border-radius: 8px; background: var(--color-bg); min-width: 0; }
+  #eng-fe-funil-legend .eng-legend-row-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  #eng-fe-funil-legend .eng-legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  #eng-fe-funil-legend .eng-legend-value { padding-left: 16px; color: var(--color-fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  @media (max-width: 420px) { .eng-tipo-card .eng-donut-legend, #eng-fe-funil-legend { grid-template-columns: 1fr; } }
   .eng-clear-btn {
     font-family: inherit; font-size: 12px; padding: 7px 12px; align-self: end;
     border-radius: 8px; border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg-muted); cursor: pointer;
@@ -708,6 +717,16 @@ body {
         <label class="eng-field">
           <span>Ano Venda</span>
           <select id="es-f-ano"><option value="">Todos</option></select>
+        </label>
+        <label class="eng-field">
+          <span>Mês Venda</span>
+          <select id="es-f-mes">
+            <option value="">Todos</option>
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+          </select>
         </label>
         <label class="eng-field">
           <span>Vendedor</span>
@@ -2084,18 +2103,20 @@ body {
     const v = (id) => document.getElementById(id).value;
     return {
       ano: v('es-f-ano'),
+      mes: v('es-f-mes'),
       vendedor: v('es-f-vendedor')
     };
   }
 
   function hasAnySalesFilter(f) {
-    return !!(f.ano || f.vendedor);
+    return !!(f.ano || f.mes || f.vendedor);
   }
 
   function salesFilteredRows() {
     const f = currentSalesFilters();
     return salesRows.filter(r => {
       if (f.ano && String(r.ano || '') !== f.ano) return false;
+      if (f.mes && String(r.mes || '') !== f.mes) return false;
       if (f.vendedor && r.vendedor !== f.vendedor) return false;
       return true;
     });
@@ -2236,10 +2257,10 @@ body {
   function setupSalesFilters() {
     if (salesFiltersWired) return;
     salesFiltersWired = true;
-    ['es-f-ano', 'es-f-vendedor'].forEach(id =>
+    ['es-f-ano', 'es-f-mes', 'es-f-vendedor'].forEach(id =>
       document.getElementById(id).addEventListener('change', drawSalesView));
     document.getElementById('es-clear').addEventListener('click', () => {
-      ['es-f-ano', 'es-f-vendedor'].forEach(id => document.getElementById(id).value = '');
+      ['es-f-ano', 'es-f-mes', 'es-f-vendedor'].forEach(id => document.getElementById(id).value = '');
       drawSalesView();
     });
   }

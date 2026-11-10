@@ -14,6 +14,7 @@ import { dealsEnriquecido, salesEnriquecido } from '../server/enrichment.js'
 import { mapProjetoParaArmazenar, mapProposta, mapTarefa, mapVenda, marcoDoStatus, mesclarProjetoComDetalhe } from '../server/mappers.js'
 import { stripSensitive } from '../server/sanitize.js'
 import { getSyncStore } from '../server/syncStore.js'
+import { enriquecerVendas } from '../server/vendasDetalhe.js'
 
 const ENTIDADES = {
   projetos: { recurso: 'Projeto', normalizar: (i) => mapProjetoParaArmazenar(i, dealsEnriquecido) },
@@ -71,6 +72,11 @@ for (const entity of nomes) {
   let { items } = await gronerGetAll(def.recurso, {}, { pageSize: 500, maxItems: 100000, concurrency: CONCORRENCIA, pausaMs: PAUSA_MS, pausaACadaPaginas: 25, pausaLongaMs: PAUSA_LOTE_MS, ...OPC })
   let comDetalhe = 0
   if (entity === 'projetos' && !SEM_DETALHE) ({ itens: items, comDetalhe } = await detalharProjetos(items))
+  if (entity === 'vendas' && !SEM_DETALHE) {
+    const guardadas = (await store.load('vendas'))?.items ?? []
+    const r = await enriquecerVendas(items, guardadas, (id) => gronerGet(`Venda/${id}`, {}, OPC), { maximo: 1000, pausaMs: PAUSA_MS })
+    items = r.itens; comDetalhe = r.buscados; falhasDetalhe += r.falhas
+  }
   const tBusca = Date.now() - t0
 
   const expectedTotal = items.length

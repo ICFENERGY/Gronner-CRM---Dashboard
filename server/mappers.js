@@ -46,6 +46,10 @@ export function mapVenda(v, enriquecimento) {
     valorEntrada: numero(v.valorEntrada),
     valorFinanciado: numero(primeiro(v.valorFinanciamento, v.valorFinanciado)),
     dataCadastro: dataGronerValida(primeiro(v.dataInclusao, v.dataCadastro)),
+    // Do detalhe da venda (server/vendasDetalhe.js): tipo, aprovação e valor pago.
+    tipoVenda: texto(primeiro(v.tipoVendaNome, v.tipoVenda?.nome)),
+    statusVenda: texto(primeiro(v.statusTipo, v.status?.tipo)),
+    valorPago: numero(primeiro(v.valorTotalPago, v.valorPago)),
   }
 }
 

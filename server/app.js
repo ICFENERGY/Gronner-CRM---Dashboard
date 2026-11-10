@@ -15,6 +15,7 @@ import { getPgSql } from './pgSql.js'
 import { createSyncRouter } from './syncRoutes.js'
 import { createEngenhariaRouter } from './engenhariaRoutes.js'
 import { createDealsRouter } from './dealsRoutes.js'
+import { enriquecerVendas } from './vendasDetalhe.js'
 import { createIndicadoresRouter } from './indicadoresRoutes.js'
 import { depsReais as gronerAcoesReais } from './gronerAcoes.js'
 import { getSyncStatuses, loadSyncedEntity } from './syncStore.js'
@@ -257,6 +258,7 @@ const syncCacheKeys = {
   pieta: 'pieta-metricas',
 }
 app.use('/api/sync/groner', createSyncRouter({
+  detalharVendas: async (itens, guardadas) => enriquecerVendas(itens, guardadas, (id) => gronerGet(`Venda/${id}`, {}, { timeoutMs: 10000, retries: 1 })),
   onFinalized: (entity) => {
     invalidate(syncCacheKeys[entity])
     invalidate('summary')

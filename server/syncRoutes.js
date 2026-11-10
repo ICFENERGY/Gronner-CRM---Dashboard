@@ -181,7 +181,7 @@ async function sincronizarSolarzPadrao() {
   })
 }
 
-export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {}, onChanged = () => {}, buscarGroner = buscarGronerPadrao, buscarTudo = buscarTudoPadrao, sincronizarPieta = sincronizarPietaPadrao, sincronizarSolarz = sincronizarSolarzPadrao } = {}) {
+export function createSyncRouter({ store = getSyncStore(), detalharVendas = null, onFinalized = () => {}, onChanged = () => {}, buscarGroner = buscarGronerPadrao, buscarTudo = buscarTudoPadrao, sincronizarPieta = sincronizarPietaPadrao, sincronizarSolarz = sincronizarSolarzPadrao } = {}) {
   const router = express.Router()
 
   /** Carga completa de uma entidade numa chamada: busca tudo, upsertBatch em lotes de 50 e finalize. */
@@ -194,6 +194,12 @@ export function createSyncRouter({ store = getSyncStore(), onFinalized = () => {
     const tBusca = Date.now() - t0
     const items = Array.isArray(busca) ? busca : busca.items
     validarBuscaCompleta(Array.isArray(busca) ? { items, totalItems: items.length } : busca, await ativosAtuais(store, entity))
+    // Vendas: a listagem não traz o projeto da venda; completa com o detalhe (só das que ainda não têm).
+    if (entity === 'vendas' && detalharVendas) {
+      const { itens: completas, buscados, falhas } = await detalharVendas(items, (await store.load?.('vendas'))?.items ?? [])
+      items.splice(0, items.length, ...completas)
+      console.info('[sync] vendas: detalhes buscados', { buscados, falhas })
+    }
     const tGrava0 = Date.now()
     const expectedTotal = items.length
     const batchCount = Math.max(1, Math.ceil(expectedTotal / TAMANHO_LOTE))

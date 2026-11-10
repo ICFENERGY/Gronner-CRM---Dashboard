@@ -233,3 +233,31 @@ test('rotas: salvar a ação grava no Groner, guarda a tarefa e lista as pessoas
     await new Promise((r) => srv.close(r))
   }
 })
+
+// ─── Detalhe das vendas (liga a venda ao negócio) ──────────────────────────────────────────────────────────────
+
+test('vendas: busca o detalhe só de quem ainda não tem o projeto; o resto reaproveita o guardado', async () => {
+  const { enriquecerVendas } = await import('../server/vendasDetalhe.js')
+  const { mapVenda } = await import('../server/mappers.js')
+  const chamados = []
+  const detalhe = async (id) => { chamados.push(id); return { projetoId: 900 + id, valorEntrada: 10, valorFinanciado: 20, dataInclusao: '2026-05-01T10:00:00', valorTotalPago: 5, status: { tipo: 'Aprovada' }, tipoVenda: null } }
+  const itens = [{ id: 1, nome: 'A', tipoVendaNome: null }, { id: 2, nome: 'B' }, { id: 3, nome: 'C' }]
+  const guardadas = [{ id: 2, idNegocio: 777, valorEntrada: 1, valorFinanciado: 2, dataCadastro: '2026-01-01T00:00:00', valorPago: 0, tipoVenda: 'Normal', statusVenda: 'Aprovada' }]
+  const r = await enriquecerVendas(itens, guardadas, detalhe, { maximo: 1, dormir: async () => {} })
+  assert.deepEqual(chamados, [1]) // 2 já tinha; 3 ficou para a próxima execução (limite)
+  assert.equal(r.buscados, 1)
+  const mapeadas = r.itens.map((i) => mapVenda(i))
+  assert.equal(mapeadas[0].idNegocio, 901)
+  assert.equal(mapeadas[0].statusVenda, 'Aprovada')
+  assert.equal(mapeadas[0].valorFinanciado, 20)
+  assert.equal(mapeadas[1].idNegocio, 777)
+  assert.equal(mapeadas[1].tipoVenda, 'Normal')
+  assert.equal(mapeadas[2].idNegocio, null)
+})
+
+test('vendas: falha no detalhe não derruba a carga', async () => {
+  const { enriquecerVendas } = await import('../server/vendasDetalhe.js')
+  const r = await enriquecerVendas([{ id: 1 }], [], async () => { throw new Error('500') }, { dormir: async () => {} })
+  assert.equal(r.falhas, 1)
+  assert.equal(r.itens.length, 1)
+})
