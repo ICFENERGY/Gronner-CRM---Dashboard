@@ -188,6 +188,18 @@ body {
   @media (max-width: 860px) { .eng-grid { grid-template-columns: 1fr; } }
 
   .eng-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  /* Dashboard: "Em aberto por etapa" e os painéis de baixo ganham espaço; os gráficos ao lado ficam menores e na mesma altura. */
+  #eng-view-dash .eng-grid { grid-template-columns: minmax(360px, 42%) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 1000px) { #eng-view-dash .eng-grid { grid-template-columns: 1fr; } }
+  #eng-view-dash .eng-side .eng-panel, #eng-view-dash .eng-main .eng-panel { padding: 18px; }
+  #eng-view-dash .eng-side .eng-panel-head h2 { font-size: 17px; }
+  #eng-view-dash .eng-side .eng-ranklist { gap: 14px; }
+  #eng-view-dash .eng-side .eng-ranklist--scroll { max-height: 360px; }
+  #eng-view-dash #eng-etapas-list { max-height: 620px; }
+  #eng-view-dash .eng-side .eng-rank-label, #eng-view-dash .eng-side .eng-rank-value { font-size: 14px; }
+  #eng-view-dash .eng-side .eng-rank-track { height: 8px; border-radius: 5px; }
+  #eng-view-dash .eng-main .eng-two-col { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); align-items: stretch; }
+  #eng-view-dash .eng-main .eng-two-col .eng-donut-wrap { justify-content: center; }
   .eng-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
   .eng-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   @media (max-width: 680px) { .eng-two-col { grid-template-columns: 1fr; } }
@@ -1449,7 +1461,7 @@ body {
 
     const svg = d3.select('#eng-donut');
     const wrap = svg.node().closest('.eng-donut-wrap');
-    const size = Math.min(Math.max(wrap.clientWidth * 0.38, 150), 220);
+    const size = Math.min(Math.max(wrap.clientWidth * 0.3, 112), 140);
     svg.attr('viewBox', `0 0 ${size} ${size}`).attr('height', size).attr('width', size);
     svg.selectAll('*').remove();
 
@@ -1616,12 +1628,14 @@ body {
       if ((r.atraso || 0) > 0) seg.bad++; else seg.ok++;
     });
     const keys = ['Atendido', 'Atrasado'];
-    const data = Array.from(byMonth, ([label, seg]) => ({
+    const todos = Array.from(byMonth, ([label, seg]) => ({
       label, total: seg.ok + seg.bad,
       segments: [{ key: 'Atendido', value: seg.ok }, { key: 'Atrasado', value: seg.bad }]
     })).sort((a, b) => a.label.localeCompare(b.label));
+    // O painel é menor: mostra os 12 meses mais recentes para as barras e os rótulos continuarem legíveis.
+    const data = todos.slice(-12);
 
-    document.getElementById('eng-mes-note').textContent = `${data.length} mês(es).`;
+    document.getElementById('eng-mes-note').textContent = todos.length > 12 ? `últimos 12 de ${todos.length} mês(es).` : `${todos.length} mês(es).`;
     const color = (k) => k === 'Atendido' ? 'var(--eng-green)' : 'var(--eng-red)';
     drawVStackedBarChart('#eng-mes-bars', '#eng-mes-legend', data, keys, color, { height: 170 });
   }
@@ -1668,7 +1682,7 @@ body {
   function drawAnoChart() {
     const rows = filteredRows(false);
     const grouped = groupCount(rows, '_ano').map(d => ({ label: String(d.label), value: d.value })).sort((a, b) => a.label.localeCompare(b.label));
-    drawVBarChart('#eng-ano-bars', grouped, { height: 120, color: 'var(--eng-blue)', minBarSlot: 50 });
+    drawVBarChart('#eng-ano-bars', grouped, { height: 150, color: 'var(--eng-blue)', minBarSlot: 50 });
   }
 
   function drawEtapasList() {
