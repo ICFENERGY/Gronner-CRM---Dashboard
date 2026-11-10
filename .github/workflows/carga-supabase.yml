@@ -1,0 +1,59 @@
+name: carga-supabase
+
+# Cria o schema e as tabelas no Postgres do Supabase e recarrega os dados do painel a partir do Groner, da Pieta e da SolarZ.
+# Roda só quando disparado à mão (Actions > carga-supabase > Run workflow). É seguro repetir: o SQL é idempotente e as
+# cargas só gravam o que mudou. Os servidores do GitHub têm as portas de Postgres abertas (algumas redes bloqueiam).
+# O ritmo das chamadas ao Groner é o mesmo das cargas locais (limite: ~20 pedidos por 1,5 s).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: carga-supabase
+  cancel-in-progress: false
+
+jobs:
+  carga:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DB_SCHEMA: groner_painel
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      GRONER_TENANT: ${{ secrets.GRONER_TENANT }}
+      GRONER_TOKEN: ${{ secrets.GRONER_TOKEN }}
+      PIETA_USER: ${{ secrets.PIETA_USER }}
+      PIETA_PASSWORD: ${{ secrets.PIETA_PASSWORD }}
+      SOLARZ_USER: ${{ secrets.SOLARZ_USER }}
+      SOLARZ_PASSWORD: ${{ secrets.SOLARZ_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: 1) Criar o schema e as tabelas no Supabase
+        run: node scripts/aplicar-sql-supabase.mjs
+
+      - name: 2) Projetos (listagem completa, sem detalhe por card)
+        run: node scripts/carga-completa.mjs projetos
+        env:
+          CARGA_SEM_DETALHE: '1'
+
+      - name: 3) Propostas e tarefas
+        run: node scripts/carga-completa.mjs propostas tarefas
+        env:
+          CARGA_SEM_DETALHE: '1'
+
+      - name: 4) Vendas (com o detalhe que liga cada venda ao card do Groner)
+        run: node scripts/carga-completa.mjs vendas
+
+      - name: 5) Pieta (equipamentos e estado de cada projeto)
+        run: node scripts/carga-pieta.mjs
+
+      - name: 6) SolarZ (usinas)
+        run: node scripts/carga-solarz.mjs
+        continue-on-error: true
+
+      - name: Conferir as contagens no banco
+        run: node scripts/conferir-db.mjs
