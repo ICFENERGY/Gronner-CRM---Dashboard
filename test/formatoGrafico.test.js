@@ -4,7 +4,6 @@ import { tsImport } from 'tsx/esm/api'
 
 // Utilitário único dos rótulos dos gráficos (TypeScript do front, carregado pelo tsx).
 const f = await tsImport('../src/lib/formatoGrafico.ts', import.meta.url)
-const { agruparPorFunil, valorDoCard } = await tsImport('../src/features/painel/funis.ts', import.meta.url)
 
 test('reais curtos em pt-BR', () => {
   assert.equal(f.reaisCurto(850), 'R$ 850')
@@ -41,24 +40,4 @@ test('pontos com rótulo: todos até o limite; depois primeiro, último, máximo
 
 test('margem do rótulo cresce com o maior texto', () => {
   assert.ok(f.larguraRotulo([89_061_596], f.reaisCurto) > f.larguraRotulo([5], f.reaisCurto))
-})
-
-test('agruparPorFunil: ordem do Groner, etapas da maior para a menor e valor da venda ou da proposta aceita', () => {
-  const projetos = [
-    { funil: '10. HOMOLOGAÇÃO', etapa: 'B', valorVenda: 100, valorPrePropostaAceita: 50 },
-    { funil: '04. FUNIL DE VENDAS SOLAR', etapa: 'GANHO', valorVenda: null, valorPrePropostaAceita: 70 },
-    { funil: '04. FUNIL DE VENDAS SOLAR', etapa: 'NEGOCIAÇÃO', valorVenda: 0, valorPrePropostaAceita: 0 },
-    { funil: '04. FUNIL DE VENDAS SOLAR', etapa: 'NEGOCIAÇÃO', valorVenda: 30, valorPrePropostaAceita: null },
-    { funil: 'PROSPECÇÃO', etapa: null, valorVenda: null, valorPrePropostaAceita: null },
-    { funil: null, etapa: 'X', valorVenda: null, valorPrePropostaAceita: null },
-  ]
-  assert.equal(valorDoCard(projetos[0]), 100)
-  assert.equal(valorDoCard(projetos[1]), 70)
-  const g = agruparPorFunil(projetos)
-  assert.deepEqual(g.map((x) => x.funil), ['04. FUNIL DE VENDAS SOLAR', '10. HOMOLOGAÇÃO', 'PROSPECÇÃO', 'Sem funil'])
-  assert.equal(g[0].cards, 3)
-  assert.equal(g[0].valor, 100)
-  assert.deepEqual(g[0].etapas, [{ etapa: 'NEGOCIAÇÃO', cards: 2 }, { etapa: 'GANHO', cards: 1 }])
-  assert.deepEqual(g[2].etapas, [{ etapa: 'Sem etapa', cards: 1 }])
-  assert.equal(g.reduce((a, x) => a + x.cards, 0), projetos.length)
 })

@@ -805,6 +805,44 @@ body {
 
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  /* Modo incorporado (?embed=1): usado pelas abas Visão Geral e Vendas do painel. */
+  html.embed .eng-band { display: none; }
+  html.embed #dash-root { padding-block: 8px 24px; max-width: none; padding-left: 0; padding-right: 0; }
+  html.embed.embed-sem-abas .eng-tabs { display: none; }
+</style>
+<script>
+(function () {
+  var q = new URLSearchParams(window.location.search);
+  if (q.get('embed') !== '1') return;
+  var html = document.documentElement;
+  html.classList.add('embed');
+  function tema(t) { if (t === 'dark' || t === 'light') html.setAttribute('data-theme', t); }
+  tema(q.get('tema'));
+  // Grupos: geral = Dashboard, Visão Executiva e Engenharia; vendas = só Vendas (sem barra de abas).
+  var grupo = q.get('grupo') === 'vendas' ? 'vendas' : 'geral';
+  var permitidas = grupo === 'vendas' ? ['sales'] : ['dash', 'exec', 'funeng'];
+  document.querySelectorAll('.eng-tab-btn').forEach(function (b) { if (permitidas.indexOf(b.dataset.tab) < 0) b.hidden = true; });
+  if (grupo === 'vendas') html.classList.add('embed-sem-abas');
+  if (!window.location.hash || permitidas.indexOf(window.location.hash.slice(1)) < 0) history.replaceState(null, '', '#' + permitidas[0]);
+  window.addEventListener('message', function (e) {
+    if (e.origin === window.location.origin && e.data && e.data.tipo === 'tema') tema(e.data.tema);
+  });
+  // Avisa o painel da altura do conteúdo para a página rolar uma vez só (sem rolagem dupla).
+  var ultima = 0;
+  function medir() {
+    var raiz = document.getElementById('dash-root');
+    if (!raiz) return;
+    var h = Math.ceil(raiz.getBoundingClientRect().height) + 40;
+    if (Math.abs(h - ultima) < 2) return;
+    ultima = h;
+    window.parent.postMessage({ tipo: 'indicadores-altura', altura: h }, window.location.origin);
+  }
+  if (window.ResizeObserver) new ResizeObserver(medir).observe(document.getElementById('dash-root'));
+  window.addEventListener('load', medir);
+  setInterval(medir, 700);
+})();
+</script>
 <script src="/indicadores/shim.js"></script>
 <script>
 (function () {
