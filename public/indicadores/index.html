@@ -198,6 +198,21 @@ body {
   #eng-view-dash #eng-etapas-list { max-height: 620px; }
   #eng-view-dash .eng-side .eng-rank-label, #eng-view-dash .eng-side .eng-rank-value { font-size: 14px; }
   #eng-view-dash .eng-side .eng-rank-track { height: 8px; border-radius: 5px; }
+  /* Cards por cidade e Cards por funil dividem a linha, na mesma altura. */
+  #eng-view-dash .es-duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+  @media (max-width: 1000px) { #eng-view-dash .es-duo { grid-template-columns: 1fr; } }
+  #eng-view-dash .es-duo .eng-ranklist--scroll { max-height: 560px; }
+  /* Os 26 funis ficam todos visíveis (sem rolagem), em linhas mais compactas. */
+  #eng-view-dash .es-duo #eng-funil-list { max-height: none; overflow: visible; gap: 8px; }
+  #eng-view-dash .es-duo .eng-funil-row .eng-rank-label, #eng-view-dash .es-duo .eng-funil-row .eng-rank-value { font-size: 13px; }
+  #eng-view-dash .es-duo .eng-funil-row .eng-rank-track { height: 7px; }
+  .eng-funil-legenda { display: flex; gap: 14px; font-size: 12px; color: var(--color-fg-muted); margin: -4px 0 10px; }
+  .eng-funil-legenda i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+  .eng-funil-row { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 4px 6px; margin: 0 -6px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .eng-funil-row:hover { background: color-mix(in srgb, var(--eng-teal) 8%, transparent); }
+  .eng-funil-row.is-active { background: color-mix(in srgb, var(--eng-teal) 14%, transparent); box-shadow: inset 0 0 0 1px var(--eng-teal); }
+  .eng-funil-fill { display: flex; height: 100%; min-width: 2px; border-radius: 5px; overflow: hidden; }
+  .eng-funil-fill > span { display: block; height: 100%; }
   #eng-view-dash .eng-main .eng-two-col { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); align-items: stretch; }
   #eng-view-dash .eng-main .eng-two-col .eng-donut-wrap { justify-content: center; }
   .eng-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -462,22 +477,24 @@ body {
           <div class="eng-ranklist eng-ranklist--scroll" id="eng-uf-list"></div>
         </section>
 
-        <section class="eng-panel eng-panel--tight">
-          <div class="eng-panel-head">
-            <h2>Cards por cidade</h2>
-            <span class="eng-panel-note" id="eng-cidade-note"></span>
-          </div>
-          <div class="eng-ranklist eng-ranklist--scroll" id="eng-cidade-list"></div>
-        </section>
+        <div class="es-duo">
+          <section class="eng-panel eng-panel--tight">
+            <div class="eng-panel-head">
+              <h2>Cards por cidade</h2>
+              <span class="eng-panel-note" id="eng-cidade-note"></span>
+            </div>
+            <div class="eng-ranklist eng-ranklist--scroll" id="eng-cidade-list"></div>
+          </section>
 
-        <section class="eng-panel eng-panel--tight">
-          <div class="eng-panel-head">
-            <h2>Cards por ano</h2>
-          </div>
-          <div class="eng-vchart-wrap">
-            <svg id="eng-ano-bars" width="100%"></svg>
-          </div>
-        </section>
+          <section class="eng-panel eng-panel--tight">
+            <div class="eng-panel-head">
+              <h2>Cards por funil</h2>
+              <span class="eng-panel-note" id="eng-funil-note"></span>
+            </div>
+            <div class="eng-funil-legenda"><span><i style="background:var(--eng-green)"></i>Atendido</span><span><i style="background:var(--eng-red)"></i>Atrasado</span></div>
+            <div class="eng-ranklist eng-ranklist--scroll" id="eng-funil-list"></div>
+          </section>
+        </div>
       </aside>
 
       <main class="eng-main">
@@ -517,13 +534,11 @@ body {
 
         <section class="eng-panel">
           <div class="eng-panel-head">
-            <h2>Cards por funil</h2>
-            <span class="eng-panel-note" id="eng-funil-note"></span>
+            <h2>Cards por ano</h2>
           </div>
           <div class="eng-vchart-wrap">
-            <svg id="eng-funil-bars" width="100%"></svg>
+            <svg id="eng-ano-bars" width="100%"></svg>
           </div>
-          <div id="eng-funil-legend" class="eng-donut-legend eng-mes-legend"></div>
         </section>
 
         <section class="eng-panel">
@@ -1600,22 +1615,33 @@ body {
       const seg = byFunil.get(r.funil);
       if ((r.atraso || 0) > 0) seg.bad++; else seg.ok++;
     });
-    const keys = ['Atendido', 'Atrasado'];
-    const data = Array.from(byFunil, ([label, seg]) => ({
-      label, total: seg.ok + seg.bad,
-      segments: [{ key: 'Atendido', value: seg.ok }, { key: 'Atrasado', value: seg.bad }]
-    })).sort((a, b) => b.total - a.total);
+    const data = Array.from(byFunil, ([label, seg]) => ({ label, ok: seg.ok, bad: seg.bad, total: seg.ok + seg.bad }))
+      .sort((a, b) => b.total - a.total);
 
     document.getElementById('eng-funil-note').textContent = `${data.length} funil(is).`;
-    const color = (k) => k === 'Atendido' ? 'var(--eng-green)' : 'var(--eng-red)';
-    drawVStackedBarChart('#eng-funil-bars', '#eng-funil-legend', data, keys, color, {
-      height: 190, minBarSlot: 70,
-      onClick: (seg, d) => {
-        const sel = document.getElementById('eng-f-funil');
-        sel.value = sel.value === d.label ? '' : d.label;
-        onFiltersChanged();
-      }
-    });
+    // Largura de cada barra proporcional ao total do funil (o maior ocupa a linha toda); dentro dela, verde e vermelho.
+    const maximo = Math.max(1, ...data.map(d => d.total));
+    const selecionado = document.getElementById('eng-f-funil').value;
+    const list = document.getElementById('eng-funil-list');
+    list.innerHTML = data.map(d => {
+      const larg = Math.max((d.total / maximo) * 100, 1.5);
+      const pctOk = d.total ? (d.ok / d.total) * 100 : 0;
+      return `
+        <button type="button" class="eng-funil-row${d.label === selecionado ? ' is-active' : ''}" data-funil="${escAttr(d.label)}"
+          title="${escAttr(d.label)}: ${d.total.toLocaleString('pt-BR')} cards (${d.ok.toLocaleString('pt-BR')} atendidos, ${d.bad.toLocaleString('pt-BR')} atrasados)">
+          <span class="eng-rank-row-top">
+            <span class="eng-rank-label">${escHtml(d.label)}</span>
+            <span class="eng-rank-value">${d.total.toLocaleString('pt-BR')}</span>
+          </span>
+          <span class="eng-rank-track"><span class="eng-funil-fill" style="width:${larg}%"><span style="width:${pctOk}%;background:var(--eng-green)"></span><span style="width:${100 - pctOk}%;background:var(--eng-red)"></span></span></span>
+        </button>`;
+    }).join('');
+    // Clicar num funil filtra o painel por ele; clicar de novo limpa.
+    list.querySelectorAll('.eng-funil-row').forEach(b => b.addEventListener('click', () => {
+      const sel = document.getElementById('eng-f-funil');
+      sel.value = sel.value === b.dataset.funil ? '' : b.dataset.funil;
+      onFiltersChanged();
+    }));
   }
 
   function drawMesChart() {
@@ -1682,7 +1708,7 @@ body {
   function drawAnoChart() {
     const rows = filteredRows(false);
     const grouped = groupCount(rows, '_ano').map(d => ({ label: String(d.label), value: d.value })).sort((a, b) => a.label.localeCompare(b.label));
-    drawVBarChart('#eng-ano-bars', grouped, { height: 150, color: 'var(--eng-blue)', minBarSlot: 50 });
+    drawVBarChart('#eng-ano-bars', grouped, { height: 190, color: 'var(--eng-blue)', minBarSlot: 50 });
   }
 
   function drawEtapasList() {
