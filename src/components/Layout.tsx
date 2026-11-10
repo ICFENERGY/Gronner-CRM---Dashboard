@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { IcfLogo } from './IcfLogo'
 import { ThemeToggle } from './ThemeToggle'
 
 export interface AbaItem { k: string; rotulo: string; badge?: number }
@@ -25,12 +26,9 @@ export function Layout({
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <header className="border-b border-[var(--border)] bg-[var(--surface)] px-6 pt-3 md:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-icf-green text-lg text-icf-navy" aria-hidden="true">⚡</span>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-text)]">ICF Energy</p>
-              <h1 className="text-lg font-semibold leading-tight">Painel Groner CRM</h1>
-            </div>
+          <div className="flex items-center gap-4">
+            <IcfLogo height={38} />
+            <h1 className="hidden border-l border-[var(--border-strong)] pl-4 text-base font-semibold leading-tight text-[var(--text-secondary)] sm:block">Painel Groner CRM</h1>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

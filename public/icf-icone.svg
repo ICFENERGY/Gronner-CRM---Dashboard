@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80" role="img" aria-label="ICF Energy">
+  <title>ICF Energy</title>
+  <rect width="80" height="80" rx="16" fill="#132D46"/>
+  <path d="M40.00 6.00 L69.44 23.00 L69.44 57.00 L40.00 74.00 L10.56 57.00 L10.56 23.00Z" fill="none" stroke="#01C38E" stroke-width="7.5" stroke-linejoin="round"/>
+  <path d="M41.80 19.48 L25.24 42.05 L41.44 42.05 L41.44 63.26 L55.84 41.37 L41.80 41.37Z" fill="#fff"/>
+</svg>

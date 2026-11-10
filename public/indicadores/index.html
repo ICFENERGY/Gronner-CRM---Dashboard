@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><script>try{var _q=new URLSearchParams(location.search),_t=_q.get("tema");if(_q.get("embed")==="1"&&(_t==="dark"||_t==="light"))document.documentElement.setAttribute("data-theme",_t)}catch(e){}</script><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#f4f4f4;color:#132d46}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Indicador Engenharia - Groner</title>
 <!-- Servido pelo painel em /indicadores. Dados: /api/indicadores/* (Neon, nunca o Groner ao vivo), carregados por shim.js. -->
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -10,35 +10,37 @@
    Indicador Engenharia - Groner — standalone port
    Layout: single-column band + tabs + filter bar, full-width dashboard
    ------------------------------------------------------------------ */
+/* Paleta ICF (mesmos valores de src/styles.css do painel): verde #01C38E, azul profundo #132D46, cinza #F4F4F4.
+   Fundo da página = fundo do painel, para o iframe não aparecer como uma faixa de outra cor. */
 :root {
-  --color-bg: #ffffff;
-  --color-panel: #f7f8f8;
-  --color-fg: #16181a;
-  --color-fg-muted: #6b7280;
-  --color-border-line: #e3e5e7;
-  --color-accent: #0f9b94;
+  --color-bg: #f4f4f4;
+  --color-panel: #ffffff;
+  --color-fg: #132d46;
+  --color-fg-muted: #4d6073;
+  --color-border-line: #dfe4e8;
+  --color-accent: #00805f;
   --font-anthropic-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-anthropic-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-bg: #111315;
-    --color-panel: #1a1d20;
-    --color-fg: #eef0f1;
-    --color-fg-muted: #9aa2a9;
-    --color-border-line: #2b2f33;
-    --color-accent: #2cc2b8;
+    --color-bg: #132d46;
+    --color-panel: #1b3b5c;
+    --color-fg: #f4f4f4;
+    --color-fg-muted: #bccad6;
+    --color-border-line: #2b4c6c;
+    --color-accent: #01c38e;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --color-bg: #111315;
-  --color-panel: #1a1d20;
-  --color-fg: #eef0f1;
-  --color-fg-muted: #9aa2a9;
-  --color-border-line: #2b2f33;
-  --color-accent: #2cc2b8;
+  --color-bg: #132d46;
+  --color-panel: #1b3b5c;
+  --color-fg: #f4f4f4;
+  --color-fg-muted: #bccad6;
+  --color-border-line: #2b4c6c;
+  --color-accent: #01c38e;
   color-scheme: dark;
 }
 
@@ -60,13 +62,35 @@ body {
 </style>
 <style>
   :root {
-    --eng-teal: #0f9b94;
-    --eng-orange: #e08a2e;
-    --eng-red: #e8515b;
-    --eng-green: #2e9e52;
-    --eng-gray: #9aa0a6;
-    --eng-blue: #3f6fd6;
-    --eng-purple: #8a5bd6;
+    --eng-teal: #01c38e;
+    --eng-teal-text: #00805f;
+    --eng-orange: #d9822b;
+    --eng-red: #d9455a;
+    --eng-green: #14a05c;
+    --eng-gray: #8493a3;
+    --eng-blue: #3b7fd0;
+    --eng-purple: #7f6bd0;
+    --eng-extra-1: #6a4fa3;
+    --eng-extra-2: #c65fa8;
+    --eng-extra-3: #2f9ab8;
+  }
+  :root[data-theme="dark"] {
+    --eng-teal-text: #01c38e;
+    --eng-orange: #f2a74b;
+    --eng-red: #ef6a7a;
+    --eng-green: #2fbf71;
+    --eng-gray: #8ea2b5;
+    --eng-blue: #5aa0e8;
+    --eng-purple: #a58bea;
+    --eng-extra-1: #9b7fd0;
+    --eng-extra-2: #e07fc0;
+    --eng-extra-3: #4fb8d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --eng-teal-text: #01c38e; --eng-orange: #f2a74b; --eng-red: #ef6a7a; --eng-green: #2fbf71; --eng-gray: #8ea2b5;
+      --eng-blue: #5aa0e8; --eng-purple: #a58bea; --eng-extra-1: #9b7fd0; --eng-extra-2: #e07fc0; --eng-extra-3: #4fb8d6;
+    }
   }
 
   #dash-root { font-family: var(--font-anthropic-sans); }
@@ -90,7 +114,7 @@ body {
     color: var(--color-fg-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
   }
   .eng-tab-btn:hover { color: var(--color-fg); }
-  .eng-tab-btn.is-active { color: var(--eng-teal); border-bottom-color: var(--eng-teal); }
+  .eng-tab-btn.is-active { color: var(--eng-teal-text); border-bottom-color: var(--eng-teal); }
 
   .eng-filterbar { border: 1px solid var(--color-border-line); border-radius: 12px; padding: 12px 14px; background: var(--color-panel); }
   .eng-filters-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
@@ -100,7 +124,7 @@ body {
     border-radius: 8px; border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg);
     min-width: 120px; box-sizing: border-box;
   }
-  .eng-field-hint { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--eng-teal, var(--color-accent)); min-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .eng-field-hint { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--eng-teal-text); min-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
   .eng-range-pair { display: flex; gap: 4px; }
   .eng-range-pair input { width: 78px; min-width: 0; }
   .eng-range-pair input[type="date"] { width: 128px; }
@@ -120,7 +144,7 @@ body {
   .eng-multiselect-opt:hover { background: var(--color-bg); }
   .eng-multiselect-opt input { margin: 0; accent-color: var(--eng-teal); }
   .eng-multiselect-sep { border-top: 1px solid var(--color-border-line); margin: 4px 0; }
-  .eng-back-link { font-family: inherit; font-size: 12px; font-weight: 600; color: var(--eng-teal); background: none; border: none; cursor: pointer; padding: 0; margin: -4px 0 8px; }
+  .eng-back-link { font-family: inherit; font-size: 12px; font-weight: 600; color: var(--eng-teal-text); background: none; border: none; cursor: pointer; padding: 0; margin: -4px 0 8px; }
   .eng-back-link:hover { text-decoration: underline; }
   .eng-tipo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: stretch; }
   .eng-tipo-card { border: 1px solid var(--color-border-line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; min-width: 0; }
@@ -192,7 +216,7 @@ body {
   }
 
   .eng-clientes-wrap { display: flex; flex-direction: column; gap: 16px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
-  .eng-client-group-head { font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--eng-teal); display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border-line); padding-bottom: 5px; margin-bottom: 7px; }
+  .eng-client-group-head { font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--eng-teal-text); display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border-line); padding-bottom: 5px; margin-bottom: 7px; }
   .eng-client-row { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; padding: 5px 0; color: var(--color-fg); }
   .eng-client-row + .eng-client-row { border-top: 1px dashed var(--color-border-line); }
   .eng-client-row-top { display: flex; justify-content: space-between; gap: 10px; }
@@ -260,8 +284,8 @@ body {
   .eng-meta-input:focus { outline: none; border-color: var(--eng-teal); background: var(--color-panel); position: relative; z-index: 1; }
   .eng-meta-total { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-fg); font-size: 10px; overflow: hidden; text-overflow: ellipsis; }
   .eng-meta-row-readonly td { background: color-mix(in srgb, var(--eng-teal) 7%, transparent); }
-  .eng-meta-row-readonly td:first-child { color: var(--eng-teal); font-weight: 650; }
-  .eng-meta-venda-cell { font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--eng-teal); font-weight: 600; }
+  .eng-meta-row-readonly td:first-child { color: var(--eng-teal-text); font-weight: 650; }
+  .eng-meta-venda-cell { font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--eng-teal-text); font-weight: 600; }
   .eng-meta-taxa-cell { font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--eng-orange); font-weight: 600; }
   .eng-meta-row-readonly + .eng-meta-row-readonly td { color: var(--eng-orange); }
   .eng-meta-row-readonly + .eng-meta-row-readonly td:first-child { color: var(--eng-orange); }
@@ -847,7 +871,7 @@ body {
 <script>
 (function () {
   const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const DONUT_PALETTE = ['#e8515b', '#0f9b94', '#9aa0a6', '#f2a74b', '#5b7fd6', '#b26fd6'];
+  const DONUT_PALETTE = ['var(--eng-red)', 'var(--eng-teal)', 'var(--eng-gray)', 'var(--eng-orange)', 'var(--eng-blue)', 'var(--eng-purple)'];
   const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
   const UF_NAME_MAP = {
@@ -1373,7 +1397,7 @@ body {
     return grupo ? grupo.nome : 'Outros';
   }
 
-  const FUNIL_DETAIL_CORES = ['var(--eng-blue)', 'var(--eng-teal)', 'var(--eng-orange)', 'var(--eng-purple)', 'var(--eng-green)', 'var(--eng-red)', 'var(--eng-gray)', '#7b4fa0'];
+  const FUNIL_DETAIL_CORES = ['var(--eng-blue)', 'var(--eng-teal)', 'var(--eng-orange)', 'var(--eng-purple)', 'var(--eng-green)', 'var(--eng-red)', 'var(--eng-gray)', 'var(--eng-extra-1)'];
 
   function drawGrupoMesChart() {
     const rows = filteredRows(false).filter(r => r._ano && r._time);
@@ -1938,7 +1962,7 @@ body {
   }
 
   const SALES_MESES_ABR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const SALES_DETAIL_CORES = ['var(--eng-blue)', 'var(--eng-teal)', 'var(--eng-orange)', 'var(--eng-purple)', 'var(--eng-green)', 'var(--eng-red)', 'var(--eng-gray)', '#7b4fa0', '#c65fa8', '#4fa5c6'];
+  const SALES_DETAIL_CORES = ['var(--eng-blue)', 'var(--eng-teal)', 'var(--eng-orange)', 'var(--eng-purple)', 'var(--eng-green)', 'var(--eng-red)', 'var(--eng-gray)', 'var(--eng-extra-1)', 'var(--eng-extra-2)', 'var(--eng-extra-3)'];
 
   function salesGroupCount(rows, field) {
     const m = new Map();

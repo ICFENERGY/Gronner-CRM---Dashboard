@@ -38,12 +38,50 @@
     onData: function (cb) { ouvintes.push(cb); if (pronto) cb(); },
   };
 
+  // Estado de carregamento / erro: antes os gráficos ficavam em branco e os KPIs em "—" sem explicação.
+  var NOMES = { cards: 'projetos', eng_resumo: 'resumo de engenharia', sales: 'vendas' };
+  function aviso() {
+    var el = document.getElementById('indicadores-estado');
+    if (el) return el;
+    var raiz = document.querySelector('#dash-root .eng-wrap') || document.getElementById('dash-root');
+    if (!raiz) return null;
+    el = document.createElement('div');
+    el.id = 'indicadores-estado';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.style.cssText = 'font-size:13px;line-height:1.5;color:var(--color-fg);border:1px solid var(--color-border-line);border-left:4px solid var(--eng-teal);background:var(--color-panel);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap';
+    raiz.prepend(el);
+    return el;
+  }
+  function mostrarCarregando() {
+    quandoPronto(function () {
+      var el = aviso();
+      if (el && !pronto) el.textContent = 'Carregando indicadores do banco… os números e gráficos aparecem em instantes.';
+    });
+  }
+  function mostrarResultado() {
+    var falhas = Object.keys(estado).filter(function (k) { return estado[k].status === 'error'; });
+    var el = document.getElementById('indicadores-estado');
+    if (!falhas.length) { if (el) el.remove(); return; }
+    el = aviso();
+    if (!el) return;
+    el.style.borderLeftColor = 'var(--eng-red)';
+    el.textContent = 'Não foi possível carregar: ' + falhas.map(function (k) { return NOMES[k] + ' (' + estado[k].error + ')'; }).join('; ') + '. ';
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = 'Tentar de novo';
+    b.style.cssText = 'font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--color-border-line);background:transparent;color:var(--color-fg);border-radius:8px;padding:4px 12px';
+    b.addEventListener('click', function () { window.location.reload(); });
+    el.appendChild(b);
+  }
+  mostrarCarregando();
+
   Promise.all(Object.keys(FONTES).map(function (k) {
     return obter(FONTES[k]).then(
       function (lista) { estado[k] = { status: 'ok', data: Array.isArray(lista) ? lista : [] }; },
       function (err) { estado[k] = { status: 'error', data: null, error: err.message }; }
     );
-  })).then(avisar);
+  })).then(function () { mostrarResultado(); avisar(); });
 
   // Faixa com a origem dos dados (e o aviso quando o banco ainda não tem projetos).
   function faixa(status, erro) {
