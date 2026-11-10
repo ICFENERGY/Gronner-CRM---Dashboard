@@ -257,9 +257,11 @@ body {
   .eng-resumo-group-title { font-size: 13px; font-weight: 700; color: var(--color-fg); margin: 0 0 6px; }
   .eng-resumo-table-wrap { overflow-x: auto; }
   .eng-resumo-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  .eng-resumo-table th, .eng-resumo-table td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .eng-resumo-table { table-layout: fixed; }
+  .eng-resumo-table th, .eng-resumo-table td { padding: 7px 10px; text-align: center; vertical-align: middle; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .eng-resumo-table th:first-child, .eng-resumo-table td:first-child { width: 28%; }
   .eng-resumo-table th { font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--color-fg-muted); background: var(--color-bg); }
-  .eng-resumo-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .eng-resumo-table td.num { text-align: center; font-variant-numeric: tabular-nums; }
   .eng-resumo-table tr:hover td { background: var(--color-bg); }
   .eng-resumo-cell-ok { color: var(--eng-green); font-weight: 650; background: color-mix(in srgb, var(--eng-green) 14%, transparent); }
   .eng-resumo-cell-bad { color: var(--eng-red); font-weight: 650; background: color-mix(in srgb, var(--eng-red) 14%, transparent); }
@@ -602,6 +604,7 @@ body {
             <option value="11">11 · Instalação</option>
             <option value="13">13 · Suporte Cliente</option>
             <option value="14">14 · Manutenção (Pós Venda)</option>
+            <option value="18">18 · Parceria Técnica</option>
           </select>
         </label>
         <label class="eng-field">
@@ -1747,8 +1750,9 @@ body {
     '11': 'Funil 11 - INSTALAÇÃO',
     '13': 'Funil 13 - SUPORTE CLIENTE',
     '14': 'Funil 14 - MANUTENÇÃO (Pós Venda)',
+    '18': 'Funil 18 - PARCERIA TÉCNICA',
   };
-  const ENG_RESUMO_FUNIL_ORDER = ['08', '09', '10', '11', '13', '14'];
+  const ENG_RESUMO_FUNIL_ORDER = ['08', '09', '10', '11', '13', '14', '18'];
   const ENG_RESUMO_ETAPA_ORDER = {
     '08': ['Criar Projeto->Proposta', 'Aprovar Proposta Criada', 'Proposta Criada Aprovada', 'Aprovacao Tecnica - Venda'],
     '09': ['Pedido a Pagar', 'Comp. Enviado ao Distribuidor', 'Pedido Faturado', 'Pedido em Rota de Entrega', 'Pedido Entregue'],
@@ -1756,6 +1760,7 @@ body {
     '11': ['Pendencia de Instalacao', 'Agendar Instalacao', 'Instalador Homologado', 'Instalacao Agendada', 'Diario de Obra / Obra Andamento', 'Pendencia de Obra', 'Instalacao Concluida', 'Instalacao App Monitoramento', 'Dossie', 'Termo de Aceite', 'Dossie Enviado', 'App Monitor Instalado'],
     '13': ['Area Projetos/Engenharia', 'Em Andamento', 'Suporte Cliente', 'Suporte Concluido'],
     '14': ['Relato da Pendencia', 'Orcamento Manutencao', 'Aguardo Aprovacao Cliente', 'Pos Venda Manutencao', 'Manutencao Concluida', 'Servico Descartado'],
+    '18': ['Novo Instalador', 'Consulta Base Dados_ Prestador', 'Entrevista', 'Documentos Necessarios', 'Assinar Contrato (Instalador)', 'Aprovado', 'Reprovado'],
   };
 
   let engResumoRows = [];
@@ -1912,7 +1917,7 @@ body {
           <table class="eng-resumo-table">
             <tbody>
               <tr class="eng-resumo-grandtotal">
-                <td>TOTAL GERAL (08 + 09 + 10 + 11 + 13 + 14)</td>
+                <td>TOTAL GERAL (08 + 09 + 10 + 11 + 13 + 14 + 18)</td>
                 <td class="num">${grand.count.toLocaleString('pt-BR')}</td>
                 <td class="num">${BRL.format(grand.valor)}</td>
                 <td class="num eng-resumo-cell-ok">${grand.in.toLocaleString('pt-BR')}</td>

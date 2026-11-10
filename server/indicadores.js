@@ -48,6 +48,7 @@ export const ENG_ETAPAS = {
   '11': ['Pendencia de Instalacao', 'Agendar Instalacao', 'Instalador Homologado', 'Instalacao Agendada', 'Diario de Obra / Obra Andamento', 'Pendencia de Obra', 'Instalacao Concluida', 'Instalacao App Monitoramento', 'Dossie', 'Termo de Aceite', 'Dossie Enviado', 'App Monitor Instalado'],
   '13': ['Area Projetos/Engenharia', 'Em Andamento', 'Suporte Cliente', 'Suporte Concluido'],
   '14': ['Relato da Pendencia', 'Orcamento Manutencao', 'Aguardo Aprovacao Cliente', 'Pos Venda Manutencao', 'Manutencao Concluida', 'Servico Descartado'],
+  '18': ['Novo Instalador', 'Consulta Base Dados_ Prestador', 'Entrevista', 'Documentos Necessarios', 'Assinar Contrato (Instalador)', 'Aprovado', 'Reprovado'],
 }
 
 function semAcentos(value) {
@@ -266,7 +267,7 @@ export function montarCards(projetos, opcoes) {
 }
 
 export function montarEngResumo(projetos, opcoes) {
-  const ordem = ['08', '09', '10', '11', '13', '14'] // Object.keys poria '10'..'14' antes de '08' (chaves numéricas)
+  const ordem = ['08', '09', '10', '11', '13', '14', '18'] // Object.keys poria '10'..'14' antes de '08' (chaves numéricas)
   return projetos
     .flatMap((p) => engResumosDoProjeto(p, opcoes))
     .sort((a, b) => ordem.indexOf(a.funil) - ordem.indexOf(b.funil) || ENG_ETAPAS[a.funil].indexOf(a.etapa) - ENG_ETAPAS[b.funil].indexOf(b.etapa))
