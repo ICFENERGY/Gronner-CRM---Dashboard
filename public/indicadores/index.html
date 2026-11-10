@@ -2292,7 +2292,7 @@ body {
   const BRL_CURTO = v => v >= 1e6 ? 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi' : v >= 1e3 ? 'R$ ' + Math.round(v / 1e3).toLocaleString('pt-BR') + ' mil' : BRL.format(v);
 
   const ES_UF_PEQUENAS = new Set(['AL', 'SE', 'DF', 'ES', 'RJ', 'PB', 'RN', 'PE']);
-  const ES_UF_CHAMADA = new Set(['AL', 'SE', 'ES', 'PB', 'RN', 'PE']);
+  const ES_UF_CHAMADA = new Set(['AL', 'SE', 'ES', 'PB', 'RN', 'PE', 'DF']);
 
   function drawSalesMapa(rows) {
     const svg = document.getElementById('eng-sales-mapa');
