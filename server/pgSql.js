@@ -15,17 +15,33 @@
  *
  * Testes injetam `executar(texto, parametros, { signal })` (por exemplo, o PGlite).
  */
+import { readFileSync } from 'node:fs'
 import { neon } from '@neondatabase/serverless'
 
 export const TABELA = 'DASHBOARD-GRONNER-CRM'
-export const TABELA_SQL = `public."${TABELA}"`
+
+/**
+ * Schema onde ficam a tabela e as funções dashboard_crm_* (DB_SCHEMA; padrão public).
+ * Só letras minúsculas, números e _ : o nome entra em SQL (sempre entre aspas), então é validado.
+ */
+export function schemaDoAmbiente(env = process.env) {
+  const nome = String(env.DB_SCHEMA ?? '').trim() || 'public'
+  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(nome)) throw new Error('DB_SCHEMA inválido: use só letras minúsculas, números e _ (máx. 63).')
+  return nome
+}
+
+/** Tabela qualificada, ex.: "groner_painel"."DASHBOARD-GRONNER-CRM". Resolvida a cada uso (o .env pode carregar depois deste módulo). */
+export const TABELA_SQL = { toString: () => `"${schemaDoAmbiente()}"."${TABELA}"` }
 const TAMANHO_PAGINA = 1000
 const TIMEOUT_MS = 15000
 const TENTATIVAS = 3
 
-/** String de conexão: NEON_DATABASE_URL (tem prioridade; a integração da Vercel pode gerir DATABASE_URL de outro banco) ou DATABASE_URL. */
+/**
+ * String de conexão: SUPABASE_DB_URL (Postgres do Supabase, tem prioridade), NEON_DATABASE_URL (a integração da Vercel
+ * pode gerir DATABASE_URL de outro banco) ou DATABASE_URL.
+ */
 export function pgUrl(env = process.env) {
-  return String(env.NEON_DATABASE_URL || env.DATABASE_URL || '').trim()
+  return String(env.SUPABASE_DB_URL || env.NEON_DATABASE_URL || env.DATABASE_URL || '').trim()
 }
 
 export function pgConfigured(env = process.env) {
@@ -46,14 +62,57 @@ function converterErro(err) {
   if (negocio && err?.message) return Object.assign(new Error(String(err.message)), { status: Number(negocio[1]), retentavel: false })
   if (err?.name === 'TimeoutError' || err?.name === 'AbortError') return erroIndisponivel('timeout')
   // 08xxx/57xxx/53xxx: conexão, desligamento, falta de recurso -> vale repetir; erro de SQL/permissão não.
-  const transitorio = !codigo || /^(08|53|57|58|40)/.test(codigo)
+  const transitorio = !codigo || /^(08|53|57|58|40)/.test(codigo) || /^E[A-Z]+$/.test(codigo)
   return erroIndisponivel(codigo ? `SQLSTATE ${codigo}` : 'rede', transitorio)
 }
 
-/** Executor padrão: driver HTTP do Neon. */
+/** Executor da Neon: driver HTTP. */
 function executorNeon(url) {
   const sql = neon(url)
   return async (texto, parametros, { signal } = {}) => sql.query(texto, parametros, { fetchOptions: { signal } })
+}
+
+/** Hosts da Neon usam o driver HTTP; qualquer outro Postgres (Supabase, etc.) usa o driver padrão. */
+export const ehNeon = (url) => /(^|\.)neon\.tech(:|\/|$)/i.test(new URL(url).host + '/')
+
+/**
+ * Certificado da CA do Postgres (PEM), se houver: DB_CA_CERT (o texto do certificado) ou o arquivo
+ * server/data/db-ca.pem. É um certificado PÚBLICO (o do Supabase baixa-se em Database > Settings > SSL),
+ * usado para VALIDAR o servidor. Sem ele vale o repositório de confiança padrão do Node.
+ */
+function certificadoCa(env = process.env) {
+  if (env.DB_CA_CERT) return String(env.DB_CA_CERT).replace(/\\n/g, '\n')
+  try { return readFileSync(new URL('./data/db-ca.pem', import.meta.url), 'utf8') } catch { return undefined }
+}
+
+/**
+ * Executor do Postgres comum (driver `pg`), carregado só quando usado. Um pool pequeno por processo:
+ * em função serverless cada instância abre poucas conexões, e o pooler do Supabase (Supavisor) reaproveita.
+ * A conexão é cifrada e o certificado do servidor é SEMPRE validado (rejectUnauthorized ligado).
+ */
+function executorPg(url) {
+  let pool
+  return async (texto, parametros, { signal } = {}) => {
+    if (!pool) {
+      const { default: pg } = await import('pg')
+      const limpa = new URL(url)
+      limpa.searchParams.delete('sslmode') // a opção ssl abaixo manda (e a validação fica ligada)
+      pool = new pg.Pool({
+        connectionString: limpa.toString(), ssl: { rejectUnauthorized: true, ca: certificadoCa() },
+        max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000, query_timeout: TIMEOUT_MS,
+      })
+      pool.on('error', () => { /* conexão ociosa derrubada pelo servidor: o pool abre outra na próxima consulta */ })
+    }
+    const consulta = pool.query(texto, parametros)
+    const resposta = signal
+      ? await Promise.race([consulta, new Promise((_, rejeitar) => signal.addEventListener('abort', () => rejeitar(Object.assign(new Error('timeout'), { name: 'TimeoutError' })), { once: true }))])
+      : await consulta
+    return resposta.rows
+  }
+}
+
+function executorPara(url) {
+  return ehNeon(url) ? executorNeon(url) : executorPg(url)
 }
 
 /** `dados` pode chegar como texto em drivers que não convertem jsonb. */
@@ -74,7 +133,7 @@ export function createPgSql({
 
   /** Executa um SQL parametrizado e devolve as linhas. `retentar` só para consultas idempotentes. */
   async function rows(texto, parametros = [], { retentar = true } = {}) {
-    executor ??= executorNeon(url)
+    executor ??= executorPara(url)
     const tentativas = retentar ? TENTATIVAS : 1
     let ultimo
     for (let n = 1; n <= tentativas; n += 1) {
@@ -141,13 +200,13 @@ export function createPgSql({
     },
 
     /**
-     * Chama uma função dashboard_crm_*: `select public.nome($1::tipo, ...) as r`.
+     * Chama uma função dashboard_crm_* do schema configurado: `select "schema".nome($1::tipo, ...) as r`.
      * `args` = lista de [valor, tipo SQL]. Sem retentativa: algumas não são idempotentes (salvar_acao).
      */
     async funcao(nome, args = []) {
       if (!/^dashboard_crm_[a-z_]+$/.test(nome)) throw erroIndisponivel('função inválida', false)
       const lista = args.map(([, tipo], i) => `$${i + 1}::${tipo}`).join(', ')
-      const linhas = await rows(`select public.${nome}(${lista}) as r`, args.map(([valor]) => valor), { retentar: false })
+      const linhas = await rows(`select "${schemaDoAmbiente()}".${nome}(${lista}) as r`, args.map(([valor]) => valor), { retentar: false })
       return jsonb(linhas[0]?.r)
     },
   }
