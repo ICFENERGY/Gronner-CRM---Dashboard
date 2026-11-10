@@ -147,6 +147,8 @@ export function diagnosticarCard(card, { prazos = {} } = {}) {
     cidade: card.cidade ?? null,
     uf: card.uf ?? null,
     valor: card.valor ?? 0,
+    ano: card.ano ?? null,
+    mes: card.mes ?? null,
     dias: dias == null ? null : arredonda(dias),
     prazo,
     natureza: base.nat,

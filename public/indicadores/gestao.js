@@ -8,7 +8,8 @@
   var BASE = '/api/indicadores/engenharia';
   var CHAVE_CODIGO = 'indicadores-metas-codigo';
   var POR_PAGINA = 40;
-  var S = { dados: null, carregando: false, erro: null, abertos: {}, pagina: 1, f: { funil: 'all', situacao: 'discutir', busca: '', semAcao: false } };
+  var S = { dados: null, carregando: false, erro: null, abertos: {}, pagina: 1, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
+  var MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   var BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
   var ROTULO = { late: 'Atrasado', risk: 'Em risco', cobrar: 'Cobrar', ok: 'No prazo', repouso: 'Repouso' };
 
@@ -66,6 +67,9 @@
     var f = S.f, busca = f.busca.trim().toLowerCase();
     return S.dados.itens.filter(function (i) {
       if (f.funil !== 'all' && i.funil !== f.funil) return false;
+      if (f.etapa !== 'all' && i.etapa !== f.etapa) return false;
+      if (f.ano !== 'all' && String(i.ano) !== f.ano) return false;
+      if (f.mes !== 'all' && String(i.mes) !== f.mes) return false;
       if (f.situacao === 'discutir' && ['late', 'risk', 'cobrar'].indexOf(i.status) < 0) return false;
       if (['late', 'risk', 'cobrar', 'repouso', 'ok'].indexOf(f.situacao) >= 0 && i.status !== f.situacao) return false;
       if (f.semAcao && i.acao) return false;
@@ -89,6 +93,21 @@
     var opcoes = '<option value="all">Todos os funis</option>' + Object.keys(funis).sort().map(function (k) {
       return '<option value="' + k + '"' + (S.f.funil === k ? ' selected' : '') + '>' + k + ' · ' + esc(funis[k]) + '</option>';
     }).join('');
+    // A etapa depende do funil escolhido; ano e mês vêm da abertura do card.
+    var etapas = {}, anos = {};
+    itens.forEach(function (i) {
+      if (S.f.funil === 'all' || i.funil === S.f.funil) etapas[i.etapa] = true;
+      if (i.ano) anos[i.ano] = true;
+    });
+    var opEtapa = '<option value="all">Todas as etapas</option>' + Object.keys(etapas).sort().map(function (e) {
+      return '<option value="' + esc(e) + '"' + (S.f.etapa === e ? ' selected' : '') + '>' + esc(e) + '</option>';
+    }).join('');
+    var opAno = '<option value="all">Todos</option>' + Object.keys(anos).sort().reverse().map(function (a) {
+      return '<option value="' + a + '"' + (S.f.ano === a ? ' selected' : '') + '>' + a + '</option>';
+    }).join('');
+    var opMes = '<option value="all">Todos</option>' + MESES.map(function (m, k) {
+      return '<option value="' + (k + 1) + '"' + (S.f.mes === String(k + 1) ? ' selected' : '') + '>' + m + '</option>';
+    }).join('');
     var sit = [['discutir', 'Para discutir (atrasados, em risco, cobrar)'], ['late', 'Atrasados'], ['risk', 'Em risco'], ['cobrar', 'Cobrança vencida'], ['repouso', 'Estoque a limpar'], ['ok', 'No prazo'], ['all', 'Todos']];
     return '' +
       '<section class="eng-kpi-row">' +
@@ -101,6 +120,9 @@
       '<section class="eng-filterbar"><div class="eng-filters-row">' +
       '<label class="eng-field"><span>Buscar</span><input id="ge-busca" type="text" placeholder="Código ou cliente" autocomplete="off" value="' + esc(S.f.busca) + '"></label>' +
       '<label class="eng-field"><span>Funil</span><select id="ge-funil">' + opcoes + '</select></label>' +
+      '<label class="eng-field"><span>Etapa</span><select id="ge-etapa">' + opEtapa + '</select></label>' +
+      '<label class="eng-field"><span>Ano</span><select id="ge-ano">' + opAno + '</select></label>' +
+      '<label class="eng-field"><span>Mês</span><select id="ge-mes">' + opMes + '</select></label>' +
       '<label class="eng-field"><span>Situação</span><select id="ge-sit">' + sit.map(function (s) { return '<option value="' + s[0] + '"' + (S.f.situacao === s[0] ? ' selected' : '') + '>' + s[1] + '</option>'; }).join('') + '</select></label>' +
       '<label class="eng-field"><span>&nbsp;</span><span style="display:flex;gap:6px;align-items:center;font-size:13px;text-transform:none;letter-spacing:normal"><input id="ge-sem" type="checkbox"' + (S.f.semAcao ? ' checked' : '') + '> Só sem ação combinada</span></label>' +
       '<button id="ge-atualizar" class="eng-clear-btn" type="button">Atualizar</button>' +
@@ -176,7 +198,10 @@
   function ligar(el) {
     var q = function (id) { return document.getElementById(id); };
     q('ge-busca').oninput = function () { S.f.busca = this.value; S.pagina = 1; desenhar(); };
-    q('ge-funil').onchange = function () { S.f.funil = this.value; S.pagina = 1; desenhar(); };
+    q('ge-funil').onchange = function () { S.f.funil = this.value; S.f.etapa = 'all'; S.pagina = 1; desenhar(); };
+    q('ge-etapa').onchange = function () { S.f.etapa = this.value; S.pagina = 1; desenhar(); };
+    q('ge-ano').onchange = function () { S.f.ano = this.value; S.pagina = 1; desenhar(); };
+    q('ge-mes').onchange = function () { S.f.mes = this.value; S.pagina = 1; desenhar(); };
     q('ge-sit').onchange = function () { S.f.situacao = this.value; S.pagina = 1; desenhar(); };
     q('ge-sem').onchange = function () { S.f.semAcao = this.checked; S.pagina = 1; desenhar(); };
     q('ge-atualizar').onclick = function () { carregar(true); };
