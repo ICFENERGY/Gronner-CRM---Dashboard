@@ -19,6 +19,7 @@
     { "source": "/mcp/solarz", "destination": "/api/mcp-solarz" },
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/indicadores", "destination": "/indicadores/index.html" },
+    { "source": "/pieta", "destination": "/pieta/index.html" },
     { "source": "/api/:path*", "destination": "/api" }
   ]
 }

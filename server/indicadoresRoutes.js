@@ -3,6 +3,8 @@
  *   GET /api/indicadores/cards       formato de docs/data_cards.json
  *   GET /api/indicadores/eng-resumo  formato de docs/data_eng_resumo.json
  *   GET /api/indicadores/sales       formato de docs/data_sales.json
+ *   GET /api/indicadores/pieta       chamados da Pieta no formato de ROWS do modelo "SLA de Atendimento" (public/pieta)
+ *   GET /api/indicadores/pieta/status  total, cobertura de equipamentos e data da última sincronização
  *   GET /api/indicadores/status      totais, data da última carga e lacunas de cada lista
  *   GET /api/indicadores/metas/:id   meta do vendedor no ano (id = <slug do vendedor>_<ano>)
  *   PUT /api/indicadores/metas/:id   grava a meta
@@ -22,6 +24,7 @@ import { normalizarProjetoLido } from './mappers.js'
 import { getPgSql, jsonb, TABELA_SQL } from './pgSql.js'
 import { loadSyncedEntity } from './syncStore.js'
 import { ID_META, LACUNAS, montarCards, montarEngResumo, montarSales, validarMeta } from './indicadores.js'
+import { lerPietaParaSla, montarChamadosSla, resumoDaCobertura } from './pietaSla.js'
 import prazosArquivo from './data/sla-etapas.json' with { type: 'json' }
 
 const TTL_MS = 2 * 60 * 1000
@@ -47,6 +50,7 @@ export function createIndicadoresRouter({
   pg = getPgSql,
   prazos = prazosArquivo.prazos,
   enriquecimento = salesEnriquecido,
+  carregarPieta = null, // () => { resumoProjetos, registros, resumoEm, estado } — padrão: lê do Neon
   agora = () => Date.now(),
   ttlMs = TTL_MS,
 } = {}) {
@@ -74,6 +78,17 @@ export function createIndicadoresRouter({
     }
   })
 
+  const pieta = () => cached(`${prefixo}-pieta`, ttlMs, async () => {
+    const lerNeon = async () => {
+      const cliente = pg()
+      if (!cliente) throw Object.assign(new Error('Banco de dados não configurado'), { status: 503 })
+      return lerPietaParaSla(cliente)
+    }
+    const d = await (carregarPieta ?? lerNeon)()
+    const chamados = montarChamadosSla(d.resumoProjetos, d.registros, { agora: new Date(agora()) })
+    return { chamados, cobertura: resumoDaCobertura(chamados, { resumoEm: d.resumoEm, estado: d.estado }) }
+  })
+
   const enviar = (res, lista) => {
     res.set('Cache-Control', 'private, max-age=60')
     res.json(lista)
@@ -89,6 +104,14 @@ export function createIndicadoresRouter({
 
   router.get('/sales', async (_req, res) => {
     try { enviar(res, (await sales()).sales) } catch (err) { responderErro(res, err) }
+  })
+
+  router.get('/pieta', async (_req, res) => {
+    try { enviar(res, (await pieta()).chamados) } catch (err) { responderErro(res, err) }
+  })
+
+  router.get('/pieta/status', async (_req, res) => {
+    try { res.set('Cache-Control', 'private, max-age=60'); res.json({ fonte: 'neon', ...(await pieta()).cobertura }) } catch (err) { responderErro(res, err) }
   })
 
   router.get('/status', async (_req, res) => {
@@ -149,6 +172,7 @@ export function createIndicadoresRouter({
   router.invalidar = () => {
     invalidate(`${prefixo}-projetos`)
     invalidate(`${prefixo}-sales`)
+    invalidate(`${prefixo}-pieta`)
   }
 
   return router

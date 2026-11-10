@@ -33,6 +33,23 @@ const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null 
 /** Tira a numeração ("1 - ") e números de medidor/UC/CPF das pendências, para agrupar as iguais e não guardar identificadores. */
 export const normalizarPendencia = (p) => p.trim().replace(/^\d+\s*-\s*/, '').replace(/\d[\d.\-/]{2,}\d/g, '#').replace(/\s+/g, ' ')
 
+const textoOuNulo = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+const inteiro = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)) : 0)
+
+/** Reduz a lista de equipamentos da API ao que se guarda: marca, modelo, potência e quantidade. */
+export function reduzirEquipamentos(lista) {
+  if (!Array.isArray(lista)) return null
+  return lista
+    .filter((e) => e && typeof e === 'object')
+    .map((e) => ({
+      brand: textoOuNulo(e.brand), model: textoOuNulo(e.model),
+      power: Number.isFinite(Number(e.power)) ? Number(e.power) : null, quantity: inteiro(e.quantity),
+    }))
+}
+
+/** Versão do formato guardado: 2 = com estado da distribuidora e equipamentos (placas/inversores). */
+export const VERSAO_REGISTRO = 2
+
 /**
  * Reduz o retorno bruto da Pieta (resumo + detalhe) ao que o painel precisa.
  * NÃO guarda telefone, contato, pagamento nem detalhe do integrador.
@@ -47,6 +64,10 @@ export function pietaRegistroParaArmazenar(resumoProjeto, detalhe, agora = new D
     clientName: r.client_name ?? d.client_name ?? null,
     power: num(r.power ?? d.power),
     powerDistributor: r.power_distributor ?? d.power_distributor ?? null,
+    estado: textoOuNulo(d.power_distributor_state),
+    placas: reduzirEquipamentos(d.solar_panels),
+    inversores: reduzirEquipamentos(d.inversors),
+    versao: VERSAO_REGISTRO,
     createdAt: r.created_at ?? d.created_at ?? null,
     lastStatusChange: r.last_status_change ?? d.last_status_change ?? null,
     dueDate: r.due_date ?? d.due_date ?? null,

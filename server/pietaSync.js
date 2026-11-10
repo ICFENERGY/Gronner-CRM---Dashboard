@@ -9,7 +9,7 @@
  * Roda no cron diário e, leve, no tick de 5 em 5 minutos. Só se busca de novo o que é novo,
  * mudou (status, last_status_change, due_date) ou tem detalhe com mais de 24 h.
  */
-import { ENCERRADOS, ENTIDADE_PIETA, pietaRegistroParaArmazenar } from './pietaMetricas.js'
+import { ENCERRADOS, ENTIDADE_PIETA, VERSAO_REGISTRO, pietaRegistroParaArmazenar } from './pietaMetricas.js'
 import { ehTransitorio } from './pietaClient.js'
 
 export const MAX_DETALHES_PADRAO = 3
@@ -59,6 +59,8 @@ export function planejarBusca(projetosResumo, armazenados, agora = Date.now(), f
       || (guardado.status ?? null) !== (p.status ?? null)
       || (guardado.dueDate ?? null) !== (p.due_date ?? null)
     if (mudou) { alterados.push(p); continue }
+    // Formato antigo (sem equipamentos/estado): busca de novo uma vez, mesmo encerrado, para completar.
+    if ((guardado.versao ?? 1) < VERSAO_REGISTRO) { velhos.push(p); continue }
     if (ENCERRADOS.has(guardado.status)) continue // encerrado não muda mais: não precisa renovar
     const idade = agora - Date.parse(guardado.buscadoEm)
     if (!Number.isFinite(idade) || idade > VALIDADE_DETALHE_MS) velhos.push(p)

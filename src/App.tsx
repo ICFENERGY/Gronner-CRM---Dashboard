@@ -4,7 +4,6 @@ import { Layout, type AbaItem } from './components/Layout'
 import { IndicadoresFrame } from './components/IndicadoresFrame'
 import { useTheme } from './hooks/useTheme'
 import { MonitoramentoSolarPage } from './pages/MonitoramentoSolarPage'
-import { PietaPage } from './pages/PietaPage'
 
 export type Aba = 'geral' | 'vendas' | 'solarz' | 'pieta'
 const ABAS: AbaItem[] = [
@@ -47,7 +46,7 @@ export default function App() {
         {aba === 'geral' && <IndicadoresFrame grupo="geral" theme={theme} />}
         {aba === 'vendas' && <IndicadoresFrame grupo="vendas" theme={theme} />}
         {aba === 'solarz' && <MonitoramentoSolarPage />}
-        {aba === 'pieta' && <PietaPage />}
+        {aba === 'pieta' && <IndicadoresFrame grupo="pieta" theme={theme} />}
       </ErrorBoundary>
     </Layout>
   )

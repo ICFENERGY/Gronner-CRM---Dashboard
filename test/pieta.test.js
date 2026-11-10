@@ -215,13 +215,24 @@ test('planejarBusca: novos, alterados e vencidos por idade; finalizado nao renov
   const velho = new Date(agoraMs - 25 * 3600e3).toISOString()
   const novo = new Date(agoraMs - 1 * 3600e3).toISOString()
   const guardados = [
-    { projectId: 1, status: 'Em Desenvolvimento', lastStatusChange: '2026-09-01', dueDate: '2026-12-01', buscadoEm: novo }, // igual e recente
-    { projectId: 2, status: 'Em Desenvolvimento', lastStatusChange: '2026-08-01', dueDate: '2026-12-01', buscadoEm: novo }, // mudou
-    { projectId: 3, status: 'Em Desenvolvimento', lastStatusChange: '2026-09-01', dueDate: '2026-12-01', buscadoEm: velho }, // velho
-    { projectId: 4, status: 'Finalizado', lastStatusChange: '2026-09-01', dueDate: '2026-12-01', buscadoEm: velho }, // finalizado velho
+    { projectId: 1, status: 'Em Desenvolvimento', lastStatusChange: '2026-09-01', dueDate: '2026-12-01', versao: 2, buscadoEm: novo }, // igual e recente
+    { projectId: 2, status: 'Em Desenvolvimento', lastStatusChange: '2026-08-01', dueDate: '2026-12-01', versao: 2, buscadoEm: novo }, // mudou
+    { projectId: 3, status: 'Em Desenvolvimento', lastStatusChange: '2026-09-01', dueDate: '2026-12-01', versao: 2, buscadoEm: velho }, // velho
+    { projectId: 4, status: 'Finalizado', lastStatusChange: '2026-09-01', dueDate: '2026-12-01', versao: 2, buscadoEm: velho }, // finalizado velho
   ]
   const resumo = [1, 2, 3, 4, 5].map((id) => proj(id, id === 4 ? { status: 'Finalizado' } : {}))
   assert.deepEqual(planejarBusca(resumo, guardados, agoraMs).map((p) => p.project_id), [5, 2, 3])
+})
+
+test('planejarBusca: registro no formato antigo (sem equipamentos) e rebuscado uma vez, mesmo encerrado e recente', () => {
+  const agoraMs = Date.parse('2026-10-29T12:00:00Z')
+  const novo = new Date(agoraMs - 3600e3).toISOString()
+  const guardados = [
+    { projectId: 1, status: 'Finalizado', lastStatusChange: '2026-09-01', dueDate: '2026-12-01', buscadoEm: novo }, // sem versao
+    { projectId: 2, status: 'Finalizado', lastStatusChange: '2026-09-01', dueDate: '2026-12-01', versao: 2, buscadoEm: novo },
+  ]
+  const resumo = [1, 2].map((id) => proj(id, { status: 'Finalizado' }))
+  assert.deepEqual(planejarBusca(resumo, guardados, agoraMs).map((p) => p.project_id), [1])
 })
 
 // Relógio e pausa falsos: a pausa entre detalhes avança o relógio, sem esperar de verdade.
