@@ -232,7 +232,7 @@ body {
   #eng-sales-mapa text.es-mapa-peq { font-size: 11px; }
   .es-mapa-sem-lista { margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: var(--color-fg-muted); }
   .es-mapa-rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-  .es-mapa-rank li { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 8px; align-items: center; font-size: 13px; padding: 7px 10px; border: 1px solid var(--color-border-line); border-radius: 8px; background: var(--color-bg); }
+  .es-mapa-rank li { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 8px; align-items: center; font-size: 13px; padding: 5px 10px; border: 1px solid var(--color-border-line); border-radius: 8px; background: var(--color-bg); }
   .es-mapa-rank .pos { color: var(--color-fg-muted); font-weight: 650; font-variant-numeric: tabular-nums; }
   .es-mapa-rank .uf { font-weight: 700; }
   .es-mapa-rank .uf small { font-weight: 400; color: var(--color-fg-muted); margin-left: 6px; }
@@ -883,18 +883,12 @@ body {
         <span class="eng-panel-note" id="eng-sales-mapa-note"></span>
       </div>
       <div class="es-mapa-barra">
-        <div class="es-mapa-toggle" role="group" aria-label="Medida do mapa">
-          <button type="button" class="es-mapa-btn is-active" data-medida="valor">Valor vendido (R$)</button>
-          <button type="button" class="es-mapa-btn" data-medida="qtd">Quantidade de vendas</button>
-        </div>
+        <span class="eng-panel-note">Quantidade de vendas por estado</span>
         <div class="es-mapa-escala" aria-hidden="true"><span>menos</span><i></i><span>mais</span></div>
       </div>
       <div class="es-mapa-wrap">
         <svg id="eng-sales-mapa" viewBox="0 0 765 786" role="img" aria-label="Mapa do Brasil com as vendas por estado"></svg>
-        <div>
-          <ol class="es-mapa-rank" id="eng-sales-mapa-rank"></ol>
-          <p class="es-mapa-sem-lista" id="eng-sales-mapa-sem"></p>
-        </div>
+        <ol class="es-mapa-rank" id="eng-sales-mapa-rank"></ol>
       </div>
     </section>
 
@@ -2291,7 +2285,7 @@ body {
   }
 
   // ---- Mapa de vendas por região (contorno das UFs igual ao do mapa do SolarZ) ----
-  let salesMapaMedida = 'valor';
+  const salesMapaMedida = 'qtd';
   const UF_NOMES = { AC: 'Acre', AL: 'Alagoas', AM: 'Amazonas', AP: 'Amapá', BA: 'Bahia', CE: 'Ceará', DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás', MA: 'Maranhão', MG: 'Minas Gerais', MS: 'Mato Grosso do Sul', MT: 'Mato Grosso', PA: 'Pará', PB: 'Paraíba', PE: 'Pernambuco', PI: 'Piauí', PR: 'Paraná', RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte', RO: 'Rondônia', RR: 'Roraima', RS: 'Rio Grande do Sul', SC: 'Santa Catarina', SE: 'Sergipe', SP: 'São Paulo', TO: 'Tocantins' };
   const BRL_CURTO = v => v >= 1e6 ? 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi' : v >= 1e3 ? 'R$ ' + Math.round(v / 1e3).toLocaleString('pt-BR') + ' mil' : BRL.format(v);
 
@@ -2313,14 +2307,15 @@ body {
     const valorDe = d => d[medida];
     const maximo = Math.max(1, ...Array.from(porUf.values(), valorDe));
     const total = Array.from(porUf.values()).reduce((s, d) => s + valorDe(d), 0);
-    const fmt = v => medida === 'valor' ? BRL_CURTO(v) : v.toLocaleString('pt-BR') + (v === 1 ? ' venda' : ' vendas');
+    const fmt = v => v.toLocaleString('pt-BR') + (v === 1 ? ' venda' : ' vendas');
+    const pct = v => (total ? (v / total) * 100 : 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
     const ranking = Array.from(porUf.values()).sort((a, b) => valorDe(b) - valorDe(a));
     const top = new Set(ranking.slice(0, 5).map(d => d.uf));
     // Intensidade por raiz quadrada: um estado gigante não apaga os pequenos.
     const cor = d => d ? 'color-mix(in srgb, var(--eng-teal) ' + Math.round(14 + 86 * Math.sqrt(valorDe(d) / maximo)) + '%, var(--color-bg))' : 'color-mix(in srgb, var(--color-fg-muted) 22%, var(--color-bg))';
     svg.innerHTML = mapa.ufs.map(c => {
       const d = porUf.get(c.uf);
-      const dica = d ? '<strong>' + escHtml(UF_NOMES[c.uf] || c.uf) + '</strong><br>' + d.qtd.toLocaleString('pt-BR') + ' venda(s) · ' + BRL.format(Math.round(d.valor)) + '<br>' + (total ? ((valorDe(d) / total) * 100).toFixed(1) : 0) + '% do total'
+      const dica = d ? '<strong>' + escHtml(UF_NOMES[c.uf] || c.uf) + '</strong><br>' + d.qtd.toLocaleString('pt-BR') + ' venda(s)<br>' + pct(valorDe(d)) + ' das vendas'
         : '<strong>' + escHtml(UF_NOMES[c.uf] || c.uf) + '</strong><br>Sem vendas no filtro';
       return '<path data-tip="' + escAttr(dica) + '" d="' + c.d + '" fill="' + cor(d) + '"></path>';
     }).join('') + mapa.ufs.map(c => {
@@ -2333,20 +2328,10 @@ body {
       p.addEventListener('mousemove', e => showTooltip(e, p.dataset.tip));
       p.addEventListener('mouseleave', hideTooltip);
     });
-    document.getElementById('eng-sales-mapa-note').textContent = porUf.size ? porUf.size + ' estado(s) com vendas · maior concentração em ' + (UF_NOMES[ranking[0].uf] || ranking[0].uf) + ' (' + (total ? ((valorDe(ranking[0]) / total) * 100).toFixed(0) : 0) + '%).' : 'Sem vendas no filtro.';
-    const semVenda = mapa.ufs.map(c => c.uf).filter(uf => !porUf.has(uf)).sort();
-    document.getElementById('eng-sales-mapa-sem').innerHTML = semVenda.length
-      ? '<strong>' + semVenda.length + ' estado(s) sem vendas no filtro:</strong> ' + semVenda.map(uf => escHtml(UF_NOMES[uf] || uf)).join(', ') + '.'
-      : 'Todos os 27 estados têm vendas no filtro.';
-    document.getElementById('eng-sales-mapa-rank').innerHTML = ranking.slice(0, 8).map((d, i) =>
-      '<li><span class="pos">' + (i + 1) + '</span><span class="uf">' + d.uf + '<small>' + escHtml(UF_NOMES[d.uf] || '') + '</small></span><span class="val">' + escHtml(fmt(valorDe(d))) + ' · ' + (total ? ((valorDe(d) / total) * 100).toFixed(0) : 0) + '%</span></li>').join('');
+    document.getElementById('eng-sales-mapa-note').textContent = porUf.size ? porUf.size + ' estado(s) com vendas · maior concentração em ' + (UF_NOMES[ranking[0].uf] || ranking[0].uf) + ' (' + pct(valorDe(ranking[0])) + ').' : 'Sem vendas no filtro.';
+    document.getElementById('eng-sales-mapa-rank').innerHTML = ranking.map((d, i) =>
+      '<li><span class="pos">' + (i + 1) + '</span><span class="uf">' + d.uf + '<small>' + escHtml(UF_NOMES[d.uf] || '') + '</small></span><span class="val">' + escHtml(fmt(valorDe(d))) + ' · ' + pct(valorDe(d)) + '</span></li>').join('');
   }
-
-  document.querySelectorAll('.es-mapa-btn').forEach(b => b.addEventListener('click', () => {
-    salesMapaMedida = b.dataset.medida;
-    document.querySelectorAll('.es-mapa-btn').forEach(x => x.classList.toggle('is-active', x === b));
-    drawSalesMapa(salesFilteredRows());
-  }));
 
   function drawSalesView() {
     const rows = salesFilteredRows();
