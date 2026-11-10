@@ -262,7 +262,7 @@ export function MapaUsinas({ resposta, hoje }: { resposta: UsinasRawResponse; ho
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] pb-4">
         <div className="min-w-0 max-w-3xl">
-          <h2 className="text-2xl font-bold leading-tight text-[var(--text-primary)]">Mapa das Usinas SolarZ</h2>
+          <h2 className="text-2xl font-bold leading-tight text-[var(--text-primary)]">Mapa das Usinas</h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">Visão consolidada do parque de geração distribuída monitorado pela ITYOU Solar: localização, potência instalada e status de desempenho de cada usina.</p>
         </div>
         <div className="text-right text-xs leading-5 text-[var(--text-secondary)]">
