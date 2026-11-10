@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * Mostra uma página estática do painel dentro de um iframe: /indicadores (Visão Geral e Vendas) e /pieta (aba Pieta).
+ * Mostra uma página estática do painel dentro de um iframe: /indicadores (Visão Geral, Vendas e Engenharia) e /pieta (aba Pieta).
  * A página avisa a própria altura por postMessage, então só a página do painel rola.
  */
-export type GrupoFrame = 'geral' | 'vendas' | 'pieta'
+export type GrupoFrame = 'geral' | 'vendas' | 'engenharia' | 'pieta'
 
 const PAGINAS: Record<GrupoFrame, { titulo: string; url: string; hash: string }> = {
   geral: { titulo: 'Indicadores: visão geral', url: '/indicadores/index.html?embed=1&grupo=geral', hash: '#dash' },
   vendas: { titulo: 'Indicadores de vendas', url: '/indicadores/index.html?embed=1&grupo=vendas', hash: '#sales' },
+  engenharia: { titulo: 'Engenharia: gestão diária', url: '/indicadores/index.html?embed=1&grupo=engenharia', hash: '#gestao' },
   pieta: { titulo: 'Pieta: SLA de atendimento', url: '/pieta/index.html?embed=1', hash: '' },
 }
 

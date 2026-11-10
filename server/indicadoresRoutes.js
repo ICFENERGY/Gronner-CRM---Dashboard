@@ -8,6 +8,9 @@
  *   GET /api/indicadores/status      totais, data da última carga e lacunas de cada lista
  *   GET /api/indicadores/metas/:id   meta do vendedor no ano (id = <slug do vendedor>_<ano>)
  *   PUT /api/indicadores/metas/:id   grava a meta
+ *   GET /api/indicadores/engenharia/gestao   cards de engenharia com problema, plano sugerido e ação combinada
+ *   PUT /api/indicadores/engenharia/acoes/:codigo/:funil   grava a ação combinada (fica até o card sair da etapa)
+ *   POST /api/indicadores/engenharia/acoes/:codigo/:funil/concluir   marca a ação como feita
  *
  * Leitura SÓ do Neon (loadSyncedEntity): sem fallback para a API do Groner, nem com o
  * banco vazio. Cache curto em memória (2 min).
@@ -25,6 +28,7 @@ import { getPgSql, jsonb, TABELA_SQL } from './pgSql.js'
 import { loadSyncedEntity } from './syncStore.js'
 import { ID_META, LACUNAS, montarCards, montarEngResumo, montarSales, validarMeta } from './indicadores.js'
 import { lerPietaParaSla, montarChamadosSla, resumoDaCobertura } from './pietaSla.js'
+import { chaveAcao, ENTIDADE_ACOES, juntarAcoes, montarGestao, resumoGestao, validarAcao } from './engenhariaGestao.js'
 import prazosArquivo from './data/sla-etapas.json' with { type: 'json' }
 
 const TTL_MS = 2 * 60 * 1000
@@ -166,6 +170,66 @@ export function createIndicadoresRouter({
       const dados = validarMeta(id, req.body, vendedores)
       await clientePg().upsert([{ tipo: 'config', entidade: 'vendas', chave: `meta:${id}`, dados }])
       res.json({ id, ok: true, dados })
+    } catch (err) { responderErro(res, err) }
+  })
+
+  // ---- Gestão diária da Engenharia ----
+  const escritaLiberada = (req) => {
+    const token = process.env.METAS_TOKEN
+    return !token || igual(req.get('X-Metas-Token'), token)
+  }
+
+  const gestao = async () => {
+    const p = await projetos()
+    return { atualizadoEm: p.atualizadoEm, itens: montarGestao(p.cards, { prazos }) }
+  }
+
+  router.get('/engenharia/gestao', async (_req, res) => {
+    try {
+      const { atualizadoEm, itens } = await gestao()
+      const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
+        .then((l) => l.filter((x) => x.chave.startsWith('acao:')))
+      const { abertas, resolver } = juntarAcoes(itens, linhas, { agora: new Date(agora()) })
+      if (resolver.length) await clientePg().upsert(resolver.map((r) => ({ tipo: 'config', entidade: ENTIDADE_ACOES, chave: r.chave, dados: r.dados })))
+      res.set('Cache-Control', 'no-store')
+      res.json({
+        atualizadoEm,
+        resumo: resumoGestao(itens),
+        acoes: abertas,
+        itens: itens.map(({ prioridade: _p, ...resto }) => ({ ...resto, acao: abertas[chaveAcao(resto.codigo, resto.funil)] ?? null })),
+      })
+    } catch (err) { responderErro(res, err) }
+  })
+
+  router.put('/engenharia/acoes/:codigo/:funil', async (req, res) => {
+    try {
+      if (!escritaLiberada(req)) return res.status(401).json({ error: 'Código de edição inválido' })
+      const { codigo, funil } = req.params
+      const { itens } = await gestao()
+      const card = itens.find((i) => String(i.codigo) === codigo && i.funil === funil)
+      const campos = validarAcao({ codigo, funil }, req.body, card)
+      const chave = chaveAcao(codigo, funil)
+      const antes = (await clientePg().todas('config', ENTIDADE_ACOES)).find((x) => x.chave === chave)?.dados
+      const agoraIso = new Date(agora()).toISOString()
+      const dados = {
+        ...campos, codigo: Number(codigo), funil, etapa: card.etapa, concluida: false,
+        criadaEm: antes && !antes.concluida ? antes.criadaEm : agoraIso, atualizadaEm: agoraIso,
+      }
+      await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
+      res.json({ ok: true, dados })
+    } catch (err) { responderErro(res, err) }
+  })
+
+  router.post('/engenharia/acoes/:codigo/:funil/concluir', async (req, res) => {
+    try {
+      if (!escritaLiberada(req)) return res.status(401).json({ error: 'Código de edição inválido' })
+      const { codigo, funil } = req.params
+      const chave = chaveAcao(codigo, funil)
+      const atual = (await clientePg().todas('config', ENTIDADE_ACOES)).find((x) => x.chave === chave)?.dados
+      if (!atual || atual.concluida) return res.status(404).json({ error: 'Não há ação aberta para este card' })
+      const dados = { ...atual, concluida: true, concluidaEm: new Date(agora()).toISOString(), motivo: 'marcada como feita' }
+      await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
+      res.json({ ok: true })
     } catch (err) { responderErro(res, err) }
   })
 
