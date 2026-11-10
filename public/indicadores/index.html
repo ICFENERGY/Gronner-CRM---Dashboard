@@ -595,6 +595,14 @@ body {
     <section class="eng-filterbar">
       <div class="eng-filters-row">
         <label class="eng-field">
+          <span>Cliente</span>
+          <input id="eng-fe-filter-nome" type="text" placeholder="Todos" autocomplete="off">
+        </label>
+        <label class="eng-field">
+          <span>Código</span>
+          <input id="eng-fe-filter-codigo" type="text" placeholder="Todos" autocomplete="off">
+        </label>
+        <label class="eng-field">
           <span>Funil</span>
           <select id="eng-fe-filter-funil">
             <option value="all">Todos os funis</option>
@@ -614,6 +622,10 @@ body {
           </select>
         </label>
         <label class="eng-field">
+          <span>UF</span>
+          <select id="eng-fe-filter-uf"><option value="all">Todas</option></select>
+        </label>
+        <label class="eng-field">
           <span>SLA</span>
           <select id="eng-fe-filter-sla">
             <option value="all">Todos</option>
@@ -629,7 +641,7 @@ body {
       <div class="eng-kpi eng-kpi--teal">
         <div class="eng-kpi-label">TOTAL DE NEGÓCIOS</div>
         <div class="eng-kpi-value" id="eng-kpi-total-fe">—</div>
-        <div class="eng-kpi-sub" id="eng-kpi-total-sub-fe">funis 08, 09, 10, 11, 13, 14</div>
+        <div class="eng-kpi-sub" id="eng-kpi-total-sub-fe">funis 08, 09, 10, 11, 13, 14, 18</div>
       </div>
       <div class="eng-kpi eng-kpi--green">
         <div class="eng-kpi-label">DENTRO DO SLA</div>
@@ -666,7 +678,7 @@ body {
 
     <section class="eng-panel">
       <div class="eng-panel-head">
-        <h2>Resumo — Indicador por Funil (08 + 09 + 10 + 11 + 13 + 14)</h2>
+        <h2>Resumo — Indicador por Funil (08 + 09 + 10 + 11 + 13 + 14 + 18)</h2>
         <span class="eng-panel-note" id="eng-fe-note"></span>
       </div>
       <div id="eng-fe-resumo"></div>
@@ -1764,7 +1776,7 @@ body {
   };
 
   let engResumoRows = [];
-  const engFeFilters = { funil: 'all', etapa: 'all', sla: 'all' };
+  const engFeFilters = { funil: 'all', etapa: 'all', sla: 'all', uf: 'all', nome: '', codigo: '' };
 
   function parseTempoCardDias(s) {
     if (!s) return null;
@@ -1779,6 +1791,9 @@ body {
       if (engFeFilters.etapa !== 'all' && r.etapa !== engFeFilters.etapa) return false;
       if (engFeFilters.sla === 'ok' && r.atraso) return false;
       if (engFeFilters.sla === 'atrasado' && !r.atraso) return false;
+      if (engFeFilters.uf !== 'all' && r.uf !== engFeFilters.uf) return false;
+      if (engFeFilters.nome && !String(r.nome || '').toLowerCase().includes(engFeFilters.nome)) return false;
+      if (engFeFilters.codigo && !String(r.codigo || '').toLowerCase().includes(engFeFilters.codigo)) return false;
       return true;
     });
   }
@@ -1938,8 +1953,24 @@ body {
     updateFunEngResumo();
   }
 
+  function engFeBuildUfOptions() {
+    const sel = document.getElementById('eng-fe-filter-uf');
+    if (!sel) return;
+    const ufs = Array.from(new Set(engResumoRows.map(r => r.uf).filter(Boolean))).sort();
+    sel.innerHTML = '<option value="all">Todas</option>' + ufs.map(u => `<option value="${escAttr(u)}">${escHtml(u)}</option>`).join('');
+    sel.value = ufs.includes(engFeFilters.uf) ? engFeFilters.uf : 'all';
+    engFeFilters.uf = sel.value;
+  }
+
   function setupFunEngFilters() {
     engFeBuildEtapaOptions();
+    engFeBuildUfOptions();
+    const inNome = document.getElementById('eng-fe-filter-nome');
+    const inCodigo = document.getElementById('eng-fe-filter-codigo');
+    const selUf = document.getElementById('eng-fe-filter-uf');
+    if (inNome) inNome.addEventListener('input', () => { engFeFilters.nome = inNome.value.trim().toLowerCase(); drawFunEngView(); });
+    if (inCodigo) inCodigo.addEventListener('input', () => { engFeFilters.codigo = inCodigo.value.trim().toLowerCase(); drawFunEngView(); });
+    if (selUf) selUf.addEventListener('change', () => { engFeFilters.uf = selUf.value; drawFunEngView(); });
     const selFunil = document.getElementById('eng-fe-filter-funil');
     const selEtapa = document.getElementById('eng-fe-filter-etapa');
     const selSla = document.getElementById('eng-fe-filter-sla');
@@ -1959,6 +1990,10 @@ body {
     });
     if (clearBtn) clearBtn.addEventListener('click', () => {
       engFeFilters.funil = 'all'; engFeFilters.etapa = 'all'; engFeFilters.sla = 'all';
+      engFeFilters.uf = 'all'; engFeFilters.nome = ''; engFeFilters.codigo = '';
+      if (inNome) inNome.value = '';
+      if (inCodigo) inCodigo.value = '';
+      if (selUf) selUf.value = 'all';
       if (selFunil) selFunil.value = 'all';
       if (selSla) selSla.value = 'all';
       engFeBuildEtapaOptions();
@@ -2513,7 +2548,7 @@ body {
         document.getElementById('eng-view-exec').hidden = btn.dataset.tab !== 'exec';
         document.getElementById('eng-view-sales').hidden = btn.dataset.tab !== 'sales';
         document.getElementById('eng-view-funeng').hidden = btn.dataset.tab !== 'funeng';
-        document.getElementById('eng-main-filterbar').hidden = btn.dataset.tab === 'sales';
+        document.getElementById('eng-main-filterbar').hidden = btn.dataset.tab === 'sales' || btn.dataset.tab === 'funeng';
         if (btn.dataset.tab === 'dash') {
           drawDonut(); drawFunilChart(); drawMesChart(); drawEvolucaoChart(); drawAnoChart();
         } else if (btn.dataset.tab === 'exec') {
