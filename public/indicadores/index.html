@@ -864,7 +864,6 @@ body {
           <svg id="eng-sales-venda-mensal-bars" width="100%"></svg>
         </div>
       </section>
-    </div>
 
       <section class="eng-panel eng-panel--tight">
         <div class="eng-panel-head">
@@ -2231,9 +2230,11 @@ body {
       const key = `${String(r.ano).slice(2)}-${String(r.mes).padStart(2, '0')}`;
       byMonth.set(key, (byMonth.get(key) || 0) + (r.valorTotal || 0));
     });
-    const data = Array.from(byMonth, ([label, value]) => ({ label, value: Math.round(value) }))
+    const todos = Array.from(byMonth, ([label, value]) => ({ label, value: Math.round(value) }))
       .sort((a, b) => a.label.localeCompare(b.label));
-    document.getElementById('eng-sales-venda-mensal-note').textContent = `${data.length} mês(es).`;
+    // O painel é estreito (um terço da linha): mostra os 12 meses mais recentes para os rótulos continuarem legíveis.
+    const data = todos.slice(-12);
+    document.getElementById('eng-sales-venda-mensal-note').textContent = todos.length > 12 ? `últimos 12 de ${todos.length} mês(es).` : `${todos.length} mês(es).`;
     drawVBarChart('#eng-sales-venda-mensal-bars', data, {
       height: 150, color: 'var(--eng-teal)', minBarSlot: 60,
       tooltip: d => `<strong>${escHtml(d.label)}</strong><br>${BRL.format(d.value)}`
