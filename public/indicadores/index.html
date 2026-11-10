@@ -196,25 +196,34 @@ body {
   #eng-view-dash .eng-side .eng-ranklist { gap: 14px; }
   #eng-view-dash .eng-side .eng-ranklist--scroll { max-height: 360px; }
   #eng-view-dash #eng-etapas-list { max-height: 620px; }
+  #eng-view-dash #eng-uf-list { max-height: 640px; }
   #eng-view-dash .eng-side .eng-rank-label, #eng-view-dash .eng-side .eng-rank-value { font-size: 14px; }
   #eng-view-dash .eng-side .eng-rank-track { height: 8px; border-radius: 5px; }
-  /* Cards por cidade e Cards por funil dividem a linha, na mesma altura. */
-  #eng-view-dash .es-duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
-  @media (max-width: 1000px) { #eng-view-dash .es-duo { grid-template-columns: 1fr; } }
-  #eng-view-dash .es-duo .eng-ranklist--scroll { max-height: 560px; }
-  /* Os 26 funis ficam todos visíveis (sem rolagem), em linhas mais compactas. */
-  #eng-view-dash .es-duo #eng-funil-list { max-height: none; overflow: visible; gap: 8px; }
-  #eng-view-dash .es-duo .eng-funil-row .eng-rank-label, #eng-view-dash .es-duo .eng-funil-row .eng-rank-value { font-size: 13px; }
-  #eng-view-dash .es-duo .eng-funil-row .eng-rank-track { height: 7px; }
-  .eng-funil-legenda { display: flex; gap: 14px; font-size: 12px; color: var(--color-fg-muted); margin: -4px 0 10px; }
-  .eng-funil-legenda i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
-  .eng-funil-row { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 4px 6px; margin: 0 -6px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-  .eng-funil-row:hover { background: color-mix(in srgb, var(--eng-teal) 8%, transparent); }
-  .eng-funil-row.is-active { background: color-mix(in srgb, var(--eng-teal) 14%, transparent); box-shadow: inset 0 0 0 1px var(--eng-teal); }
-  .eng-funil-fill { display: flex; height: 100%; min-width: 2px; border-radius: 5px; overflow: hidden; }
-  .eng-funil-fill > span { display: block; height: 100%; }
+  /* Cards por cidade e Cards por funil: faixa de largura total, lado a lado, com todos os detalhes por linha. */
+  .es-detalhes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
+  @media (max-width: 1000px) { .es-detalhes { grid-template-columns: 1fr; } }
+  .eng-prop-legenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--color-fg-muted); margin: -4px 0 10px; }
+  .eng-prop-legenda i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+  .eng-prop { display: flex; flex-direction: column; min-width: 0; }
+  .eng-prop--scroll { max-height: 760px; overflow-y: auto; }
+  .eng-prop-cab, .eng-prop-linha { display: grid; grid-template-columns: minmax(120px, 1.3fr) minmax(70px, 1.2fr) 52px 56px 56px 60px; gap: 10px; align-items: center; padding: 7px 8px; font-size: 13px; }
+  .eng-prop-cab { position: sticky; top: 0; z-index: 1; background: var(--color-panel); border-bottom: 1px solid var(--color-border-line); font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-fg-muted); }
+  .eng-prop-linha { width: 100%; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--color-border-line) 55%, transparent); background: none; color: inherit; font-family: inherit; text-align: left; }
+  button.eng-prop-linha { cursor: pointer; }
+  .eng-prop-linha:hover { background: color-mix(in srgb, var(--eng-teal) 8%, transparent); }
+  .eng-prop-linha.is-active { background: color-mix(in srgb, var(--eng-teal) 14%, transparent); box-shadow: inset 0 0 0 1px var(--eng-teal); }
+  .eng-prop .n { text-align: right; font-variant-numeric: tabular-nums; }
+  .eng-prop .mut { color: var(--color-fg-muted); }
+  .eng-prop .ok { color: var(--eng-green); font-weight: 650; }
+  .eng-prop .bad { color: var(--eng-red); font-weight: 650; }
+  .eng-prop-nome { min-width: 0; line-height: 1.25; overflow-wrap: anywhere; }
+  .eng-prop-barra { display: block; height: 10px; border-radius: 6px; background: var(--color-bg); overflow: hidden; }
+  .eng-prop-fill { display: flex; height: 100%; min-width: 2px; border-radius: 6px; overflow: hidden; }
+  .eng-prop-fill > span { display: block; height: 100%; }
+  @media (max-width: 560px) { .eng-prop-cab, .eng-prop-linha { grid-template-columns: minmax(90px, 1.2fr) 44px 48px 48px 52px; } .eng-prop-cab > :nth-child(2), .eng-prop-linha > :nth-child(2) { display: none; } }
   #eng-view-dash .eng-main .eng-two-col { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); align-items: stretch; }
-  #eng-view-dash .eng-main .eng-two-col .eng-donut-wrap { justify-content: center; }
+  #eng-view-dash .eng-main .eng-two-col > .eng-panel:first-child { display: grid; grid-template-rows: auto 1fr; }
+  #eng-view-dash .eng-main .eng-two-col .eng-donut-wrap { justify-content: center; align-self: center; width: 100%; }
   .eng-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
   .eng-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   @media (max-width: 680px) { .eng-two-col { grid-template-columns: 1fr; } }
@@ -477,24 +486,6 @@ body {
           <div class="eng-ranklist eng-ranklist--scroll" id="eng-uf-list"></div>
         </section>
 
-        <div class="es-duo">
-          <section class="eng-panel eng-panel--tight">
-            <div class="eng-panel-head">
-              <h2>Cards por cidade</h2>
-              <span class="eng-panel-note" id="eng-cidade-note"></span>
-            </div>
-            <div class="eng-ranklist eng-ranklist--scroll" id="eng-cidade-list"></div>
-          </section>
-
-          <section class="eng-panel eng-panel--tight">
-            <div class="eng-panel-head">
-              <h2>Cards por funil</h2>
-              <span class="eng-panel-note" id="eng-funil-note"></span>
-            </div>
-            <div class="eng-funil-legenda"><span><i style="background:var(--eng-green)"></i>Atendido</span><span><i style="background:var(--eng-red)"></i>Atrasado</span></div>
-            <div class="eng-ranklist eng-ranklist--scroll" id="eng-funil-list"></div>
-          </section>
-        </div>
       </aside>
 
       <main class="eng-main">
@@ -549,6 +540,26 @@ body {
           <div class="eng-clientes-wrap" id="eng-clientes-groups"></div>
         </section>
       </main>
+    </div>
+
+    <div class="es-detalhes">
+      <section class="eng-panel">
+        <div class="eng-panel-head">
+          <h2>Cards por cidade</h2>
+          <span class="eng-panel-note" id="eng-cidade-note"></span>
+        </div>
+        <div class="eng-prop-legenda"><span><i style="background:var(--eng-green)"></i>Atendido</span><span><i style="background:var(--eng-red)"></i>Atrasado</span><span>barra proporcional ao maior</span></div>
+        <div class="eng-prop eng-prop--scroll" id="eng-cidade-list"></div>
+      </section>
+
+      <section class="eng-panel">
+        <div class="eng-panel-head">
+          <h2>Cards por funil</h2>
+          <span class="eng-panel-note" id="eng-funil-note"></span>
+        </div>
+        <div class="eng-prop-legenda"><span><i style="background:var(--eng-green)"></i>Atendido</span><span><i style="background:var(--eng-red)"></i>Atrasado</span><span>barra proporcional ao maior · clique para filtrar</span></div>
+        <div class="eng-prop" id="eng-funil-list"></div>
+      </section>
     </div>
   </section>
 
@@ -1476,7 +1487,7 @@ body {
 
     const svg = d3.select('#eng-donut');
     const wrap = svg.node().closest('.eng-donut-wrap');
-    const size = Math.min(Math.max(wrap.clientWidth * 0.3, 112), 140);
+    const size = Math.min(Math.max(wrap.clientWidth * 0.5, 130), 170);
     svg.attr('viewBox', `0 0 ${size} ${size}`).attr('height', size).attr('width', size);
     svg.selectAll('*').remove();
 
@@ -1607,6 +1618,23 @@ body {
     });
   }
 
+  // Linha das tabelas proporcionais (Cards por cidade e Cards por funil): nome, barra proporcional ao maior,
+  // total, % do total, atendidos e atrasados. Verde = atendido, vermelho = atrasado.
+  const PROP_CABECALHO = (primeira) => `<div class="eng-prop-cab"><span>${primeira}</span><span>Proporção</span><span class="n">Cards</span><span class="n">% total</span><span class="n">No prazo</span><span class="n">Atrasado</span></div>`;
+  function propLinha(d, total, maximo, { tag = 'div', atributos = '', classe = '' } = {}) {
+    const larg = Math.max((d.total / maximo) * 100, 1.2);
+    const pctOk = d.total ? (d.ok / d.total) * 100 : 0;
+    const pct = total ? ((d.total / total) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' : '—';
+    return `<${tag} class="eng-prop-linha ${classe}" ${atributos} title="${escAttr(d.label)}: ${d.total.toLocaleString('pt-BR')} cards (${d.ok.toLocaleString('pt-BR')} no prazo, ${d.bad.toLocaleString('pt-BR')} atrasados)">
+      <span class="eng-prop-nome">${escHtml(d.label)}</span>
+      <span class="eng-prop-barra"><span class="eng-prop-fill" style="width:${larg}%"><span style="width:${pctOk}%;background:var(--eng-green)"></span><span style="width:${100 - pctOk}%;background:var(--eng-red)"></span></span></span>
+      <span class="n"><b>${d.total.toLocaleString('pt-BR')}</b></span>
+      <span class="n mut">${pct}</span>
+      <span class="n ok">${d.ok.toLocaleString('pt-BR')}</span>
+      <span class="n bad">${d.bad.toLocaleString('pt-BR')}</span>
+    </${tag}>`;
+  }
+
   function drawFunilChart() {
     const rows = filteredRows(false);
     const byFunil = new Map();
@@ -1619,23 +1647,12 @@ body {
       .sort((a, b) => b.total - a.total);
 
     document.getElementById('eng-funil-note').textContent = `${data.length} funil(is).`;
-    // Largura de cada barra proporcional ao total do funil (o maior ocupa a linha toda); dentro dela, verde e vermelho.
     const maximo = Math.max(1, ...data.map(d => d.total));
     const selecionado = document.getElementById('eng-f-funil').value;
     const list = document.getElementById('eng-funil-list');
-    list.innerHTML = data.map(d => {
-      const larg = Math.max((d.total / maximo) * 100, 1.5);
-      const pctOk = d.total ? (d.ok / d.total) * 100 : 0;
-      return `
-        <button type="button" class="eng-funil-row${d.label === selecionado ? ' is-active' : ''}" data-funil="${escAttr(d.label)}"
-          title="${escAttr(d.label)}: ${d.total.toLocaleString('pt-BR')} cards (${d.ok.toLocaleString('pt-BR')} atendidos, ${d.bad.toLocaleString('pt-BR')} atrasados)">
-          <span class="eng-rank-row-top">
-            <span class="eng-rank-label">${escHtml(d.label)}</span>
-            <span class="eng-rank-value">${d.total.toLocaleString('pt-BR')}</span>
-          </span>
-          <span class="eng-rank-track"><span class="eng-funil-fill" style="width:${larg}%"><span style="width:${pctOk}%;background:var(--eng-green)"></span><span style="width:${100 - pctOk}%;background:var(--eng-red)"></span></span></span>
-        </button>`;
-    }).join('');
+    list.innerHTML = PROP_CABECALHO('Funil') + data.map(d => propLinha(d, rows.length, maximo, {
+      tag: 'button', classe: 'eng-funil-row' + (d.label === selecionado ? ' is-active' : ''), atributos: `type="button" data-funil="${escAttr(d.label)}"`
+    })).join('');
     // Clicar num funil filtra o painel por ele; clicar de novo limpa.
     list.querySelectorAll('.eng-funil-row').forEach(b => b.addEventListener('click', () => {
       const sel = document.getElementById('eng-f-funil');
@@ -1750,22 +1767,14 @@ body {
     rows.forEach(r => {
       const label = String(r.cidade).trim();
       const key = label.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-      if (!byKey.has(key)) byKey.set(key, { label, count: 0 });
-      byKey.get(key).count++;
+      if (!byKey.has(key)) byKey.set(key, { label, ok: 0, bad: 0 });
+      const seg = byKey.get(key);
+      if ((r.atraso || 0) > 0) seg.bad++; else seg.ok++;
     });
-    const grouped = Array.from(byKey.values()).sort((a, b) => b.count - a.count).slice(0, 15);
+    const grouped = Array.from(byKey.values()).map(d => ({ ...d, total: d.ok + d.bad })).sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
     document.getElementById('eng-cidade-note').textContent = `${byKey.size} cidade(s).`;
-    const maxVal = d3.max(grouped, d => d.count) || 1;
-    const list = document.getElementById('eng-cidade-list');
-    list.innerHTML = grouped.map(d => `
-      <div class="eng-rank-row">
-        <div class="eng-rank-row-top">
-          <span class="eng-rank-label">${escHtml(d.label)}</span>
-          <span class="eng-rank-value">${d.count.toLocaleString('pt-BR')}</span>
-        </div>
-        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.count / maxVal) * 100, 2)}%; background: var(--eng-purple);"></div></div>
-      </div>
-    `).join('');
+    const maximo = Math.max(1, ...grouped.map(d => d.total));
+    document.getElementById('eng-cidade-list').innerHTML = PROP_CABECALHO('Cidade') + grouped.map(d => propLinha(d, rows.length, maximo)).join('');
   }
 
   function fmtDate(ms) {
