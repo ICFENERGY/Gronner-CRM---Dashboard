@@ -1,0 +1,32 @@
+name: carga-pieta
+
+# Completa os detalhes da Pieta (equipamentos e estado de cada projeto) no banco do painel.
+# A API da Pieta cai com chamadas seguidas (erro 500); o script espera e tenta de novo, em até 40 rodadas.
+# Roda só quando disparado à mão (Actions > carga-pieta > Run workflow). Seguro repetir: só busca o que falta.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: carga-pieta
+  cancel-in-progress: false
+
+jobs:
+  pieta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DB_SCHEMA: groner_painel
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PIETA_USER: ${{ secrets.PIETA_USER }}
+      PIETA_PASSWORD: ${{ secrets.PIETA_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Carregar os detalhes da Pieta
+        run: node scripts/carga-pieta.mjs
+      - name: Conferir as contagens no banco
+        run: node scripts/conferir-db.mjs
