@@ -96,7 +96,7 @@
     if (erro) {
       texto = 'Não foi possível ler a situação dos dados: ' + erro;
     } else {
-      texto = 'Fonte: banco do painel (Neon), sincronizado com o Groner. ' +
+      texto = 'Fonte: banco do painel, sincronizado com o Groner. ' +
         status.cards.total.toLocaleString('pt-BR') + ' cards (projetos: ' + fmt(status.cards.atualizadoEm) + ') · ' +
         status.sales.total.toLocaleString('pt-BR') + ' vendas (' + fmt(status.sales.atualizadoEm) + ').';
     }
