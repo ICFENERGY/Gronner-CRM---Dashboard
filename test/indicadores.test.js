@@ -102,11 +102,20 @@ test('resumo da engenharia: só funis 08-14, etapa na grafia do painel, tempo do
 test('listas ordenadas: cards do mais novo, engenharia na ordem de funil e etapa', () => {
   const ps = [
     projeto({ id: 1, funil: '11. INSTALAÇÃO', etapa: 'DOSSIE' }),
-    projeto({ id: 2, funil: '08. ENGENHARIA PROJETO', etapa: 'PROPOSTA CRIADA APROVADA' }),
+    projeto({ id: 2, funil: '08. ENGENHARIA PROJETO', etapa: 'APROVAR PROPOSTA CRIADA' }),
     projeto({ id: 3, funil: '08. ENGENHARIA PROJETO', etapa: 'CRIAR PROJETO->PROPOSTA' }),
   ]
   assert.deepEqual(montarCards(ps, { agora: AGORA }).map((c) => c.codigo), [3, 2, 1])
   assert.deepEqual(montarEngResumo(ps, { agora: AGORA }).map((e) => e.codigo), ['#3', '#2', '#1'])
+})
+
+test('engenharia: "Proposta Criada Aprovada" (funil 08) fica fora do resumo e segue nos cards', () => {
+  const ps = [
+    projeto({ id: 4, funil: '08. ENGENHARIA PROJETO', etapa: 'PROPOSTA CRIADA APROVADA' }),
+    projeto({ id: 5, funil: '08. ENGENHARIA PROJETO', etapa: 'CRIAR PROJETO->PROPOSTA' }),
+  ]
+  assert.deepEqual(montarEngResumo(ps, { agora: AGORA }).map((e) => e.codigo), ['#5'])
+  assert.deepEqual(montarCards(ps, { agora: AGORA }).map((c) => c.codigo), [5, 4])
 })
 
 test('venda: sem cep/logradouro, origem sem espaço sobrando, negócio pela proposta do projeto', () => {

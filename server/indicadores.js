@@ -42,7 +42,7 @@ export const LACUNAS = {
 
 /** Funis do resumo da engenharia e a grafia das etapas que o painel espera (mesma ordem do index.html). */
 export const ENG_ETAPAS = {
-  '08': ['Criar Projeto->Proposta', 'Aprovar Proposta Criada', 'Proposta Criada Aprovada', 'Aprovacao Tecnica - Venda'],
+  '08': ['Criar Projeto->Proposta', 'Aprovar Proposta Criada', 'Aprovacao Tecnica - Venda'],
   '09': ['Pedido a Pagar', 'Comp. Enviado ao Distribuidor', 'Pedido Faturado', 'Pedido em Rota de Entrega', 'Pedido Entregue'],
   '10': ['Pieta - Criacao do Projeto', 'Pendencia ICF', 'Pieta - Parecer Solicitado', 'Parecer Emitido', 'Aguardando Vistoria', 'Pendencia Vist. Concessionaria', 'Vistoria Aprovada', 'Fazer Compensacao', 'Relogio Trocado'],
   '11': ['Pendencia de Instalacao', 'Agendar Instalacao', 'Instalador Homologado', 'Instalacao Agendada', 'Diario de Obra / Obra Andamento', 'Pendencia de Obra', 'Instalacao Concluida', 'Instalacao App Monitoramento', 'Dossie', 'Termo de Aceite', 'Dossie Enviado', 'App Monitor Instalado'],
@@ -166,6 +166,14 @@ export function cardDoProjeto(p, { agora = Date.now(), prazos = {} } = {}) {
   }
 }
 
+/** Etapas que os funis de engenharia têm no Groner mas que a Engenharia não acompanha (o card segue na Visão Geral). */
+const ETAPAS_FORA_DA_ENG = { '08': ['Proposta Criada Aprovada'] }
+
+export function foraDaEngenharia(funilNumero, etapa) {
+  const alvo = compacto(etapa)
+  return (ETAPAS_FORA_DA_ENG[funilNumero] ?? []).some((e) => compacto(e) === alvo)
+}
+
 /** Grafia da etapa no painel da engenharia ("PIETA_CRIACAO DO PROJETO" -> "Pieta - Criacao do Projeto"). */
 export function etapaEngenharia(funilNumero, etapa) {
   const alvo = compacto(etapa)
@@ -183,7 +191,7 @@ export function engResumosDoProjeto(p, { agora = Date.now(), prazos = {} } = {})
   if (fluxos.length) {
     return fluxos.flatMap((f) => {
       const funil = numeroFunil(f.funil)
-      if (!funil || !ENG_ETAPAS[funil]) return []
+      if (!funil || !ENG_ETAPAS[funil] || foraDaEngenharia(funil, f.etapa)) return []
       const { dias, atraso } = tempoDoFluxo(f, { agora, prazos })
       return [{
         codigo: `#${p.id}`, funil, etapa: etapaEngenharia(funil, f.etapa), nome: texto(p.nome), cliente: null,
@@ -198,7 +206,7 @@ export function engResumosDoProjeto(p, { agora = Date.now(), prazos = {} } = {})
 
 function engResumoPrincipal(p, { agora = Date.now(), prazos = {} } = {}) {
   const funil = numeroFunil(p.funil)
-  if (!funil || !ENG_ETAPAS[funil]) return null
+  if (!funil || !ENG_ETAPAS[funil] || foraDaEngenharia(funil, p.etapa)) return null
   const dias = tempoNoStatus(p, agora)
   const prazo = prazoDaEtapa(prazos, p.funil, p.etapa)
   return {

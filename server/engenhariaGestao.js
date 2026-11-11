@@ -12,7 +12,7 @@
  *   espera  — espera externa (cliente, distribuidor, concessionária): passou do prazo é "cobrar"
  *   repouso — sem SLA; deveria sair do estoque
  */
-import { chaveEtapa, ENG_ETAPAS, numeroFunil } from './indicadores.js'
+import { chaveEtapa, ENG_ETAPAS, foraDaEngenharia, numeroFunil } from './indicadores.js'
 
 export const NOMES_FUNIL = {
   '08': 'Engenharia',
@@ -103,7 +103,7 @@ function ordemDaEtapa(funil, etapa) {
 
 export function diagnosticarCard(card, { prazos = {} } = {}) {
   const funil = numeroFunil(card.funil)
-  if (!funil || !ENG_ETAPAS[funil]) return null
+  if (!funil || !ENG_ETAPAS[funil] || foraDaEngenharia(funil, card.etapa)) return null
   const regra = regraDaEtapa(funil, card.etapa)
   const base = regra ?? REGRA_PADRAO
   const prazoGroner = prazos[chaveEtapa(card.funil, card.etapa)]
