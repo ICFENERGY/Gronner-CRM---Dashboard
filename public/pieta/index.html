@@ -203,6 +203,8 @@
   html.embed header.top{justify-content:flex-start; margin-bottom:12px}
   html.embed header.top > div{text-align:left !important}
 </style>
+<link rel="stylesheet" href="/ui/icf.css">
+<link rel="stylesheet" href="/pieta/visual.css">
 </head>
 <body>
 <div class="wrap" id="pieta-root">
@@ -316,31 +318,6 @@
         <div class="chart-scroll"><svg id="yearChart" width="100%" height="150" viewBox="0 0 280 150" preserveAspectRatio="xMinYMin meet"></svg></div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Placas solares</h2>
-          <span class="count-badge" id="placasBadge">—</span>
-        </div>
-        <div class="stage-list" id="placasList"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Inversores</h2>
-          <span class="count-badge" id="inversoresBadge">—</span>
-        </div>
-        <div class="stage-list" id="inversoresList"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Microinversores</h2>
-          <span class="count-badge" id="microBadge">—</span>
-        </div>
-        <div class="stage-list" id="microList"></div>
-        <p class="hint" style="margin-top:12px">Classificado pelo modelo (PIEP não distingue tipo de inversor): linhas Deye M/S225G4 e FoxESS Q1.</p>
-      </div>
-
     </div>
 
     <!-- RIGHT COLUMN -->
@@ -373,7 +350,7 @@
           <h2>Clientes com chamados em aberto</h2>
           <span class="count-badge" id="clientBadge">—</span>
         </div>
-        <div style="overflow-x:auto">
+        <div class="rolagem-clientes">
           <table>
             <thead>
               <tr><th>Cliente</th><th>Última alteração</th><th>Descrição</th></tr>
@@ -384,6 +361,34 @@
       </div>
 
     </div>
+  </div>
+
+  <!-- Equipamentos: três colunas iguais -->
+  <div class="equip">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Placas solares</h2>
+          <span class="count-badge" id="placasBadge">—</span>
+        </div>
+        <div class="stage-list" id="placasList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Inversores</h2>
+          <span class="count-badge" id="inversoresBadge">—</span>
+        </div>
+        <div class="stage-list" id="inversoresList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Microinversores</h2>
+          <span class="count-badge" id="microBadge">—</span>
+        </div>
+        <div class="stage-list" id="microList"></div>
+        <p class="hint" style="margin-top:12px">Classificado pelo modelo (PIEP não distingue tipo de inversor): linhas Deye M/S225G4 e FoxESS Q1.</p>
+      </div>
   </div>
 
   <div class="panel" style="margin-top:14px">
@@ -589,7 +594,7 @@ function renderYearChart(rows){
     const x = padL + i*bw + bw*0.2;
     const w = bw*0.6;
     const y = H-padB-h;
-    const color = i===data.length-1 ? 'var(--accent)' : 'var(--muted-2)';
+    const color = 'var(--icf-mag)';
     svgHtml += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${color}"/>`;
     svgHtml += `<text x="${x+w/2}" y="${y-6}" font-size="11" fill="var(--fg)" text-anchor="middle">${qtde}</text>`;
     svgHtml += `<text x="${x+w/2}" y="${H-padB+15}" font-size="10" fill="var(--muted)" text-anchor="middle">${ano}</text>`;
@@ -625,8 +630,8 @@ function renderMonthChart(finalizados){
     const hExtra = max ? (d.extrapolado/max)*(H-padT-padB) : 0;
     const hAten = max ? (d.atendido/max)*(H-padT-padB) : 0;
     const yBase = H-padB;
-    html += `<rect x="${x}" y="${yBase-hExtra}" width="${w}" height="${hExtra}" fill="var(--bad)" rx="2"/>`;
-    html += `<rect x="${x}" y="${yBase-hExtra-hAten}" width="${w}" height="${hAten}" fill="var(--good)" rx="2"/>`;
+    html += `<rect x="${x}" y="${yBase-hExtra}" width="${w}" height="${hExtra}" fill="var(--bad)" rx="3"/>`;
+    html += `<rect x="${x}" y="${yBase-hExtra-hAten}" width="${w}" height="${hAten}" fill="var(--good)" rx="3"/>`;
     html += `<text x="${x+w/2}" y="${H-padB+16}" font-size="9.5" fill="var(--muted)" text-anchor="middle">${d.mes.slice(2)}</text>`;
   });
   svg.innerHTML = html;
@@ -691,7 +696,7 @@ function renderStateChart(rows){
     const w = Math.min(bw*0.64, 26);
     const xc = padL + i*bw + bw/2;
     const y = H-padB-h;
-    html += `<rect x="${xc-w/2}" y="${y}" width="${w}" height="${h}" fill="var(--accent)" rx="2"/>`;
+    html += `<rect x="${xc-w/2}" y="${y}" width="${w}" height="${h}" fill="var(--icf-mag)" rx="3"/>`;
     html += `<text x="${xc}" y="${y-6}" font-size="10.5" fill="var(--fg)" text-anchor="middle">${qtde}</text>`;
     html += `<text x="${xc}" y="${H-padB+16}" font-size="10" fill="var(--muted)" text-anchor="middle">${esc(estado)}</text>`;
   });

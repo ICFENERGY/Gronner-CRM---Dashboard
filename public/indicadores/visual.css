@@ -1,0 +1,176 @@
+/* ---------------------------------------------------------------
+   Indicadores: camada visual do sistema ICF (carregada depois dos estilos
+   da página). As cores e medidas vêm de /ui/icf.css; aqui ficam o desenho
+   dos blocos (abas, filtros, KPIs, painéis, tabelas) e a grade responsiva.
+   ------------------------------------------------------------------ */
+
+/* As variáveis antigas da página passam a apontar para o sistema ICF (:root:root vence os blocos de tema da página). */
+:root:root {
+  --color-bg: var(--icf-bg);
+  --color-panel: var(--icf-surface);
+  --color-fg: var(--icf-ink);
+  --color-fg-muted: var(--icf-ink-3);
+  --color-border-line: var(--icf-line);
+  --color-accent: var(--icf-brand-ink);
+  --font-anthropic-sans: var(--icf-font);
+  --font-anthropic-serif: var(--icf-font);
+  --eng-teal: var(--icf-brand);
+  --eng-teal-text: var(--icf-brand-ink);
+  --eng-orange: var(--icf-warn);
+  --eng-red: var(--icf-bad);
+  --eng-green: var(--icf-ok);
+  --eng-gray: var(--icf-neutral);
+  --eng-blue: var(--icf-mag);
+  --eng-purple: var(--icf-mag);
+}
+
+body { font-size: 14px; }
+.eng-wrap, .eng-view { gap: 16px; }
+
+/* ---------- Abas internas: seletor em pílula ---------- */
+.eng-tabs {
+  align-self: flex-start; max-width: 100%; overflow-x: auto; gap: 4px; padding: 4px;
+  border: 1px solid var(--icf-line); border-radius: 12px; background: var(--icf-surface); box-shadow: var(--icf-shadow);
+}
+.eng-tab-btn { margin: 0; padding: 8px 16px; border: 0; border-radius: 8px; white-space: nowrap; color: var(--icf-ink-2); transition: background .12s, color .12s; }
+.eng-tab-btn:hover { background: var(--icf-inset); color: var(--icf-ink); }
+.eng-tab-btn.is-active, .eng-tab-btn.is-active:hover { background: var(--icf-chip-bg); color: var(--icf-chip-ink); border: 0; }
+
+/* ---------- Filtros: grade alinhada, todos os campos com a mesma altura ---------- */
+.eng-filterbar { padding: 16px 18px; border-radius: var(--icf-radius); box-shadow: var(--icf-shadow); }
+.eng-filters-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+.eng-field { min-width: 0; gap: 5px; font-size: 11px; letter-spacing: 0.04em; color: var(--icf-ink-3); }
+.eng-field select, .eng-field input:not([type="checkbox"]), .eng-multiselect-btn {
+  width: 100%; min-width: 0; height: 36px; padding: 0 10px; font-size: 13px;
+  border-radius: var(--icf-radius-s); border: 1px solid var(--icf-line-strong); background: var(--icf-surface); color: var(--icf-ink);
+  transition: border-color .12s, box-shadow .12s;
+}
+.eng-field select:hover, .eng-field input:not([type="checkbox"]):hover, .eng-multiselect-btn:hover { border-color: var(--icf-brand); }
+.eng-field select:focus, .eng-field input:not([type="checkbox"]):focus, .eng-multiselect-btn:focus { outline: none; border-color: var(--icf-brand); box-shadow: 0 0 0 3px var(--icf-brand-soft); }
+.eng-field input[type="checkbox"] { accent-color: var(--icf-brand); width: 16px; min-width: 0; height: 16px; padding: 0; margin: 0; }
+.eng-multiselect-pop { border-radius: 10px; box-shadow: var(--icf-shadow); min-width: 100%; }
+.eng-clear-btn {
+  height: 36px; padding: 0 14px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  border-radius: var(--icf-radius-s); border: 1px solid var(--icf-line-strong); background: var(--icf-surface); color: var(--icf-ink-2);
+  transition: border-color .12s, color .12s, background .12s;
+}
+.eng-clear-btn:hover { border-color: var(--icf-brand); color: var(--icf-ink); }
+.eng-filters-row > .eng-clear-btn { justify-self: start; }
+.eng-filters-row > .eng-meta-toggle-btn { grid-column: span 2; }
+.eng-meta-save-btn { background: var(--icf-chip-bg); color: var(--icf-chip-ink); border-color: transparent; }
+.eng-filter-summary { margin-top: 10px; }
+
+/* ---------- KPIs: cartões iguais, com ponto de cor no rótulo ---------- */
+.eng-kpi-row { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 12px; }
+.eng-kpi {
+  --k: var(--icf-brand); container-type: inline-size; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  padding: 16px 18px; border: 1px solid var(--icf-line); border-radius: var(--icf-radius); background: var(--icf-surface); box-shadow: var(--icf-shadow);
+}
+.eng-kpi--teal { --k: var(--icf-brand); }
+.eng-kpi--green { --k: var(--icf-ok); }
+.eng-kpi--red { --k: var(--icf-bad); }
+.eng-kpi--orange { --k: var(--icf-warn); }
+.eng-kpi--gray { --k: var(--icf-mag); }
+.eng-kpi-label { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: var(--icf-ink-3); }
+.eng-kpi-label::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--k); }
+.eng-kpi-value { font-size: clamp(16px, 11cqi, 27px); font-weight: 700; letter-spacing: -0.015em; line-height: 1.2; overflow-wrap: anywhere; }
+.eng-kpi-sub { margin: 0; font-size: 12px; color: var(--icf-ink-3); }
+@media (max-width: 1000px) {
+  .eng-kpi-row { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eng-kpi:first-child:nth-last-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 440px) { .eng-kpi-row { grid-template-columns: 1fr; } }
+
+/* ---------- Painéis ---------- */
+.eng-panel, .eng-panel--tight, #eng-view-dash .eng-side .eng-panel, #eng-view-dash .eng-main .eng-panel {
+  padding: 20px; border: 1px solid var(--icf-line); border-radius: var(--icf-radius); box-shadow: var(--icf-shadow);
+}
+.eng-panel-head { align-items: center; margin-bottom: 16px; gap: 6px 12px; }
+.eng-panel-head h2, #eng-view-dash .eng-side .eng-panel-head h2 { font-size: 15px; font-weight: 650; letter-spacing: -0.005em; }
+.eng-panel-note { font-size: 12px; color: var(--icf-ink-3); }
+@media (max-width: 560px) { .eng-panel, .eng-panel--tight, #eng-view-dash .eng-side .eng-panel, #eng-view-dash .eng-main .eng-panel { padding: 16px; } }
+
+/* ---------- Dashboard: as duas colunas terminam na mesma linha ---------- */
+#eng-view-dash .eng-grid { grid-template-columns: minmax(340px, 38%) minmax(0, 1fr); align-items: stretch; }
+@media (max-width: 1000px) { #eng-view-dash .eng-grid { grid-template-columns: 1fr; } }
+#eng-view-dash .eng-side > .eng-panel:last-child { flex: 1; display: flex; flex-direction: column; }
+#eng-view-dash #eng-uf-list { flex: 1 1 0; min-height: 420px; max-height: none; }
+#eng-view-dash .eng-main > .eng-panel:last-child { flex: 1; display: flex; flex-direction: column; }
+#eng-view-dash .eng-clientes-wrap { flex: 1 1 0; min-height: 380px; max-height: none; }
+#eng-view-dash .eng-main .eng-two-col { grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr); }
+@media (max-width: 680px) { #eng-view-dash .eng-main .eng-two-col { grid-template-columns: 1fr; } }
+/* Cards por cidade acompanha a altura de Cards por funil (a lista de cidades rola por dentro). */
+.es-detalhes { align-items: stretch; margin-top: 0; }
+.es-detalhes > .eng-panel { display: flex; flex-direction: column; }
+.es-detalhes .eng-prop--scroll { flex: 1 1 0; min-height: 480px; max-height: none; }
+
+/* ---------- Listas com barra (etapa, UF, cidade): uma cor só, é quantidade ---------- */
+.eng-ranklist, #eng-view-dash .eng-side .eng-ranklist { gap: 12px; }
+.eng-rank-label, .eng-rank-value, #eng-view-dash .eng-side .eng-rank-label, #eng-view-dash .eng-side .eng-rank-value { font-size: 13px; }
+.eng-rank-track, #eng-view-dash .eng-side .eng-rank-track { height: 8px; border-radius: 4px; background: var(--icf-inset); }
+.eng-rank-fill { border-radius: 4px; background: var(--icf-mag); }
+.eng-rank-row:hover .eng-rank-label { color: var(--icf-brand-ink); }
+
+/* ---------- Tabelas proporcionais (cidade, funil) ---------- */
+.eng-prop-cab { background: var(--icf-inset); border-radius: 8px; border-bottom: 0; padding: 9px 10px; }
+.eng-prop-linha { padding: 9px 10px; border-radius: 8px; }
+.eng-prop-barra { height: 8px; border-radius: 4px; background: var(--icf-inset); }
+.eng-prop-fill { border-radius: 4px; gap: 2px; }
+.eng-prop-fill > span { border-radius: 2px; }
+
+/* ---------- Gráficos ---------- */
+.eng-vbar-label { font-size: 11px; fill: var(--icf-ink-3); }
+.eng-vbar-value { font-size: 11px; font-weight: 650; fill: var(--icf-ink); font-variant-numeric: tabular-nums; }
+.eng-vgrid { stroke: var(--icf-line); stroke-width: 1; shape-rendering: crispEdges; }
+.eng-vbase { stroke: var(--icf-line-strong); stroke-width: 1; shape-rendering: crispEdges; }
+.eng-bar, [class^="eng-stack-"] { transition: opacity .12s; }
+.eng-bar:hover, [class^="eng-stack-"]:hover { opacity: 0.8; }
+/* Fatias da pizza separadas por um fio da cor do fundo. */
+.eng-donut-wrap svg path { stroke: var(--icf-surface); stroke-width: 2; stroke-linejoin: round; transition: opacity .12s; }
+.eng-donut-wrap svg path:hover { opacity: 0.85; }
+.eng-donut-wrap svg text { font-variant-numeric: tabular-nums; }
+.eng-legend-swatch { width: 10px; height: 10px; border-radius: 3px; }
+.eng-legend-row { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.eng-mes-legend { margin-top: 10px; }
+.eng-tooltip { background: #0b2233; color: #ffffff; border-radius: 8px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); }
+
+/* ---------- Pizzas em cartões (Vendas e Visão Executiva): colunas iguais, legenda com altura limitada ---------- */
+.eng-tipo-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1100px) { .eng-tipo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .eng-tipo-grid { grid-template-columns: 1fr; } }
+.eng-tipo-card { padding: 20px; border: 1px solid var(--icf-line); border-radius: var(--icf-radius); background: var(--icf-surface); box-shadow: var(--icf-shadow); }
+.eng-panel .eng-tipo-card { background: var(--icf-inset); box-shadow: none; }
+.eng-panel .eng-tipo-card .eng-donut-wrap svg path { stroke: var(--icf-inset); }
+.eng-tipo-head { font-size: 15px; font-weight: 650; }
+.eng-tipo-card .eng-donut-wrap { margin-top: 12px; gap: 16px; }
+.eng-tipo-card .eng-donut-wrap svg, #eng-view-funeng .eng-donut-wrap svg { max-width: 200px; }
+.eng-tipo-card .eng-donut-legend { max-height: 286px; overflow-y: auto; align-content: start; padding-right: 2px; }
+.eng-tipo-card .eng-legend-row, #eng-fe-funil-legend .eng-legend-row { background: var(--icf-inset); border-color: var(--icf-line); border-radius: 9px; padding: 8px 10px; }
+.eng-panel .eng-tipo-card .eng-legend-row { background: var(--icf-surface); }
+
+/* ---------- Vendas: três blocos lado a lado com a mesma altura ---------- */
+.es-tres-col { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr) minmax(0, 1fr); }
+@media (max-width: 1000px) { .es-tres-col { grid-template-columns: 1fr; } }
+.es-tres-col > .eng-panel { display: flex; flex-direction: column; }
+#eng-sales-mapa text.es-mapa-claro { fill: #ffffff; }
+.es-tres-col .eng-vchart-wrap { margin-top: auto; }
+.es-tres-col .eng-ranklist--scroll { flex: 1 1 0; min-height: 200px; max-height: none; }
+@media (max-width: 1000px) { .es-tres-col .eng-ranklist--scroll { max-height: 320px; flex: none; } }
+.es-mapa-rank li { background: var(--icf-inset); border-color: var(--icf-line); border-radius: 9px; padding: 7px 12px; }
+#eng-sales-mapa path { stroke: var(--icf-surface); stroke-width: 1.5; }
+
+/* ---------- Tabelas ---------- */
+.eng-exec-table, .eng-resumo-table { font-size: 13px; }
+.eng-exec-table th, .eng-resumo-table th { background: var(--icf-inset); color: var(--icf-ink-3); padding: 10px 12px; border-bottom: 0; }
+.eng-exec-table th:first-child, .eng-resumo-table th:first-child { border-radius: 8px 0 0 8px; }
+.eng-exec-table th:last-child, .eng-resumo-table th:last-child { border-radius: 0 8px 8px 0; }
+.eng-exec-table td { padding: 10px 12px; }
+.eng-exec-table tr:hover td, .eng-resumo-table tr:hover td { background: var(--icf-inset); }
+.eng-resumo-group-title { font-size: 14px; font-weight: 650; margin-bottom: 8px; }
+.eng-client-group-head { font-size: 12px; }
+.eng-client-row { font-size: 13px; padding: 7px 0; }
+
+/* ---------- Gestão diária: a caixa "Só sem ação combinada" ocupa duas colunas e fica na linha dos campos ---------- */
+.eng-field:has(> span > input[type="checkbox"]) { grid-column: span 2; }
+.eng-field > span:has(> input[type="checkbox"]) { height: 36px; white-space: nowrap; color: var(--icf-ink); }
+.ge-lista { border-radius: var(--icf-radius-s); }

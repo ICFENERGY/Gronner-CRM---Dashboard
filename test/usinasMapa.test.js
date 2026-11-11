@@ -5,7 +5,7 @@ import { tsImport } from 'tsx/esm/api'
 const { regiaoDaUf, ufValida, mesReferencia, resumoParque, potenciaPorRegiao, posicaoAproximada, statusDe, entraNoMapa } =
   await tsImport('../src/features/solarz/usinasMapa.ts', import.meta.url)
 const { CONTORNOS_UF } = await tsImport('../src/features/solarz/mapaBrasil.ts', import.meta.url)
-const { linhasFarol, diaMes } = await tsImport('../src/features/solarz/FarolDiario.tsx', import.meta.url)
+const { linhasFarol, diaMes, janelaFarol, somarDias } = await tsImport('../src/features/solarz/FarolDiario.tsx', import.meta.url)
 
 const usina = (o) => ({ id: 1, nome: 'U', cidade: 'Campinas', estado: 'SP', potenciaKwp: 10, mesAnoRecente: null, geracaoKwhMes: null, statusDesempenho: null, ...o })
 
@@ -80,4 +80,18 @@ test('farol diário: ordena por data e preenche status ausentes', () => {
   assert.deepEqual(l.map((x) => x.dia), ['02/11', '03/11'])
   assert.equal(l[1]['Com alerta'], 0)
   assert.equal(l[1].total, 10)
+})
+
+test('farol diário: a janela tem um dia por data do período e marca o dia sem captura', () => {
+  assert.equal(somarDias('2026-11-01', -1), '2026-10-31')
+  const j = janelaFarol([
+    { data: '2026-11-10', total: 59, contagens: { Normal: 52, 'Com alerta': 6, 'Crítico': 1 } },
+    { data: '2026-11-11', total: 59, contagens: { Normal: 22, 'Com alerta': 36, 'Crítico': 1 } },
+  ], somarDias('2026-11-11', -7), '2026-11-11')
+  assert.equal(j.length, 8)
+  assert.deepEqual(j.map((x) => x.dia).slice(0, 2), ['04/11', '05/11'])
+  assert.equal(j.filter((x) => x.semCaptura).length, 6)
+  assert.equal(j[0].total, undefined)
+  assert.equal(j.at(-1).total, 59)
+  assert.equal(j.at(-2).Normal, 52)
 })

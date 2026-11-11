@@ -8,44 +8,52 @@
  * original do painel. Componentes usam essas variáveis (bg-[var(--x)]) em
  * vez de cores fixas do Tailwind, para não precisar duplicar classes
  * dark: em cada elemento.
+ *
+ * Os valores são os mesmos do sistema visual das páginas estáticas
+ * (public/ui/icf.css): mudou lá, muda aqui.
  */
 :root {
   color-scheme: light;
-  /* Paleta ICF: verde #01C38E, azul-marinho #132D46, cinza claro #F4F4F4 */
-  --bg: #f4f4f4;
+  /* Paleta ICF: verde #01C38E, azul-marinho #132D46 */
+  --bg: #f2f5f7;
   --surface: #ffffff;
   --surface-solid: #ffffff;
-  --surface-hover: #eef2f2;
-  --border: #e1e5e8;
-  --border-strong: #c5ced6;
+  --surface-hover: #f5f7f9;
+  --border: #e3e8ed;
+  --border-strong: #c8d1da;
   --input-bg: #ffffff;
   --text-primary: #132d46;
-  --text-secondary: #3f5468;
-  --text-muted: #5c6e80;
-  --track-bg: #e1e5e8;
+  --text-secondary: #45596d;
+  --text-muted: #64768a;
+  --track-bg: #e9edf1;
   --accent: #01c38e;
   --accent-text: #00805f;
   --navy: #132d46;
   --navy-chip: #132d46;
   --navy-chip-text: #ffffff;
   --accent-soft: rgba(1, 195, 142, 0.12);
-  /* Gráficos (validados com a skill de dataviz sobre a superfície branca) */
-  --viz-1: #01c38e;
-  --viz-ref: #5c6e80;
-  --viz-grid: #e6e9ec;
-  --viz-axis: #6b7c8c;
-  --viz-outros: #8a97a5;
+  --header-bg: #132d46;
+  --shadow-card: 0 1px 2px rgba(19, 45, 70, 0.06), 0 6px 20px rgba(19, 45, 70, 0.05);
+  /* Gráficos: --viz-1 é a série única (quantidade); --cat-* são categorias em ordem fixa
+     (paleta conferida com o validador da skill de dataviz, claro e escuro). */
+  --viz-1: #2a78d6;
+  --viz-ref: #64768a;
+  --viz-grid: #e3e8ed;
+  --viz-axis: #64768a;
+  --viz-outros: #aab5c0;
   --viz-ring: #ffffff;
-  --cat-1: #01c38e;
-  --cat-2: #2e8fd6;
-  --cat-3: #d99a1e;
-  --cat-4: #e0605f;
-  --cat-5: #8077d0;
-  --cat-6: #d2569a;
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #01b384;
+  --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-6: #008300;
+  --cat-7: #6250d6;
+  --cat-8: #e34948;
   /* Semáforo: reservado para estado (sempre com ícone e rótulo) */
-  --st-atrasado: #d03b3b;
-  --st-risco: #fab219;
-  --st-ok: #0ca30c;
+  --st-atrasado: #d9455a;
+  --st-risco: #e59a1f;
+  --st-ok: #14a05c;
 }
 
 .dark {
@@ -59,32 +67,43 @@
   --input-bg: #132d46;
   --text-primary: #f4f4f4;
   --text-secondary: #bccad6;
-  --text-muted: #93a6b8;
+  --text-muted: #9fb2c3;
   --track-bg: #2b4c6c;
   --accent: #01c38e;
   --accent-text: #01c38e;
   --navy-chip: #f4f4f4;
   --navy-chip-text: #132d46;
   --accent-soft: rgba(1, 195, 142, 0.16);
+  --header-bg: #0e2236;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 6px 20px rgba(0, 0, 0, 0.18);
   /* Passos próprios do escuro (validados contra a superfície #1b3b5c) */
-  --viz-1: #00a87c;
+  --viz-1: #5aa0e8;
   --viz-ref: #bccad6;
   --viz-grid: #2b4c6c;
-  --viz-axis: #93a6b8;
-  --viz-outros: #7f93a6;
+  --viz-axis: #9fb2c3;
+  --viz-outros: #5f7a94;
   --viz-ring: #1b3b5c;
-  --cat-1: #00a87c;
-  --cat-2: #3b8fd0;
-  --cat-3: #bc8410;
-  --cat-4: #e3506a;
-  --cat-5: #8f86da;
-  --cat-6: #cf5a9b;
-  --st-atrasado: #e0504f;
-  --st-risco: #fab219;
-  --st-ok: #2fb82f;
+  --cat-1: #3987e5;
+  --cat-2: #d95926;
+  --cat-3: #199e70;
+  --cat-4: #c98500;
+  --cat-5: #d55181;
+  --cat-6: #008300;
+  --cat-7: #9085e9;
+  --cat-8: #e66767;
+  --st-atrasado: #ef6a7a;
+  --st-risco: #f2b24b;
+  --st-ok: #2fbf71;
 }
 
 body {
   background-color: var(--bg);
   color: var(--text-primary);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

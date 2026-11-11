@@ -21,11 +21,13 @@ const serieMensal = (u: UsinaRaw) => u.mensal ?? u.mensal2026 ?? []
 
 function Cartao({ icone, titulo, valor, nota }: { icone: ReactNode; titulo: string; valor: string; nota: string }) {
   return (
-    <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
-      <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-hover)] text-[var(--accent-text)]">{icone}</span>
-      <h3 className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{titulo}</h3>
-      <p className="mt-0.5 text-2xl font-bold tabular-nums text-[var(--text-primary)]">{valor}</p>
-      <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{nota}</p>
+    <section className="flex min-w-0 items-start justify-between gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4 shadow-[var(--shadow-card)]">
+      <div className="min-w-0">
+        <h3 className="flex items-center gap-[7px] text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]"><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent)]" />{titulo}</h3>
+        <p className="mt-1 text-[27px] font-bold leading-tight tracking-tight tabular-nums text-[var(--text-primary)]">{valor}</p>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">{nota}</p>
+      </div>
+      <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-text)]">{icone}</span>
     </section>
   )
 }
@@ -42,9 +44,9 @@ const IconeGrafico = () => (
 
 function Painel({ id, titulo, subtitulo, children }: { id?: string; titulo: string; subtitulo?: ReactNode; children: ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-4 min-w-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
-      <h3 className="text-base font-bold text-[var(--text-primary)]">{titulo}</h3>
-      {subtitulo && <p className="mb-3 text-xs text-[var(--text-muted)]">{subtitulo}</p>}
+    <section id={id} className="scroll-mt-20 min-w-0 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] sm:p-5">
+      <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">{titulo}</h3>
+      {subtitulo && <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">{subtitulo}</p>}
       {children}
     </section>
   )
@@ -106,10 +108,10 @@ const sem = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCas
 
 function Seletor({ rotulo, valor, onMudar, itens }: { rotulo: string; valor: string; onMudar: (v: string) => void; itens: string[] }) {
   return (
-    <label className="min-w-[9rem] flex-1">
+    <label className="min-w-0">
       <span className="sr-only">{rotulo}</span>
       <select value={valor} onChange={(e) => onMudar(e.target.value)}
-        className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none">
+        className="h-9 w-full rounded-[9px] border border-[var(--border-strong)] bg-[var(--input-bg)] px-2.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none">
         <option value="">{rotulo}: Todos</option>
         {itens.map((i) => <option key={i} value={i}>{i}</option>)}
       </select>
@@ -146,16 +148,16 @@ function TabelaCompleta({ usinas, rodapeDireita, onAbrir }: { usinas: UsinaRaw[]
     return true
   })
   const cidades = opcoes(usinas.filter((u) => !f.uf || ufValida(u.estado) === f.uf).map((u) => u.cidade))
-  const th = 'sticky top-0 z-10 whitespace-nowrap border-b border-[var(--border-strong)] bg-[var(--surface-solid)] px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]'
-  const td = 'max-w-[16rem] truncate whitespace-nowrap border-b border-[var(--border)] px-2 py-2'
+  const th = 'sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-hover)] px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]'
+  const td = 'max-w-[13rem] truncate whitespace-nowrap border-b border-[var(--border)] px-3 py-2.5'
   const colunas = ['Usina', 'Cliente', 'Cidade', 'UF', 'Potência (kWp)', 'Mês/ano', 'Geração (kWh)', 'Desemp. mês', 'Status']
   return (
     <>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <label className="min-w-[14rem] flex-[2]">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_repeat(5,minmax(0,1fr))_auto]">
+        <label className="min-w-0">
           <span className="sr-only">Buscar usina, cliente ou cidade</span>
           <input value={f.busca} onChange={(e) => muda('busca')(e.target.value)} placeholder="Buscar usina, cliente ou cidade…"
-            className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-icf-green focus:outline-none" />
+            className="h-9 w-full rounded-[9px] border border-[var(--border-strong)] bg-[var(--input-bg)] px-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-icf-green focus:outline-none" />
         </label>
         <Seletor rotulo="UF" valor={f.uf} onMudar={(v) => setF((x) => ({ ...x, uf: v, cidade: '' }))} itens={opcoes(usinas.map((u) => ufValida(u.estado)))} />
         <Seletor rotulo="Cidade" valor={f.cidade} onMudar={muda('cidade')} itens={cidades} />
@@ -163,11 +165,11 @@ function TabelaCompleta({ usinas, rodapeDireita, onAbrir }: { usinas: UsinaRaw[]
         <Seletor rotulo="Classe" valor={f.classe} onMudar={muda('classe')} itens={opcoes(usinas.map((u) => u.classe))} />
         <Seletor rotulo="Status" valor={f.status} onMudar={muda('status')} itens={[...STATUS_DESEMPENHO]} />
         <button type="button" onClick={() => setF(FILTROS_VAZIOS)} disabled={!ativos}
-          className="rounded-lg border border-[var(--border-strong)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] disabled:opacity-50">
+          className="h-9 whitespace-nowrap rounded-[9px] border border-[var(--border-strong)] px-3.5 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] disabled:opacity-50">
           Limpar filtros
         </button>
       </div>
-      <div className="max-h-[520px] overflow-auto rounded-lg border border-[var(--border)]">
+      <div className="max-h-[560px] overflow-auto rounded-[10px] border border-[var(--border)]">
         <table className="w-full border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
@@ -260,9 +262,9 @@ export function MapaUsinas({ resposta, hoje }: { resposta: UsinasRawResponse; ho
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-      <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] pb-4">
+      <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
         <div className="min-w-0 max-w-3xl">
-          <h2 className="text-2xl font-bold leading-tight text-[var(--text-primary)]">Mapa das Usinas</h2>
+          <h2 className="text-xl font-bold leading-tight tracking-tight text-[var(--text-primary)]">Mapa das Usinas</h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">Visão consolidada do parque de geração distribuída monitorado pela ITYOU Solar: localização, potência instalada e status de desempenho de cada usina.</p>
         </div>
         <div className="text-right text-xs leading-5 text-[var(--text-secondary)]">
@@ -301,8 +303,8 @@ export function MapaUsinas({ resposta, hoje }: { resposta: UsinasRawResponse; ho
             {regioes.map((x) => (
               <li key={x.regiao} className="grid grid-cols-[7.5rem_minmax(0,1fr)_3.5rem] items-center gap-3 text-sm">
                 <span className="font-medium text-[var(--text-primary)]">{x.regiao}</span>
-                <span className="h-2.5 rounded-full bg-[var(--track-bg)]" aria-hidden="true">
-                  <span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${(100 * x.mw) / maxMw}%` }} />
+                <span className="h-2 rounded bg-[var(--track-bg)]" aria-hidden="true">
+                  <span className="block h-full rounded bg-[var(--viz-1)]" style={{ width: `${(100 * x.mw) / maxMw}%` }} />
                 </span>
                 <span className="text-right font-semibold tabular-nums text-[var(--text-primary)]" title={`${nf0.format(x.qtd)} usinas`}>{nf2.format(x.mw)}</span>
               </li>
@@ -313,7 +315,7 @@ export function MapaUsinas({ resposta, hoje }: { resposta: UsinasRawResponse; ho
 
       <Painel titulo="Farol Diário — Evolução da Conectividade"
         subtitulo="Contagem diária do farol de monitoramento do painel SolarZ (status de conectividade dos coletores de dados de cada usina — diferente do Status de Desempenho acima). Fonte: captura diária da API SolarZ.">
-        <FarolDiario historico={origem?.farolHistorico ?? []} />
+        <FarolDiario historico={origem?.farolHistorico ?? []} hoje={hoje} />
       </Painel>
 
       <Painel titulo="Mapa Geográfico das Usinas"

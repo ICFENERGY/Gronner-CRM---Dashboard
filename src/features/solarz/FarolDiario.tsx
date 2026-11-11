@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { UsinasOrigemDados } from '../../api/types'
 import { dica, estiloRotulo } from '../painel/ui/graficos'
@@ -33,29 +34,87 @@ export function linhasFarol(historico: Farol) {
     }))
 }
 
-/** Barras empilhadas por dia; o total aparece no topo de cada barra. */
-export function FarolDiario({ historico }: { historico: Farol }) {
-  const dados = linhasFarol(historico)
-  if (!dados.length) return <p className="py-10 text-center text-xs text-[var(--text-muted)]">Sem histórico do farol ainda.</p>
+/** Soma dias a uma data "AAAA-MM-DD" (conta em UTC, sem depender do fuso do navegador). */
+export function somarDias(data: string, dias: number) {
+  const d = new Date(`${data}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + dias)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Linhas do período [de, ate], uma por dia do calendário. O dia sem captura do farol
+ * entra sem barra (semCaptura), para o buraco aparecer no gráfico em vez de sumir.
+ */
+export function janelaFarol(historico: Farol, de: string, ate: string) {
+  const porDia = new Map(historico.map((h) => [h.data.slice(0, 10), h]))
+  const linhas = []
+  // Trava de segurança: no máximo 366 dias, mesmo com datas digitadas erradas.
+  for (let dia = de, i = 0; dia <= ate && i < 366; dia = somarDias(dia, 1), i++) {
+    const h = porDia.get(dia)
+    linhas.push(h
+      ? { ...linhasFarol([h])[0], data: dia, semCaptura: false }
+      : { dia: diaMes(dia), data: dia, semCaptura: true })
+  }
+  return linhas
+}
+
+const PERIODOS = [7, 15, 30] as const
+
+/** Barras empilhadas por dia, com filtro de período; o total aparece no topo de cada barra. */
+export function FarolDiario({ historico, hoje }: { historico: Farol; hoje: string }) {
+  // Padrão: hoje e os 7 dias anteriores.
+  const [de, setDe] = useState(() => somarDias(hoje, -7))
+  const [ate, setAte] = useState(hoje)
+  const dados = janelaFarol(historico, de, ate)
+  const comCaptura = dados.filter((d) => !d.semCaptura).length
   const eixo = { stroke: 'var(--viz-axis)', fontSize: 11, tickLine: false }
+  const campo = 'h-9 rounded-[9px] border border-[var(--border-strong)] bg-[var(--input-bg)] px-2.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none'
   return (
-    <div className="mx-auto w-full max-w-[760px]">
-      <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={dados} margin={{ top: 24, right: 8, left: 0, bottom: 0 }} barCategoryGap="35%">
-          <CartesianGrid vertical={false} stroke="var(--viz-grid)" strokeDasharray="3 3" />
-          <XAxis dataKey="dia" {...eixo} />
-          <YAxis {...eixo} axisLine={false} width={36} allowDecimals={false} />
-          <Tooltip {...dica} />
-          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-          {SERIE_FAROL.map((s, i) => (
-            <Bar key={s.chave} dataKey={s.chave} stackId="farol" fill={s.cor} isAnimationActive={false} maxBarSize={14}>
-              {i === SERIE_FAROL.length - 1 && (
-                <LabelList dataKey="total" position="top" formatter={(v: number) => quantidadeCurta(v)} style={estiloRotulo} />
-              )}
-            </Bar>
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+    <div>
+      <div className="mb-3 flex flex-wrap items-end gap-3">
+        <div role="group" aria-label="Período do farol" className="inline-flex overflow-hidden rounded-[9px] border border-[var(--border-strong)]">
+          {PERIODOS.map((n) => {
+            const ativo = ate === hoje && de === somarDias(hoje, -n)
+            return (
+              <button key={n} type="button" aria-pressed={ativo} onClick={() => { setDe(somarDias(hoje, -n)); setAte(hoje) }}
+                className={`h-9 px-3 text-sm font-semibold transition-colors ${ativo ? 'bg-[var(--navy-chip)] text-[var(--navy-chip-text)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'}`}>
+                {n} dias
+              </button>
+            )
+          })}
+        </div>
+        <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          De
+          <input type="date" value={de} max={ate} onChange={(e) => e.target.value && setDe(e.target.value)} className={campo} />
+        </label>
+        <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          Até
+          <input type="date" value={ate} min={de} max={hoje} onChange={(e) => e.target.value && setAte(e.target.value)} className={campo} />
+        </label>
+        <p className="ml-auto text-xs text-[var(--text-muted)]">
+          {comCaptura} de {dados.length} dia(s) com captura do farol{comCaptura < dados.length ? ' · dia sem barra = sem captura registrada' : ''}
+        </p>
+      </div>
+      {comCaptura === 0 ? (
+        <p className="py-10 text-center text-xs text-[var(--text-muted)]">Sem captura do farol neste período.</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={dados} margin={{ top: 24, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
+            <CartesianGrid vertical={false} stroke="var(--viz-grid)" />
+            <XAxis dataKey="dia" {...eixo} interval={dados.length > 16 ? 'preserveStartEnd' : 0} />
+            <YAxis {...eixo} axisLine={false} width={36} allowDecimals={false} />
+            <Tooltip {...dica} />
+            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v) => <span style={{ color: 'var(--text-secondary)' }}>{v}</span>} />
+            {SERIE_FAROL.map((s, i) => (
+              <Bar key={s.chave} dataKey={s.chave} stackId="farol" fill={s.cor} isAnimationActive={false} maxBarSize={44}>
+                {i === SERIE_FAROL.length - 1 && (
+                  <LabelList dataKey="total" position="top" formatter={(v: number) => (v == null ? '' : quantidadeCurta(v))} style={estiloRotulo} />
+                )}
+              </Bar>
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </div>
   )
 }

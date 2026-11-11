@@ -256,7 +256,7 @@ body {
   .es-mapa-btn { font: inherit; font-size: 12px; font-weight: 650; padding: 6px 12px; border: 0; background: var(--color-bg); color: var(--color-fg-muted); cursor: pointer; }
   .es-mapa-btn.is-active { background: var(--eng-teal); color: #08261f; }
   .es-mapa-escala { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--color-fg-muted); }
-  .es-mapa-escala i { display: block; width: 110px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, color-mix(in srgb, var(--eng-teal) 14%, var(--color-bg)), var(--eng-teal)); }
+  .es-mapa-escala i { display: block; width: 110px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, color-mix(in srgb, var(--icf-mag) 14%, var(--color-bg)), var(--icf-mag)); }
   .es-mapa-wrap { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(220px, 0.7fr); gap: 20px; align-items: start; }
   @media (max-width: 800px) { .es-mapa-wrap { grid-template-columns: 1fr; } }
   #eng-sales-mapa { width: 100%; max-width: 640px; height: auto; margin: 0 auto; display: block; }
@@ -371,6 +371,8 @@ body {
   @media (min-width: 900px) { .eng-meta-table { min-width: 0; } }
 
 </style>
+<link rel="stylesheet" href="/ui/icf.css">
+<link rel="stylesheet" href="/indicadores/visual.css">
 <div id="dash-root">
 <div class="eng-wrap">
   <header class="eng-band">
@@ -965,7 +967,7 @@ body {
 <style>
   /* Modo incorporado (?embed=1): usado pelas abas Visão Geral e Vendas do painel. */
   html.embed .eng-band { display: none; }
-  html.embed #dash-root { padding-block: 8px 24px; max-width: none; padding-left: 0; padding-right: 0; }
+  html.embed #dash-root { padding-block: 8px 24px; max-width: none; padding-left: 4px; padding-right: 4px; }
   html.embed.embed-sem-abas .eng-tabs { display: none; }
 </style>
 <script>
@@ -1351,6 +1353,19 @@ body {
     return lines.map(truncateToFit);
   }
 
+  // Barra com os dois cantos de cima arredondados (a base fica reta, apoiada na linha de base).
+  function barraTopo(bx, by, w, h, raio = 4) {
+    if (h <= 0 || w <= 0) return '';
+    const r = Math.min(raio, w / 2, h);
+    return `M${bx},${by + h}V${by + r}Q${bx},${by} ${bx + r},${by}H${bx + w - r}Q${bx + w},${by} ${bx + w},${by + r}V${by + h}Z`;
+  }
+  // Três linhas de grade discretas e a linha de base: dão a escala sem competir com as barras.
+  function desenharGrade(g, y, largura, chartH) {
+    const max = y.domain()[1];
+    [0.25, 0.5, 0.75, 1].forEach(f => g.append('line').attr('class', 'eng-vgrid').attr('x1', 0).attr('x2', largura).attr('y1', y(max * f)).attr('y2', y(max * f)));
+    g.append('line').attr('class', 'eng-vbase').attr('x1', 0).attr('x2', largura).attr('y1', chartH + 0.5).attr('y2', chartH + 0.5);
+  }
+
   function drawVBarChart(svgSel, data, opts) {
     const svg = d3.select(svgSel);
     const wrap = svg.node().closest('.eng-vchart-wrap');
@@ -1369,17 +1384,15 @@ body {
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
     const { measureEl, fn: measureWidth } = measureWrap(svg);
-    const availPx = x.bandwidth() + 6;
+    const availPx = x.step() - 4;
     const linesByRow = data.map(d => wrapAndTruncate(measureWidth, availPx, d.label));
     measureEl.remove();
 
-    g.selectAll('.eng-bar').data(data).join('rect')
+    desenharGrade(g, y, width - margin.left - margin.right, chartH);
+    g.selectAll('.eng-bar').data(data).join('path')
       .attr('class', 'eng-bar')
-      .attr('x', (d, i) => x(i))
-      .attr('y', d => y(d.value))
-      .attr('width', x.bandwidth())
-      .attr('height', d => chartH - y(d.value))
-      .attr('fill', opts.color || 'var(--eng-teal)')
+      .attr('d', (d, i) => barraTopo(x(i), y(d.value), x.bandwidth(), chartH - y(d.value)))
+      .attr('fill', opts.color || 'var(--icf-mag)')
       .style('cursor', opts.onClick ? 'pointer' : 'default')
       .on('mousemove', (evt, d) => showTooltip(evt, opts.tooltip ? opts.tooltip(d) : `<strong>${escHtml(d.label)}</strong><br>${d.value.toLocaleString('pt-BR')}`))
       .on('mouseleave', hideTooltip)
@@ -1390,7 +1403,7 @@ body {
       .attr('x', (d, i) => x(i) + x.bandwidth() / 2)
       .attr('y', d => y(d.value) - 6)
       .attr('text-anchor', 'middle')
-      .text(d => d.value.toLocaleString('pt-BR'));
+      .text(d => opts.valueFormat ? opts.valueFormat(d.value) : d.value.toLocaleString('pt-BR'));
 
     const labelG = g.selectAll('.eng-vbar-label-g').data(data).join('g').attr('class', 'eng-vbar-label-g');
     labelG.each(function (d, i) {
@@ -1433,10 +1446,11 @@ body {
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
     const { measureEl, fn: measureWidth } = measureWrap(svg);
-    const availPx = x.bandwidth() + 6;
+    const availPx = x.step() - 4;
     const linesByRow = data.map(d => wrapAndTruncate(measureWidth, availPx, d.label));
     measureEl.remove();
 
+    desenharGrade(g, y, width - margin.left - margin.right, chartH);
     data.forEach((d, i) => {
       let acc = 0;
       const segs = keys.map(k => {
@@ -1446,12 +1460,14 @@ body {
         return { key: k, value, y0, y1: acc };
       }).filter(s => s.value > 0);
 
-      g.selectAll(`.eng-stack-${i}`).data(segs).join('rect')
+      // Só o segmento de cima é arredondado; os de baixo deixam 2px de respiro entre as cores.
+      g.selectAll(`.eng-stack-${i}`).data(segs).join('path')
         .attr('class', `eng-stack-${i}`)
-        .attr('x', x(i))
-        .attr('y', s => y(s.y1))
-        .attr('width', x.bandwidth())
-        .attr('height', s => y(s.y0) - y(s.y1))
+        .attr('d', (s, si) => {
+          const topo = si === segs.length - 1, alt = y(s.y0) - y(s.y1);
+          const folga = !topo && alt > 5 ? 2 : 0;
+          return barraTopo(x(i), y(s.y1) + folga, x.bandwidth(), alt - folga, topo ? 4 : 0);
+        })
         .attr('fill', s => color(s.key, keys.indexOf(s.key)))
         .style('cursor', opts.onClick ? 'pointer' : 'default')
         .on('mousemove', (evt, s) => showTooltip(evt, `<strong>${escHtml(d.label)} · ${escHtml(s.key)}</strong><br>${s.value.toLocaleString('pt-BR')}`))
@@ -1526,10 +1542,10 @@ body {
   }
 
   const FUNIL_GRUPOS = [
-    { nome: 'Vendas', cor: 'var(--eng-blue)', prefixos: ['01.', '02.', '03.', '04.'] },
-    { nome: 'Financeiro', cor: 'var(--eng-orange)', prefixos: ['05.', '06.', '07.', '09.'] },
-    { nome: 'Engenharia', cor: 'var(--eng-teal)', prefixos: ['08.', '10.', '11.', '12.', '13.', '14.', '15.'] },
-    { nome: 'Outros', cor: 'var(--eng-gray)', prefixos: [] }
+    { nome: 'Vendas', cor: 'var(--cat-1)', prefixos: ['01.', '02.', '03.', '04.'] },
+    { nome: 'Financeiro', cor: 'var(--cat-2)', prefixos: ['05.', '06.', '07.', '09.'] },
+    { nome: 'Engenharia', cor: 'var(--cat-3)', prefixos: ['08.', '10.', '11.', '12.', '13.', '14.', '15.'] },
+    { nome: 'Outros', cor: 'var(--cat-outros)', prefixos: [] }
   ];
   function funilGrupo(funil) {
     if (!funil) return null;
@@ -1538,7 +1554,13 @@ body {
     return grupo ? grupo.nome : 'Outros';
   }
 
-  const FUNIL_DETAIL_CORES = ['var(--eng-blue)', 'var(--eng-teal)', 'var(--eng-orange)', 'var(--eng-purple)', 'var(--eng-green)', 'var(--eng-red)', 'var(--eng-gray)', 'var(--eng-extra-1)'];
+  // Cores de categoria (ver /ui/icf.css): ordem fixa; da nona fatia em diante, cinza de "outros".
+  const corCategoria = (i) => i < 8 ? 'var(--cat-' + (i + 1) + ')' : 'var(--cat-outros)';
+  // Dá a cada item a cor pela posição no ranking de valor, sem mudar a ordem em que aparece.
+  function comCores(itens) {
+    const ordem = itens.slice().sort((a, b) => b.value - a.value);
+    return itens.map(d => ({ label: d.label, value: d.value, color: corCategoria(ordem.indexOf(d)) }));
+  }
 
   function drawGrupoMesChart() {
     const rows = filteredRows(false).filter(r => r._ano && r._time);
@@ -1553,16 +1575,20 @@ body {
     });
     const keys = FUNIL_GRUPOS.map(g => g.nome);
     const colorMap = Object.fromEntries(FUNIL_GRUPOS.map(g => [g.nome, g.cor]));
-    const data = Array.from(byMonth, ([label, seg]) => ({
+    const todos = Array.from(byMonth, ([label, seg]) => ({
       label,
       total: keys.reduce((s, k) => s + seg[k], 0),
       segments: keys.map(k => ({ key: k, value: seg[k] }))
     })).sort((a, b) => a.label.localeCompare(b.label));
+    // Os 18 meses mais recentes: com a série inteira as barras e os rótulos ficam ilegíveis.
+    const data = todos.slice(-18);
 
     const totalAll = data.reduce((s, d) => s + d.total, 0);
-    document.getElementById('eng-grupo-note').textContent = `${totalAll.toLocaleString('pt-BR')} card(s) · ${data.length} mês(es).`;
+    document.getElementById('eng-grupo-note').textContent = todos.length > 18
+      ? `${totalAll.toLocaleString('pt-BR')} card(s) · últimos 18 de ${todos.length} mês(es).`
+      : `${totalAll.toLocaleString('pt-BR')} card(s) · ${data.length} mês(es).`;
     const color = (k) => colorMap[k] || 'var(--eng-gray)';
-    drawVStackedBarChart('#eng-grupo-bars', '#eng-grupo-legend', data, keys, color, { height: 200, minBarSlot: 60 });
+    drawVStackedBarChart('#eng-grupo-bars', '#eng-grupo-legend', data, keys, color, { height: 200, minBarSlot: 52 });
   }
 
   function drawSimplePie(svgSel, legendSel, data) {
@@ -1612,7 +1638,7 @@ body {
     FUNIL_GRUPOS.forEach(g => {
       const groupRows = rows.filter(r => funilGrupo(r.funil) === g.nome);
       const byFunil = groupCount(groupRows, 'funil').sort((a, b) => b.value - a.value);
-      const data = byFunil.map((d, i) => ({ label: d.label, value: d.value, color: FUNIL_DETAIL_CORES[i % FUNIL_DETAIL_CORES.length] }));
+      const data = comCores(byFunil);
       document.getElementById('eng-tipo-note-' + g.nome).textContent = `${groupRows.length.toLocaleString('pt-BR')} card(s) · ${data.length} funil(is).`;
       drawSimplePie('#eng-tipo-donut-' + g.nome, '#eng-tipo-legend-' + g.nome, data);
     });
@@ -1680,7 +1706,7 @@ body {
 
     document.getElementById('eng-mes-note').textContent = todos.length > 12 ? `últimos 12 de ${todos.length} mês(es).` : `${todos.length} mês(es).`;
     const color = (k) => k === 'Atendido' ? 'var(--eng-green)' : 'var(--eng-red)';
-    drawVStackedBarChart('#eng-mes-bars', '#eng-mes-legend', data, keys, color, { height: 170 });
+    drawVStackedBarChart('#eng-mes-bars', '#eng-mes-legend', data, keys, color, { height: 170, minBarSlot: 36 });
   }
 
   const MESES_ABR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -1719,13 +1745,13 @@ body {
     const data = monthData.concat(weekData);
     document.getElementById('eng-evol-note').textContent =
       `${monthData.length} mês(es) + últimas 3 semanas, por data de abertura — ${rows.length.toLocaleString('pt-BR')} card(s).`;
-    drawVBarChart('#eng-evol-bars', data, { height: 170, color: 'var(--eng-teal)', minBarSlot: 60 });
+    drawVBarChart('#eng-evol-bars', data, { height: 170, minBarSlot: 60 });
   }
 
   function drawAnoChart() {
     const rows = filteredRows(false);
     const grouped = groupCount(rows, '_ano').map(d => ({ label: String(d.label), value: d.value })).sort((a, b) => a.label.localeCompare(b.label));
-    drawVBarChart('#eng-ano-bars', grouped, { height: 190, color: 'var(--eng-blue)', minBarSlot: 50 });
+    drawVBarChart('#eng-ano-bars', grouped, { height: 190, minBarSlot: 50 });
   }
 
   function drawEtapasList() {
@@ -1747,7 +1773,7 @@ body {
 
   function drawUfList() {
     const rows = filteredRows(false).filter(r => r.uf);
-    const grouped = groupCount(rows, 'uf').slice(0, 15);
+    const grouped = groupCount(rows, 'uf');
     const maxVal = d3.max(grouped, d => d.value) || 1;
     const list = document.getElementById('eng-uf-list');
     list.innerHTML = grouped.map(d => `
@@ -1756,7 +1782,7 @@ body {
           <span class="eng-rank-label">${escHtml(d.label)}</span>
           <span class="eng-rank-value">${d.value.toLocaleString('pt-BR')}</span>
         </div>
-        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.value / maxVal) * 100, 2)}%; background: var(--eng-blue);"></div></div>
+        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.value / maxVal) * 100, 2)}%"></div></div>
       </div>
     `).join('');
   }
@@ -1977,7 +2003,7 @@ body {
   function drawFunEngFunilDonut() {
     const rows = engFeFilteredRows();
     const byFunil = groupCount(rows, 'funil').sort((a, b) => a.label.localeCompare(b.label));
-    const data = byFunil.map((d, i) => ({ label: ENG_RESUMO_FUNIL_META[d.label] || d.label, value: d.value, color: FUNIL_DETAIL_CORES[i % FUNIL_DETAIL_CORES.length] }));
+    const data = byFunil.map((d, i) => ({ label: ENG_RESUMO_FUNIL_META[d.label] || d.label, value: d.value, color: corCategoria(i) }));
     document.getElementById('eng-fe-funil-note').textContent = `${rows.length.toLocaleString('pt-BR')} negócio(s) · ${data.length} funil(is).`;
     drawSimplePie('#eng-fe-funil-donut', '#eng-fe-funil-legend', data);
   }
@@ -2167,7 +2193,6 @@ body {
   }
 
   const SALES_MESES_ABR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const SALES_DETAIL_CORES = ['var(--eng-blue)', 'var(--eng-teal)', 'var(--eng-orange)', 'var(--eng-purple)', 'var(--eng-green)', 'var(--eng-red)', 'var(--eng-gray)', 'var(--eng-extra-1)', 'var(--eng-extra-2)', 'var(--eng-extra-3)'];
 
   function salesGroupCount(rows, field) {
     const m = new Map();
@@ -2236,14 +2261,14 @@ body {
   function drawSalesNegocioDonut(rows) {
     const grouped = salesGroupCount(rows, 'tipoNegocio');
     document.getElementById('eng-sales-negocio-note').textContent = `${rows.length.toLocaleString('pt-BR')} card(s) · ${grouped.length} tipo(s).`;
-    const data = grouped.map((d, i) => ({ label: d.label, value: d.value, color: SALES_DETAIL_CORES[i % SALES_DETAIL_CORES.length] }));
+    const data = comCores(grouped);
     drawSimplePie('#eng-sales-negocio-donut', '#eng-sales-negocio-legend', data);
   }
 
   function drawSalesVendedorDonut(rows) {
     const grouped = salesGroupCount(rows, 'vendedor');
     document.getElementById('eng-sales-vendedor-note').textContent = `${rows.length.toLocaleString('pt-BR')} card(s) · ${grouped.length} vendedor(es).`;
-    const data = grouped.map((d, i) => ({ label: d.label, value: d.value, color: SALES_DETAIL_CORES[i % SALES_DETAIL_CORES.length] }));
+    const data = comCores(grouped);
     drawSimplePie('#eng-sales-vendedor-donut', '#eng-sales-vendedor-legend', data);
   }
 
@@ -2257,23 +2282,25 @@ body {
     const grouped = Array.from(byMes, ([label, value]) => ({ label, value }))
       .sort((a, b) => SALES_MESES_ABR.indexOf(a.label) - SALES_MESES_ABR.indexOf(b.label));
     document.getElementById('eng-sales-mes-note').textContent = `${mRows.length.toLocaleString('pt-BR')} card(s) · ${grouped.length} mês(es).`;
-    const data = grouped.map((d, i) => ({ label: d.label, value: d.value, color: SALES_DETAIL_CORES[i % SALES_DETAIL_CORES.length] }));
+    const data = comCores(grouped);
     drawSimplePie('#eng-sales-mes-donut', '#eng-sales-mes-legend', data);
   }
 
   function drawSalesUfDonut(rows) {
     const grouped = salesGroupCount(rows, 'uf');
     document.getElementById('eng-sales-uf-note').textContent = `${rows.length.toLocaleString('pt-BR')} card(s) · ${grouped.length} estado(s).`;
-    const data = grouped.map((d, i) => ({ label: d.label, value: d.value, color: SALES_DETAIL_CORES[i % SALES_DETAIL_CORES.length] }));
+    const data = comCores(grouped);
     drawSimplePie('#eng-sales-uf-donut', '#eng-sales-uf-legend', data);
   }
 
   function drawSalesAnoChart(rows) {
     const grouped = salesGroupCount(rows, 'ano').map(d => ({ label: String(d.label), value: d.value })).sort((a, b) => a.label.localeCompare(b.label));
     document.getElementById('eng-sales-ano-note').textContent = `${grouped.length} ano(s).`;
-    drawVBarChart('#eng-sales-ano-bars', grouped, { height: 150, color: 'var(--eng-blue)', minBarSlot: 50 });
+    drawVBarChart('#eng-sales-ano-bars', grouped, { height: 150, minBarSlot: 50 });
   }
 
+  // Valor abreviado para rótulo de barra: 535408 vira "535 mil"; 1250000 vira "1,3 mi".
+  const VALOR_CURTO = v => v >= 1e6 ? (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi' : v >= 1e3 ? Math.round(v / 1e3).toLocaleString('pt-BR') + ' mil' : v.toLocaleString('pt-BR');
   function drawSalesVendaMensalChart(rows) {
     const mRows = rows.filter(r => r.ano && r.mes);
     const byMonth = new Map();
@@ -2287,7 +2314,7 @@ body {
     const data = todos.slice(-12);
     document.getElementById('eng-sales-venda-mensal-note').textContent = todos.length > 12 ? `últimos 12 de ${todos.length} mês(es).` : `${todos.length} mês(es).`;
     drawVBarChart('#eng-sales-venda-mensal-bars', data, {
-      height: 150, color: 'var(--eng-teal)', minBarSlot: 60,
+      height: 150, minBarSlot: 40, valueFormat: VALOR_CURTO,
       tooltip: d => `<strong>${escHtml(d.label)}</strong><br>${BRL.format(d.value)}`
     });
   }
@@ -2311,7 +2338,7 @@ body {
           <span class="eng-rank-label">${escHtml(d.label)}</span>
           <span class="eng-rank-value">${d.count.toLocaleString('pt-BR')}</span>
         </div>
-        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.count / maxVal) * 100, 2)}%; background: var(--eng-purple);"></div></div>
+        <div class="eng-rank-track"><div class="eng-rank-fill" style="width:${Math.max((d.count / maxVal) * 100, 2)}%"></div></div>
       </div>
     `).join('');
   }
@@ -2365,7 +2392,7 @@ body {
     const ranking = Array.from(porUf.values()).sort((a, b) => valorDe(b) - valorDe(a));
     const top = new Set(ranking.slice(0, 5).map(d => d.uf));
     // Intensidade por raiz quadrada: um estado gigante não apaga os pequenos.
-    const cor = d => d ? 'color-mix(in srgb, var(--eng-teal) ' + Math.round(14 + 86 * Math.sqrt(valorDe(d) / maximo)) + '%, var(--color-bg))' : 'color-mix(in srgb, var(--color-fg-muted) 22%, var(--color-bg))';
+    const cor = d => d ? 'color-mix(in srgb, var(--icf-mag) ' + Math.round(14 + 86 * Math.sqrt(valorDe(d) / maximo)) + '%, var(--color-bg))' : 'color-mix(in srgb, var(--color-fg-muted) 22%, var(--color-bg))';
     svg.innerHTML = mapa.ufs.map(c => {
       const d = porUf.get(c.uf);
       const dica = d ? '<strong>' + escHtml(UF_NOMES[c.uf] || c.uf) + '</strong><br>' + d.qtd.toLocaleString('pt-BR') + ' venda(s)<br>' + pct(valorDe(d)) + ' das vendas'
@@ -2374,9 +2401,10 @@ body {
     }).join('') + mapa.ufs.map(c => {
       const d = porUf.get(c.uf);
       if (d && ES_UF_CHAMADA.has(c.uf)) return ''; // estados pequenos do litoral: a quantidade vai numa chamada ao lado
-      const classe = (d ? '' : 'es-mapa-sem ') + (ES_UF_PEQUENAS.has(c.uf) ? 'es-mapa-peq' : '');
+      const escuro = d && Math.sqrt(valorDe(d) / maximo) > 0.55 ? 'es-mapa-claro ' : '';
+      const classe = escuro + (d ? '' : 'es-mapa-sem ') + (ES_UF_PEQUENAS.has(c.uf) ? 'es-mapa-peq' : '');
       return '<text class="' + classe.trim() + '" x="' + c.cx + '" y="' + (d ? c.cy - 2 : c.cy + 4) + '">' + c.uf + '</text>' +
-        (d ? '<text class="es-mapa-valor' + (ES_UF_PEQUENAS.has(c.uf) ? ' es-mapa-peq' : '') + '" x="' + c.cx + '" y="' + (c.cy + 13) + '">' + escHtml(fmt(valorDe(d))) + '</text>' : '');
+        (d ? '<text class="es-mapa-valor ' + escuro + (ES_UF_PEQUENAS.has(c.uf) ? ' es-mapa-peq' : '') + '" x="' + c.cx + '" y="' + (c.cy + 13) + '">' + escHtml(fmt(valorDe(d))) + '</text>' : '');
     }).join('') + (() => {
       // Chamadas à direita do mapa, de cima para baixo, sem se sobrepor.
       let yAnterior = -Infinity;

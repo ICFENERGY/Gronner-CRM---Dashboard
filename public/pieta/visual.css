@@ -1,0 +1,108 @@
+/* ---------------------------------------------------------------
+   Pieta: camada visual do sistema ICF (carregada depois dos estilos da
+   página). Mesmos cartões, filtros, KPIs e tabelas das outras abas;
+   as cores e medidas vêm de /ui/icf.css.
+   ------------------------------------------------------------------ */
+:root:root {
+  --bg: var(--icf-bg); --bg2: var(--icf-inset); --card: var(--icf-surface); --card-hi: var(--icf-inset);
+  --border: var(--icf-line); --fg: var(--icf-ink); --muted: var(--icf-ink-3); --muted-2: var(--icf-ink-3);
+  --accent: var(--icf-brand-ink); --good: var(--icf-ok); --bad: var(--icf-bad); --warn: var(--icf-warn);
+  --font-display: var(--icf-font); --font-serif: var(--icf-font); --font-body: var(--icf-font); --font-mono: var(--icf-font);
+}
+body { font-size: 14px; }
+svg text { font-family: var(--icf-font); font-variant-numeric: tabular-nums; }
+html.embed body { padding-left: 4px; padding-right: 4px; }
+
+header.top { margin-bottom: 14px; }
+.pulse, .meta { font-size: 12px; letter-spacing: 0; color: var(--icf-ink-3); }
+
+/* ---------- Filtros ---------- */
+.filters {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; align-items: end;
+  padding: 16px 18px; margin-bottom: 10px; background: var(--icf-surface); border: 1px solid var(--icf-line); border-radius: var(--icf-radius); box-shadow: var(--icf-shadow);
+}
+.filter-field { min-width: 0; gap: 5px; }
+.filter-field label { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--icf-ink-3); }
+.filter-field select, .multiselect-btn {
+  width: 100%; min-width: 0; height: 36px; padding: 0 10px; font-size: 13px;
+  border-radius: var(--icf-radius-s); border: 1px solid var(--icf-line-strong); background: var(--icf-surface); color: var(--icf-ink);
+}
+.multiselect-btn { padding-right: 28px; }
+.filter-field select:hover, .multiselect-btn:hover { border-color: var(--icf-brand); }
+.filter-field select:focus, .multiselect-btn:focus { outline: none; border-color: var(--icf-brand); box-shadow: 0 0 0 3px var(--icf-brand-soft); }
+.multiselect-menu { border-radius: 10px; box-shadow: var(--icf-shadow); }
+#clearFilters {
+  justify-self: start; height: 36px; padding: 0 14px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  border-radius: var(--icf-radius-s); border: 1px solid var(--icf-line-strong); background: var(--icf-surface); color: var(--icf-ink-2);
+}
+#clearFilters:hover { border-color: var(--icf-brand); color: var(--icf-ink); }
+#filterSummary { margin: 0 0 14px; font-size: 12px; }
+
+/* ---------- KPIs ---------- */
+.kpis { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 16px; }
+.kpi {
+  --bar: var(--icf-mag); container-type: inline-size; display: flex; flex-direction: column; gap: 4px;
+  padding: 16px 18px; border: 1px solid var(--icf-line); border-radius: var(--icf-radius); box-shadow: var(--icf-shadow);
+}
+.kpi::before { display: none; }
+.kpi.total { --bar: var(--icf-brand); }
+.kpi.open { --bar: var(--icf-warn); }
+.kpi.good { --bar: var(--icf-ok); }
+.kpi.bad { --bar: var(--icf-bad); }
+.kpi .lbl { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: var(--icf-ink-3); }
+.kpi .lbl::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--bar); }
+/* O número fica na cor do texto; a cor do estado está no ponto do rótulo. */
+.kpi .val, .kpi.open .val, .kpi.good .val, .kpi.bad .val { font-size: clamp(16px, 11cqi, 27px); font-weight: 700; letter-spacing: -0.015em; line-height: 1.2; color: var(--icf-ink); }
+.kpi .sub { margin: 0; font-size: 12px; color: var(--icf-ink-3); }
+@media (max-width: 1000px) {
+  .kpis { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:first-child:nth-last-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 440px) { .kpis { grid-template-columns: 1fr; } }
+
+/* ---------- Painéis e grade ---------- */
+.grid { grid-template-columns: minmax(300px, 30%) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+@media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+.col { gap: 16px; }
+.col > .panel:last-child { flex: 1; display: flex; flex-direction: column; }
+/* A tabela de clientes rola por dentro para as duas colunas terminarem na mesma linha. */
+.rolagem-clientes { flex: 1 1 0; min-height: 420px; overflow: auto; }
+.rolagem-clientes thead th { position: sticky; top: 0; z-index: 1; }
+/* Equipamentos (placas, inversores, microinversores): três colunas iguais. */
+.equip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 16px; align-items: stretch; }
+@media (max-width: 980px) { .equip { grid-template-columns: 1fr; } }
+.equip .stage-list { max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.equip + .panel { margin-top: 16px !important; }
+.panel { padding: 20px; border: 1px solid var(--icf-line); border-radius: var(--icf-radius); box-shadow: var(--icf-shadow); }
+.panel h2 { font-size: 15px; font-weight: 650; letter-spacing: -0.005em; }
+.panel .hint { font-size: 12px; }
+.panel-head { align-items: center; margin-bottom: 16px; }
+.count-badge { font-size: 12px; font-weight: 600; color: var(--icf-ink-2); background: var(--icf-inset); border-color: var(--icf-line); padding: 3px 10px; }
+@media (max-width: 560px) { .panel { padding: 16px; } }
+
+.gauge-num .pct { font-weight: 700; letter-spacing: -0.02em; }
+.gauge-num .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; }
+.sw { width: 10px; height: 10px; border-radius: 3px; }
+
+/* ---------- Listas com barra (etapas, placas, inversores): uma cor só, é quantidade ---------- */
+.stage-list { gap: 12px; }
+.stage-row { font-size: 13px; }
+.stage-qtde { font-size: 13px; font-weight: 650; color: var(--icf-ink); }
+.stage-track { display: block; height: 8px; border: 0; border-radius: 4px; background: var(--icf-inset); }
+.stage-fill, .stage-fill.ok { display: block; min-width: 3px; background: var(--icf-mag); border-radius: 4px; }
+
+/* ---------- Tabelas ---------- */
+table { font-size: 13px; }
+thead th { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--icf-ink-3); background: var(--icf-inset); padding: 10px 12px; border-bottom: 0; }
+thead th:first-child { border-radius: 8px 0 0 8px; }
+thead th:last-child { border-radius: 0 8px 8px 0; }
+tbody td { padding: 10px 12px; }
+tbody tr:not(.group-row):hover td { background: var(--icf-inset); }
+.group-row td { background: transparent; padding: 14px 12px 6px; border-bottom: 1px solid var(--icf-line); }
+.group-count { font-size: 12px; }
+/* Etapa em andamento: etiqueta neutra. Só a etapa concluída ganha cor. */
+.pill { font-size: 12px; font-weight: 600; padding: 3px 10px; background: var(--icf-inset); color: var(--icf-ink-2); border: 1px solid var(--icf-line); white-space: nowrap; }
+.pill.ok { background: var(--good-bg); color: var(--icf-ok); border-color: transparent; }
+
+footer { font-size: 12px; }
+.aviso { border-radius: var(--icf-radius-s); }

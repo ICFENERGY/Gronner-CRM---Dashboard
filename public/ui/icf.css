@@ -1,0 +1,122 @@
+/* ---------------------------------------------------------------
+   Sistema visual ICF Energy: cores, superfícies e medidas compartilhadas
+   pelas páginas estáticas do painel (/indicadores e /pieta).
+   A aba Usinas (React) usa os mesmos valores em src/styles.css.
+
+   Regras de cor dos gráficos:
+   - --icf-mag: uma série só (quantidade, valor). Sempre a mesma cor.
+   - --icf-ok / --icf-warn / --icf-bad: reservadas para estado (SLA, farol).
+   - --cat-1..8: categorias, sempre nesta ordem; a nona em diante usa --cat-outros.
+     Paleta conferida com o validador da skill de dataviz (claro e escuro).
+   ------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+  --icf-bg: #f2f5f7;
+  --icf-surface: #ffffff;
+  --icf-inset: #f5f7f9;
+  --icf-line: #e3e8ed;
+  --icf-line-strong: #c8d1da;
+  --icf-ink: #132d46;
+  --icf-ink-2: #45596d;
+  --icf-ink-3: #64768a;
+  --icf-brand: #01c38e;
+  --icf-brand-ink: #00805f;
+  --icf-brand-soft: rgba(1, 195, 142, 0.12);
+  --icf-chip-bg: #132d46;
+  --icf-chip-ink: #ffffff;
+  --icf-mag: #2a78d6;
+  --icf-mag-soft: rgba(42, 120, 214, 0.12);
+  --icf-ok: #14a05c;
+  --icf-warn: #d9822b;
+  --icf-bad: #d9455a;
+  --icf-neutral: #8a97a5;
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #01b384;
+  --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-6: #008300;
+  --cat-7: #6250d6;
+  --cat-8: #e34948;
+  --cat-outros: #aab5c0;
+  --icf-shadow: 0 1px 2px rgba(19, 45, 70, 0.06), 0 6px 20px rgba(19, 45, 70, 0.05);
+  --icf-radius: 14px;
+  --icf-radius-s: 9px;
+  --icf-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --icf-bg: #132d46;
+    --icf-surface: #1b3b5c;
+    --icf-inset: #173553;
+    --icf-line: #2b4c6c;
+    --icf-line-strong: #41668a;
+    --icf-ink: #f4f4f4;
+    --icf-ink-2: #bccad6;
+    --icf-ink-3: #9fb2c3;
+    --icf-brand-ink: #01c38e;
+    --icf-brand-soft: rgba(1, 195, 142, 0.16);
+    --icf-chip-bg: #01c38e;
+    --icf-chip-ink: #0b2233;
+    --icf-mag: #5aa0e8;
+    --icf-mag-soft: rgba(90, 160, 232, 0.18);
+    --icf-ok: #2fbf71;
+    --icf-warn: #f2a74b;
+    --icf-bad: #ef6a7a;
+    --icf-neutral: #8ea2b5;
+    --cat-1: #3987e5;
+    --cat-2: #d95926;
+    --cat-3: #199e70;
+    --cat-4: #c98500;
+    --cat-5: #d55181;
+    --cat-6: #008300;
+    --cat-7: #9085e9;
+    --cat-8: #e66767;
+    --cat-outros: #5f7a94;
+    --icf-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 6px 20px rgba(0, 0, 0, 0.18);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --icf-bg: #132d46;
+  --icf-surface: #1b3b5c;
+  --icf-inset: #173553;
+  --icf-line: #2b4c6c;
+  --icf-line-strong: #41668a;
+  --icf-ink: #f4f4f4;
+  --icf-ink-2: #bccad6;
+  --icf-ink-3: #9fb2c3;
+  --icf-brand-ink: #01c38e;
+  --icf-brand-soft: rgba(1, 195, 142, 0.16);
+  --icf-chip-bg: #01c38e;
+  --icf-chip-ink: #0b2233;
+  --icf-mag: #5aa0e8;
+  --icf-mag-soft: rgba(90, 160, 232, 0.18);
+  --icf-ok: #2fbf71;
+  --icf-warn: #f2a74b;
+  --icf-bad: #ef6a7a;
+  --icf-neutral: #8ea2b5;
+  --cat-1: #3987e5;
+  --cat-2: #d95926;
+  --cat-3: #199e70;
+  --cat-4: #c98500;
+  --cat-5: #d55181;
+  --cat-6: #008300;
+  --cat-7: #9085e9;
+  --cat-8: #e66767;
+  --cat-outros: #5f7a94;
+  --icf-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+body {
+  font-family: var(--icf-font);
+  background: var(--icf-bg);
+  color: var(--icf-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+:focus-visible { outline: 2px solid var(--icf-brand); outline-offset: 2px; }
+/* Barras de rolagem discretas nas listas com rolagem interna. */
+* { scrollbar-width: thin; scrollbar-color: var(--icf-line-strong) transparent; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
