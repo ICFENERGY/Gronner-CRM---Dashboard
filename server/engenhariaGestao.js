@@ -96,6 +96,11 @@ const arredonda = (n) => Math.round(n * 10) / 10
  * Diagnóstico de um card (linha de /cards) em um funil de engenharia, ou null se o funil não é de engenharia.
  * @param prazos tabela de prazo por etapa (sla-etapas.json); prevalece sobre o prazo do manual
  */
+function ordemDaEtapa(funil, etapa) {
+  const i = (ENG_ETAPAS[funil] ?? []).findIndex((e) => semAcento(e) === semAcento(etapa))
+  return i < 0 ? 99 : i
+}
+
 export function diagnosticarCard(card, { prazos = {} } = {}) {
   const funil = numeroFunil(card.funil)
   if (!funil || !ENG_ETAPAS[funil] || foraDaEngenharia(card.funil, card.etapa)) return null
@@ -143,6 +148,8 @@ export function diagnosticarCard(card, { prazos = {} } = {}) {
     funil,
     funilNome: NOMES_FUNIL[funil],
     etapa,
+    // Posição da etapa no fluxo do funil (a tela agrupa por funil e etapa nessa ordem); 99 se a etapa não está na lista.
+    ordemEtapa: ordemDaEtapa(funil, etapa),
     nome: card.nome ?? null,
     cidade: card.cidade ?? null,
     uf: card.uf ?? null,

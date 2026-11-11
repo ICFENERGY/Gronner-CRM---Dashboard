@@ -7,8 +7,7 @@
 (function () {
   var BASE = '/api/indicadores/engenharia';
   var CHAVE_CODIGO = 'indicadores-metas-codigo';
-  var POR_PAGINA = 40;
-  var S = { usuarios: [], salvando: {}, dados: null, carregando: false, erro: null, abertos: {}, pagina: 1, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
+  var S = { usuarios: [], salvando: {}, dados: null, carregando: false, erro: null, abertos: {}, grupos: {}, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
   var MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   var BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
   var ROTULO = { late: 'Atrasado', risk: 'Em risco', cobrar: 'Cobrar', ok: 'No prazo', repouso: 'Repouso' };
@@ -26,9 +25,23 @@
     var st = document.createElement('style');
     st.id = 'gestao-css';
     st.textContent = [
-      '.ge-lista { border: 1px solid var(--color-border-line); border-radius: 12px; background: var(--color-panel); overflow: hidden; }',
+      '.ge-lista { display: grid; gap: 14px; }',
+      '.ge-funil { border: 1px solid var(--color-border-line); border-radius: 12px; background: var(--color-panel); overflow: hidden; }',
+      '.ge-gh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }',
+      '.ge-fh { padding: 13px 16px; background: var(--color-bg); font-size: 15px; font-weight: 700; }',
+      '.ge-eh { padding: 10px 16px 10px 28px; font-size: 13px; font-weight: 650; border-top: 1px solid var(--color-border-line); }',
+      '.ge-gh:hover { background: color-mix(in srgb, var(--eng-teal) 8%, transparent); }',
+      '.ge-gh .ge-chev { transform: rotate(90deg); }',
+      '.ge-gh[aria-expanded="false"] .ge-chev { transform: none; }',
+      '.ge-gtit { flex: 1 1 auto; min-width: 0; }',
+      '.ge-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; font-weight: 600; }',
+      '.ge-chip { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--eng-gray) 18%, transparent); color: var(--color-fg-muted); white-space: nowrap; }',
+      '.ge-chip.late { background: color-mix(in srgb, var(--eng-red) 16%, transparent); color: var(--eng-red); }',
+      '.ge-chip.risk { background: color-mix(in srgb, var(--eng-orange) 18%, transparent); color: var(--eng-orange); }',
+      '.ge-chip.cobrar { background: color-mix(in srgb, var(--eng-purple) 18%, transparent); color: var(--eng-purple); }',
+      '.ge-sit { padding: 7px 16px 7px 44px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--color-fg-muted); background: color-mix(in srgb, var(--color-bg) 60%, transparent); border-top: 1px solid var(--color-border-line); }',
       '.ge-item { border-top: 1px solid var(--color-border-line); }',
-      '.ge-item:first-child { border-top: 0; }',
+      '.ge-sit + .ge-item { border-top: 0; }',
       '.ge-linha { display: grid; grid-template-columns: 76px minmax(0,1.1fr) minmax(0,2fr) minmax(0,1.4fr) 18px; gap: 14px; align-items: center; width: 100%; padding: 11px 14px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }',
       '.ge-linha:hover { background: color-mix(in srgb, var(--eng-teal) 8%, transparent); }',
       '.ge-cod { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; }',
@@ -58,6 +71,7 @@
       '.ge-btn.prim { background: var(--eng-teal); border-color: var(--eng-teal); color: #08261f; }',
       '.ge-vazio { padding: 26px 16px; text-align: center; color: var(--color-fg-muted); }',
       '.ge-aviso { font-size: 12px; color: var(--color-fg-muted); }',
+      '@media (max-width: 700px) { .ge-eh, .ge-sit { padding-left: 16px; } .ge-chips { margin-left: 0; } }',
       '@media (max-width: 900px) { .ge-linha { grid-template-columns: 70px minmax(0,1fr) 18px; } .ge-linha > :nth-child(3), .ge-linha > :nth-child(4) { grid-column: 2 / 3; } .ge-det { grid-template-columns: 1fr; padding-left: 14px; } }'
     ].join('\n');
     document.head.appendChild(st);
@@ -129,6 +143,41 @@
       '</div></section>';
   }
 
+  // Funil → etapa → situação. Funis e etapas na ordem do fluxo; dentro da etapa, cada card fica sob a situação dele.
+  var ORDEM_SIT = ['late', 'risk', 'cobrar', 'ok', 'repouso'];
+  var ROTULO_SIT = { late: 'Atrasados', risk: 'Em risco', cobrar: 'Cobrança vencida', ok: 'No prazo', repouso: 'Estoque a limpar' };
+  function chips(itens) {
+    var c = { late: 0, risk: 0, cobrar: 0 };
+    itens.forEach(function (i) { if (c[i.status] != null) c[i.status]++; });
+    return '<span class="ge-chips"><span class="ge-chip">' + itens.length.toLocaleString('pt-BR') + ' card(s)</span>' +
+      ['late', 'risk', 'cobrar'].filter(function (s) { return c[s]; }).map(function (s) { return '<span class="ge-chip ' + s + '">' + c[s].toLocaleString('pt-BR') + ' ' + { late: 'atrasado(s)', risk: 'em risco', cobrar: 'a cobrar' }[s] + '</span>'; }).join('') + '</span>';
+  }
+  // Abertos por padrão; com muitos cards (filtro "Todos") tudo começa recolhido para a página não pesar.
+  function grupoAberto(k, total) { return k in S.grupos ? S.grupos[k] : total <= 300; }
+  function agrupados(lista) {
+    var funis = {};
+    lista.forEach(function (i) { (funis[i.funil] = funis[i.funil] || []).push(i); });
+    return Object.keys(funis).sort().map(function (fk) {
+      var doFunil = funis[fk], kf = 'f:' + fk, abertoF = grupoAberto(kf, lista.length);
+      var h = '<section class="ge-funil"><button type="button" class="ge-gh ge-fh" data-g="' + kf + '" aria-expanded="' + abertoF + '"><span class="ge-chev" aria-hidden="true">›</span><span class="ge-gtit">' + fk + ' · ' + esc(doFunil[0].funilNome) + '</span>' + chips(doFunil) + '</button>';
+      if (abertoF) {
+        var etapas = {};
+        doFunil.forEach(function (i) { (etapas[i.etapa] = etapas[i.etapa] || []).push(i); });
+        Object.keys(etapas).sort(function (a, b) { return (etapas[a][0].ordemEtapa - etapas[b][0].ordemEtapa) || a.localeCompare(b, 'pt-BR'); }).forEach(function (ek) {
+          var daEtapa = etapas[ek], ke = 'e:' + fk + ':' + ek, abertoE = grupoAberto(ke, lista.length);
+          h += '<button type="button" class="ge-gh ge-eh" data-g="' + esc(ke) + '" aria-expanded="' + abertoE + '"><span class="ge-chev" aria-hidden="true">›</span><span class="ge-gtit">' + esc(ek) + '</span>' + chips(daEtapa) + '</button>';
+          if (abertoE) {
+            ORDEM_SIT.forEach(function (s) {
+              var cards = daEtapa.filter(function (i) { return i.status === s; });
+              if (cards.length) h += '<div class="ge-sit">' + ROTULO_SIT[s] + ' · ' + cards.length.toLocaleString('pt-BR') + '</div>' + cards.map(linha).join('');
+            });
+          }
+        });
+      }
+      return h + '</section>';
+    }).join('');
+  }
+
   function linha(i) {
     var a = i.acao, aberto = !!S.abertos[chave(i)];
     var acao = a
@@ -185,12 +234,11 @@
     if (!el) return;
     if (S.erro && !S.dados) { el.innerHTML = '<div class="eng-panel"><div class="ge-vazio">Não foi possível carregar a gestão da Engenharia: ' + esc(S.erro) + '</div></div>'; return; }
     if (!S.dados) { el.innerHTML = '<div class="eng-panel"><div class="ge-vazio">Carregando os cards da Engenharia…</div></div>'; return; }
-    var lista = filtrados(), parte = lista.slice(0, S.pagina * POR_PAGINA);
+    var lista = filtrados();
     var foco = document.activeElement && document.activeElement.id;
     el.innerHTML = cabecalho() +
       '<section class="eng-panel"><div class="eng-panel-head"><h2>Cards da Engenharia: problema e plano de ação</h2><span class="eng-panel-note">' + lista.length.toLocaleString('pt-BR') + ' card(s)' + (S.dados.atualizadoEm ? ' · base de ' + new Date(S.dados.atualizadoEm).toLocaleString('pt-BR') : '') + '</span></div>' +
-      (parte.length ? '<div class="ge-lista">' + parte.map(linha).join('') + '</div>' : '<div class="ge-vazio">Nenhum card neste filtro.</div>') +
-      (lista.length > parte.length ? '<button id="ge-mais" class="ge-btn" style="margin-top:10px">Mostrar mais (' + (lista.length - parte.length) + ' restantes)</button>' : '') +
+      (lista.length ? '<div class="ge-lista">' + agrupados(lista) + '</div>' : '<div class="ge-vazio">Nenhum card neste filtro.</div>') +
       '</section>';
     ligar(el);
     if (foco === 'ge-busca') { var b = document.getElementById('ge-busca'); if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }
@@ -214,15 +262,17 @@
 
   function ligar(el) {
     var q = function (id) { return document.getElementById(id); };
-    q('ge-busca').oninput = function () { S.f.busca = this.value; S.pagina = 1; desenhar(); };
-    q('ge-funil').onchange = function () { S.f.funil = this.value; S.f.etapa = 'all'; S.pagina = 1; desenhar(); };
-    q('ge-etapa').onchange = function () { S.f.etapa = this.value; S.pagina = 1; desenhar(); };
-    q('ge-ano').onchange = function () { S.f.ano = this.value; S.pagina = 1; desenhar(); };
-    q('ge-mes').onchange = function () { S.f.mes = this.value; S.pagina = 1; desenhar(); };
-    q('ge-sit').onchange = function () { S.f.situacao = this.value; S.pagina = 1; desenhar(); };
-    q('ge-sem').onchange = function () { S.f.semAcao = this.checked; S.pagina = 1; desenhar(); };
+    q('ge-busca').oninput = function () { S.f.busca = this.value; desenhar(); };
+    q('ge-funil').onchange = function () { S.f.funil = this.value; S.f.etapa = 'all'; desenhar(); };
+    q('ge-etapa').onchange = function () { S.f.etapa = this.value; desenhar(); };
+    q('ge-ano').onchange = function () { S.f.ano = this.value; desenhar(); };
+    q('ge-mes').onchange = function () { S.f.mes = this.value; desenhar(); };
+    q('ge-sit').onchange = function () { S.f.situacao = this.value; desenhar(); };
+    q('ge-sem').onchange = function () { S.f.semAcao = this.checked; desenhar(); };
     q('ge-atualizar').onclick = function () { carregar(true); };
-    if (q('ge-mais')) q('ge-mais').onclick = function () { S.pagina++; desenhar(); };
+    el.querySelectorAll('.ge-gh').forEach(function (b) {
+      b.onclick = function () { S.grupos[b.dataset.g] = b.getAttribute('aria-expanded') !== 'true'; desenhar(); };
+    });
     el.querySelectorAll('.ge-linha').forEach(function (b) {
       b.onclick = function () { var k = b.dataset.k; if (S.abertos[k]) delete S.abertos[k]; else S.abertos[k] = true; desenhar(); };
     });
