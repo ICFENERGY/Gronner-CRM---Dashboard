@@ -123,6 +123,22 @@ function prazoDaEtapa(prazos, funil, etapa) {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
+/**
+ * Tempo e atraso de um funil do card, na regra do Groner (a etiqueta vermelha "+3d 1h 39m" do quadro):
+ * dias desde a entrada na ETAPA menos o prazo da etapa. Os contadores do Groner (tempoMin/atrasoMin) medem o funil
+ * inteiro e vêm zerados em parte dos cards, então só valem quando a data de entrada ou o prazo da etapa não existem.
+ * @returns {{ dias: number|null, atraso: number|null }} atraso em dias (0 = no prazo); null = sem como calcular
+ */
+export function tempoDoFluxo(f, { agora = Date.now(), prazos = {} } = {}) {
+  const desde = instante(f?.entradaEm)
+  const prazo = prazoDaEtapa(prazos, f?.funil, f?.etapa)
+  const diasContador = f?.tempoMin == null ? null : f.tempoMin / 1440
+  const atrasoContador = f?.atrasoMin == null ? null : f.atrasoMin / 1440
+  if (desde == null) return { dias: diasContador, atraso: atrasoContador }
+  const dias = Math.max(0, (agora - desde) / DIA_MS)
+  return { dias, atraso: prazo == null ? atrasoContador : Math.max(0, dias - prazo) }
+}
+
 function tempoNoStatus(p, agora) {
   const desde = instante(p.dataEntradaStatus)
   return desde == null ? null : Math.max(0, (agora - desde) / DIA_MS)
@@ -168,10 +184,10 @@ export function engResumosDoProjeto(p, { agora = Date.now(), prazos = {} } = {})
     return fluxos.flatMap((f) => {
       const funil = numeroFunil(f.funil)
       if (!funil || !ENG_ETAPAS[funil]) return []
-      const dias = f.tempoMin == null ? null : f.tempoMin / 1440
+      const { dias, atraso } = tempoDoFluxo(f, { agora, prazos })
       return [{
         codigo: `#${p.id}`, funil, etapa: etapaEngenharia(funil, f.etapa), nome: texto(p.nome), cliente: null,
-        valor: valorDoCard(p), atraso: f.atrasoMin == null ? null : f.atrasoMin > 0 ? 1 : 0,
+        valor: valorDoCard(p), atraso: atraso == null ? null : atraso > 0 ? 1 : 0,
         tempoCard: formatarTempoCard(dias), cidade: texto(p.cidade), uf: texto(p.estado),
       }]
     })
@@ -253,13 +269,12 @@ export function cardsDoProjeto(p, opcoes) {
   const base = cardDoProjeto(p, opcoes)
   const fluxos = Array.isArray(p.fluxos) ? p.fluxos : []
   if (!fluxos.length) return [base]
-  return fluxos.map((f) => ({
-    ...base,
-    funil: texto(f.funil),
-    etapa: texto(f.etapa),
-    diasFluxo: f.tempoMin == null ? base.diasFluxo : f.tempoMin / 1440,
-    atraso: f.atrasoMin == null ? base.atraso : f.atrasoMin / 1440,
-  }))
+  return fluxos.map((f) => {
+    // A regra da etapa vale só nos funis da Engenharia; nos demais segue o contador do Groner (ainda não conferido ali).
+    const eng = Boolean(ENG_ETAPAS[numeroFunil(f.funil)])
+    const { dias, atraso } = eng ? tempoDoFluxo(f, opcoes) : { dias: f.tempoMin == null ? null : f.tempoMin / 1440, atraso: f.atrasoMin == null ? null : f.atrasoMin / 1440 }
+    return { ...base, funil: texto(f.funil), etapa: texto(f.etapa), diasFluxo: dias ?? base.diasFluxo, atraso: atraso ?? base.atraso }
+  })
 }
 
 export function montarCards(projetos, opcoes) {

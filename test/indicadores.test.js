@@ -256,10 +256,11 @@ test('um card em vários funis vira uma linha por funil, com tempo e atraso do p
   }
   const fluxos = fluxosDoProjeto(p)
   assert.equal(fluxos.length, 2)
-  const cards = montarCards([{ id: 1, nome: 'X', funil: '06. CONTRATO', etapa: 'VENDA REALIZADA', fluxos }])
+  // O tempo vem da entrada na etapa (entradaColunaEm), não do contador do funil: 2 dias depois de 19/05 18:58 (-03:00).
+  const cards = montarCards([{ id: 1, nome: 'X', funil: '06. CONTRATO', etapa: 'VENDA REALIZADA', fluxos }], { agora: Date.parse('2026-05-21T21:58:06Z') })
   assert.equal(cards.length, 2)
   const contrato = cards.find((c) => c.funil === '06. CONTRATO')
-  assert.equal(contrato.diasFluxo, 2)
+  assert.ok(Math.abs(contrato.diasFluxo - 2) < 0.01)
   assert.equal(contrato.atraso, 1)
   assert.equal(cards.find((c) => c.funil === '12. POS VENDA CLIENTE').atraso, 0)
 })
