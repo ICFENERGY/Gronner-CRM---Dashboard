@@ -15,8 +15,8 @@
  *
  * Testes injetam `executar(texto, parametros, { signal })` (por exemplo, o PGlite).
  */
-import { readFileSync } from 'node:fs'
 import { neon } from '@neondatabase/serverless'
+import { CA_SUPABASE } from './dbCa.js'
 
 export const TABELA = 'DASHBOARD-GRONNER-CRM'
 
@@ -76,13 +76,12 @@ function executorNeon(url) {
 export const ehNeon = (url) => /(^|\.)neon\.tech(:|\/|$)/i.test(new URL(url).host + '/')
 
 /**
- * Certificado da CA do Postgres (PEM), se houver: DB_CA_CERT (o texto do certificado) ou o arquivo
- * server/data/db-ca.pem. É um certificado PÚBLICO (o do Supabase baixa-se em Database > Settings > SSL),
- * usado para VALIDAR o servidor. Sem ele vale o repositório de confiança padrão do Node.
+ * Certificado da CA do Postgres (PEM): DB_CA_CERT (o texto do certificado) tem prioridade; senão o da CA raiz do Supabase,
+ * embutido em server/dbCa.js. É um certificado PÚBLICO, usado para VALIDAR o servidor (a validação nunca é desligada).
  */
 function certificadoCa(env = process.env) {
   if (env.DB_CA_CERT) return String(env.DB_CA_CERT).replace(/\\n/g, '\n')
-  try { return readFileSync(new URL('./data/db-ca.pem', import.meta.url), 'utf8') } catch { return undefined }
+  return CA_SUPABASE
 }
 
 /**
@@ -142,7 +141,10 @@ export function createPgSql({
         return Array.isArray(resultado) ? resultado : resultado?.rows ?? []
       } catch (err) {
         ultimo = converterErro(err)
-        if (!ultimo.retentavel) throw ultimo
+        if (!ultimo.retentavel) {
+          log('[postgres] erro sem nova tentativa:', ultimo.causa ?? ultimo.message) // só o código do erro, nunca a conexão
+          throw ultimo
+        }
       }
       if (n < tentativas) await dormir(esperaRetentativaMs * 2 ** (n - 1))
     }
