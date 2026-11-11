@@ -1,0 +1,35 @@
+name: carga-projetos
+
+# Recarrega a lista completa de projetos do Groner no banco do painel (só a listagem, sem detalhe por card).
+# Serve para refazer a lista de funis de cada card depois de uma mudança na regra de montagem.
+# Roda só quando disparado à mão (Actions > carga-projetos > Run workflow). Seguro repetir: só grava o que mudou.
+# Ritmo das chamadas ao Groner: o mesmo das cargas locais (limite: ~20 pedidos por 1,5 s).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: carga-projetos
+  cancel-in-progress: false
+
+jobs:
+  projetos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DB_SCHEMA: groner_painel
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      GRONER_TENANT: ${{ secrets.GRONER_TENANT }}
+      GRONER_TOKEN: ${{ secrets.GRONER_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Recarregar os projetos
+        run: node scripts/carga-completa.mjs projetos
+        env:
+          CARGA_SEM_DETALHE: '1'
+      - name: Conferir as contagens no banco
+        run: node scripts/conferir-db.mjs

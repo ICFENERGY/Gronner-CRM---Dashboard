@@ -336,6 +336,23 @@ export function fluxosDoProjeto(p) {
       atrasoMin: Number.isFinite(c?.atrasoFluxoMinutos) ? c.atrasoFluxoMinutos : null,
     })
   }
+  // Posição PRINCIPAL do card (etapa e status do cadastro). O quadro de funis do Groner conta o card também no funil
+  // dela, mesmo quando statusAtuais mostra só outro funil (ex.: principal 01. OUTBOUND / PROSPECÇÃO e atual 03. INBOUND).
+  // Sem isto o card some do funil principal e a contagem por funil fica abaixo da do Groner.
+  const funilPrincipal = typeof p.etapa === 'string' ? p.etapa.trim() : ''
+  const statusPrincipal = typeof p.status?.nome === 'string' ? p.status.nome.trim() : ''
+  if (funilPrincipal && statusPrincipal && !saida.some((x) => String(x.funil).trim() === funilPrincipal)) {
+    const idEtapa = p.etapaId ?? p.status?.etapaId
+    const idStatus = p.status?.id ?? p.statusId
+    const c = contadores.find((x) => x?.etapaId === idEtapa && x?.statusId === idStatus)
+    saida.push({
+      funil: funilPrincipal,
+      etapa: statusPrincipal,
+      entradaEm: dataGronerValida(c?.entradaColunaEm),
+      tempoMin: Number.isFinite(c?.tempoFluxoMinutos) ? c.tempoFluxoMinutos : null,
+      atrasoMin: Number.isFinite(c?.atrasoFluxoMinutos) ? c.atrasoFluxoMinutos : null,
+    })
+  }
   return saida
 }
 

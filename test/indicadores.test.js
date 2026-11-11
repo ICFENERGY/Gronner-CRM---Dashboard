@@ -263,3 +263,43 @@ test('um card em vários funis vira uma linha por funil, com tempo e atraso do p
   assert.equal(contrato.atraso, 1)
   assert.equal(cards.find((c) => c.funil === '12. POS VENDA CLIENTE').atraso, 0)
 })
+
+test('card com posição principal num funil e posições atuais em outro conta nos dois (como o quadro de funis do Groner)', async () => {
+  const { fluxosDoProjeto } = await import('../server/mappers.js')
+  const { montarCards } = await import('../server/indicadores.js')
+  // Caso real (card 67451): principal 01. OUTBOUND / PROSPECÇÃO; atual só 03. INBOUND / GRONERZAP.
+  const p = {
+    id: 67451, etapa: '01. FUNIL OUTBOUND 🎯', etapaId: 15, status: { id: 173, nome: 'PROSPECÇÃO ', etapaId: 15 }, statusId: 173,
+    statusAtuais: [{ projetoId: 67451, etapaId: 35, statusId: 225, nome: 'GRONERZAP ' }],
+    etapasAtuais: [{ id: 35, nome: '03. FUNIL INBOUND' }],
+    contadoresFluxo: [
+      { etapaId: 35, statusId: 225, entradaColunaEm: '2026-10-16T10:00:00', tempoFluxoMinutos: 100, atrasoFluxoMinutos: 0 },
+      { etapaId: 15, statusId: 173, entradaColunaEm: '2026-10-15T09:00:00', tempoFluxoMinutos: 5000, atrasoFluxoMinutos: 3000 },
+    ],
+  }
+  const fluxos = fluxosDoProjeto(p)
+  assert.deepEqual(fluxos.map((x) => x.funil), ['03. FUNIL INBOUND', '01. FUNIL OUTBOUND 🎯'])
+  assert.equal(fluxos[1].etapa, 'PROSPECÇÃO')
+  assert.equal(fluxos[1].tempoMin, 5000) // tempo e atraso vêm do contador do funil principal
+  assert.equal(fluxos[1].atrasoMin, 3000)
+
+  const linhas = montarCards([{ id: 67451, nome: 'X', fluxos }], { agora: Date.parse('2026-11-11T12:00:00Z'), prazos: {} })
+  assert.equal(linhas.length, 2)
+  assert.deepEqual(linhas.map((l) => l.funil).sort(), ['01. FUNIL OUTBOUND 🎯', '03. FUNIL INBOUND'])
+
+  // Principal já presente na lista atual: não duplica.
+  const igual = fluxosDoProjeto({
+    ...p, etapa: '03. FUNIL INBOUND', etapaId: 35, status: { id: 225, nome: 'GRONERZAP ', etapaId: 35 }, statusId: 225,
+  })
+  assert.equal(igual.length, 1)
+
+  // Sem posições atuais (lista vazia): o funil principal passa a ser a única linha, com o tempo dele.
+  const so = fluxosDoProjeto({
+    id: 20747, etapa: '01. FUNIL OUTBOUND 🎯', etapaId: 15, status: { id: 355, nome: 'DESQUALIFICADO 1', etapaId: 15 }, statusId: 355,
+    statusAtuais: [], etapasAtuais: [], contadoresFluxo: [{ etapaId: 15, statusId: 355, tempoFluxoMinutos: 11302, atrasoFluxoMinutos: 0 }],
+  })
+  assert.deepEqual(so.map((x) => [x.funil, x.etapa, x.tempoMin]), [['01. FUNIL OUTBOUND 🎯', 'DESQUALIFICADO 1', 11302]])
+
+  // Card sem funil nenhum (etapa vazia): nenhuma linha de fluxo (o card continua com a linha única de sempre).
+  assert.deepEqual(fluxosDoProjeto({ id: 67408, statusAtuais: [], etapasAtuais: [] }), [])
+})
