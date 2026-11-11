@@ -156,15 +156,6 @@ export function etapaEngenharia(funilNumero, etapa) {
   return (ENG_ETAPAS[funilNumero] ?? []).find((e) => compacto(e) === alvo) ?? texto(etapa)
 }
 
-/**
- * Posição que a aba Engenharia não considera: funil 11 (Instalação) na etapa "Instalação Concluída".
- * O card só carrega essa posição como funil adicional; a obra já foi feita e não há o que acompanhar ali.
- * (Só essa etapa: Termo de Aceite, Dossiê etc. continuam valendo.)
- */
-export function foraDaEngenharia(funil, etapa) {
-  return numeroFunil(funil) === '11' && compacto(etapa) === 'INSTALACAOCONCLUIDA'
-}
-
 /** Projeto gravado no Neon -> item de data_eng_resumo.json, ou null se o status principal não é de engenharia. */
 export function engResumoDoProjeto(p, { agora = Date.now(), prazos = {} } = {}) {
   return engResumosDoProjeto(p, { agora, prazos })[0] ?? null
@@ -176,7 +167,7 @@ export function engResumosDoProjeto(p, { agora = Date.now(), prazos = {} } = {})
   if (fluxos.length) {
     return fluxos.flatMap((f) => {
       const funil = numeroFunil(f.funil)
-      if (!funil || !ENG_ETAPAS[funil] || foraDaEngenharia(f.funil, f.etapa)) return []
+      if (!funil || !ENG_ETAPAS[funil]) return []
       const dias = f.tempoMin == null ? null : f.tempoMin / 1440
       return [{
         codigo: `#${p.id}`, funil, etapa: etapaEngenharia(funil, f.etapa), nome: texto(p.nome), cliente: null,
@@ -191,7 +182,7 @@ export function engResumosDoProjeto(p, { agora = Date.now(), prazos = {} } = {})
 
 function engResumoPrincipal(p, { agora = Date.now(), prazos = {} } = {}) {
   const funil = numeroFunil(p.funil)
-  if (!funil || !ENG_ETAPAS[funil] || foraDaEngenharia(p.funil, p.etapa)) return null
+  if (!funil || !ENG_ETAPAS[funil]) return null
   const dias = tempoNoStatus(p, agora)
   const prazo = prazoDaEtapa(prazos, p.funil, p.etapa)
   return {
