@@ -95,3 +95,12 @@ test('farol diário: a janela tem um dia por data do período e marca o dia sem 
   assert.equal(j.at(-1).total, 59)
   assert.equal(j.at(-2).Normal, 52)
 })
+
+test('farol diário: dia importado de print aparece marcado como estimado', () => {
+  const j = janelaFarol([
+    { data: '2026-11-09', total: 144, contagens: { Normal: 119, 'Com alerta': 21, 'Crítico': 2, Desconhecido: 2 }, estimado: true },
+    { data: '2026-11-10', total: 59, contagens: { Normal: 52, 'Com alerta': 6, 'Crítico': 1 } },
+  ], '2026-11-09', '2026-11-10')
+  assert.deepEqual(j.map((x) => x.dia), ['09/11*', '10/11'])
+  assert.deepEqual(j.map((x) => x.estimado), [true, false])
+})

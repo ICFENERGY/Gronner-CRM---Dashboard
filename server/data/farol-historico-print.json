@@ -1,0 +1,13 @@
+{
+  "origem": "Print do gráfico 'Farol Diário — Evolução da Conectividade' enviado pelo Fabio em 11/11/2026 (fonte citada no print: claude/farol_diario_historico.md). Valores medidos pela altura das barras na imagem (escala: 1,44 px por usina); só o total de 09/11 (144) estava escrito. Margem de erro: 1 a 2 usinas por faixa.",
+  "dias": [
+    { "data": "2026-10-29", "total": 138, "contagens": { "Normal": 122, "Com alerta": 13, "Crítico": 1, "Desconhecido": 2 } },
+    { "data": "2026-10-30", "total": 142, "contagens": { "Normal": 123, "Com alerta": 15, "Crítico": 1, "Desconhecido": 3 } },
+    { "data": "2026-11-01", "total": 143, "contagens": { "Normal": 125, "Com alerta": 15, "Crítico": 1, "Desconhecido": 2 } },
+    { "data": "2026-11-02", "total": 143, "contagens": { "Normal": 104, "Com alerta": 36, "Crítico": 1, "Desconhecido": 2 } },
+    { "data": "2026-11-03", "total": 143, "contagens": { "Normal": 105, "Com alerta": 34, "Crítico": 1, "Desconhecido": 3 } },
+    { "data": "2026-11-04", "total": 144, "contagens": { "Normal": 125, "Com alerta": 14, "Crítico": 2, "Desconhecido": 3 } },
+    { "data": "2026-11-06", "total": 144, "contagens": { "Normal": 122, "Com alerta": 17, "Crítico": 3, "Desconhecido": 2 } },
+    { "data": "2026-11-09", "total": 144, "contagens": { "Normal": 119, "Com alerta": 21, "Crítico": 2, "Desconhecido": 2 } }
+  ]
+}

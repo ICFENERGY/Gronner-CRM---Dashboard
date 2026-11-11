@@ -261,5 +261,6 @@ export interface UsinasOrigemDados {
   ticketsAbertos: number | null
   ticketsAbertosPorTipo: Record<string, number>
   /** Foto diária das contagens do farol de monitoramento. */
-  farolHistorico: { data: string; total: number; contagens: Record<string, number> }[]
+  /** `estimado`: dia importado de um print antigo (valores medidos na imagem), não capturado da API. */
+  farolHistorico: { data: string; total: number; contagens: Record<string, number>; estimado?: boolean }[]
 }

@@ -52,8 +52,9 @@ export function janelaFarol(historico: Farol, de: string, ate: string) {
   for (let dia = de, i = 0; dia <= ate && i < 366; dia = somarDias(dia, 1), i++) {
     const h = porDia.get(dia)
     linhas.push(h
-      ? { ...linhasFarol([h])[0], data: dia, semCaptura: false }
-      : { dia: diaMes(dia), data: dia, semCaptura: true })
+      // O dia estimado (importado de print) leva um asterisco no rótulo do eixo.
+      ? { ...linhasFarol([h])[0], dia: diaMes(dia) + (h.estimado ? '*' : ''), data: dia, semCaptura: false, estimado: Boolean(h.estimado) }
+      : { dia: diaMes(dia), data: dia, semCaptura: true, estimado: false })
   }
   return linhas
 }
@@ -67,6 +68,7 @@ export function FarolDiario({ historico, hoje }: { historico: Farol; hoje: strin
   const [ate, setAte] = useState(hoje)
   const dados = janelaFarol(historico, de, ate)
   const comCaptura = dados.filter((d) => !d.semCaptura).length
+  const estimados = dados.filter((d) => d.estimado).length
   const eixo = { stroke: 'var(--viz-axis)', fontSize: 11, tickLine: false }
   const campo = 'h-9 rounded-[9px] border border-[var(--border-strong)] bg-[var(--input-bg)] px-2.5 text-sm text-[var(--text-primary)] focus:border-icf-green focus:outline-none'
   return (
@@ -114,6 +116,11 @@ export function FarolDiario({ historico, hoje }: { historico: Farol; hoje: strin
             ))}
           </BarChart>
         </ResponsiveContainer>
+      )}
+      {estimados > 0 && (
+        <p className="mt-2 text-xs text-[var(--text-muted)]">
+          * {estimados} dia(s) estimado(s): valores medidos num gráfico antigo (imagem), com margem de 1 a 2 usinas por faixa, e contando todas as usinas da conta. Os dias sem asterisco vêm da API SolarZ, que só informa o farol das usinas premium.
+        </p>
       )}
     </div>
   )

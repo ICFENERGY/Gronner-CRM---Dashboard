@@ -1,0 +1,28 @@
+name: importar-farol
+
+# Importa para o banco do painel os dias antigos do farol diário (server/data/farol-historico-print.json),
+# marcados como estimados. Não sobrescreve dia que já tem captura real da API.
+# Roda só quando disparado à mão (Actions > importar-farol > Run workflow). Seguro repetir.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: importar-farol
+  cancel-in-progress: false
+
+jobs:
+  farol:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DB_SCHEMA: groner_painel
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Importar os dias antigos do farol
+        run: node scripts/importar-farol-historico.mjs
