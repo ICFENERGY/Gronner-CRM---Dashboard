@@ -63,7 +63,9 @@ function converterErro(err) {
   if (err?.name === 'TimeoutError' || err?.name === 'AbortError') return erroIndisponivel('timeout')
   // 08xxx/57xxx/53xxx: conexão, desligamento, falta de recurso -> vale repetir; erro de SQL/permissão não.
   const transitorio = !codigo || /^(08|53|57|58|40)/.test(codigo) || /^E[A-Z]+$/.test(codigo)
-  return erroIndisponivel(codigo ? `SQLSTATE ${codigo}` : 'rede', transitorio)
+  // XX000 é erro interno do servidor/pooler (ex.: limite de conexões do pooler): a mensagem dele ajuda a diagnosticar e não carrega credenciais.
+  const detalhe = codigo === 'XX000' ? `: ${String(err?.message ?? '').replace(/postgres(ql)?:\/\/\S+/g, '<conexão>').slice(0, 140)}` : ''
+  return erroIndisponivel(codigo ? `SQLSTATE ${codigo}${detalhe}` : 'rede', transitorio)
 }
 
 /** Executor da Neon: driver HTTP. */
