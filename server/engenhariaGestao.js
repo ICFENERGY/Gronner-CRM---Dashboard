@@ -301,3 +301,53 @@ export function montarAcordos(linhas, { de, ate, hoje }) {
     })
     .sort((a, b) => b.dia.localeCompare(a.dia) || a.responsavel.localeCompare(b.responsavel, 'pt-BR') || a.codigo - b.codigo)
 }
+
+// ─── Colaboradores (carga e taxa de conclusão por responsável) ───────────────────────────────────────────────
+
+export const COLABORADORES = [
+  { chave: 'eliardo', nome: 'Eliardo' },
+  { chave: 'joao martins', nome: 'João Martins' },
+  { chave: 'priscilla', nome: 'Priscilla' },
+]
+
+/** Casa o responsável digitado na ação com o colaborador (por nome, sem acento nem caixa; "João" sozinho também vale). */
+export function colaboradorDe(responsavel) {
+  const t = String(responsavel ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim().replace(/^priscila\b/, 'priscilla')
+  if (!t) return null
+  return COLABORADORES.find((c) => t === c.chave || t.startsWith(`${c.chave} `) || t.startsWith(`${c.chave.split(' ')[0]} `) || t === c.chave.split(' ')[0]) ?? null
+}
+
+/**
+ * Métricas por colaborador a partir dos acordos (`montarAcordos` do histórico inteiro):
+ *   cards      — cards com acordo em aberto (o que a pessoa está tratando agora)
+ *   noPrazo / atencao / vencido — os abertos por cor (verde / amarelo / vermelho)
+ *   feitos     — acordos marcados como feitos; saiu — card mudou de etapa (resolvido sem marcar)
+ *   taxa       — (feitos + saiu) ÷ (feitos + saiu + abertos), em %; null se ainda não houve acordo
+ * Acordos substituídos por um mais novo no mesmo card não contam. Responsáveis fora da lista vão em `outros`.
+ */
+export function metricasColaboradores(acordos) {
+  const zera = () => ({ cards: 0, noPrazo: 0, atencao: 0, vencido: 0, feitos: 0, saiu: 0, total: 0, taxa: null, abertos: [] })
+  const por = new Map(COLABORADORES.map((c) => [c.chave, { ...c, ...zera() }]))
+  const outros = zera()
+  for (const a of acordos) {
+    if (a.status === 'atualizado') continue
+    const c = colaboradorDe(a.responsavel)
+    const m = c ? por.get(c.chave) : outros
+    m.total++
+    if (a.status === 'feita') m.feitos++
+    else if (a.status === 'saiu') m.saiu++
+    else if (a.status === 'aberta') {
+      m.cards++
+      if (a.cor === 'vermelho') m.vencido++
+      else if (a.cor === 'amarelo') m.atencao++
+      else m.noPrazo++
+      m.abertos.push(a)
+    }
+  }
+  const fecha = (m) => {
+    m.taxa = m.total ? Math.round(((m.feitos + m.saiu) / m.total) * 1000) / 10 : null
+    m.abertos.sort((x, y) => x.diasParaPrazo - y.diasParaPrazo || x.codigo - y.codigo)
+    return m
+  }
+  return { colaboradores: [...por.values()].map(fecha), outros: fecha(outros) }
+}

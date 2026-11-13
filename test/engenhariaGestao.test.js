@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import express from 'express'
-import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos } from '../server/engenhariaGestao.js'
+import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos, colaboradorDe, metricasColaboradores } from '../server/engenhariaGestao.js'
 import { createIndicadoresRouter } from '../server/indicadoresRoutes.js'
 import { registrarNoGroner, textoComentario, tituloDaTarefa } from '../server/gronerAcoes.js'
 
@@ -353,4 +353,26 @@ test('rotas: salvar a ação registra o acordo no dia; a tela lista e a conclus�
     else process.env.METAS_TOKEN = anterior
     await new Promise((r) => srv.close(r))
   }
+})
+
+test('colaboradores: reconhece pelo nome, conta abertos por cor e calcula a taxa de conclusão', () => {
+  assert.equal(colaboradorDe('João Martins').nome, 'João Martins')
+  assert.equal(colaboradorDe('joao').nome, 'João Martins')
+  assert.equal(colaboradorDe('Priscila').nome, 'Priscilla')
+  assert.equal(colaboradorDe('eliardo silva').nome, 'Eliardo')
+  assert.equal(colaboradorDe('Maria'), null)
+  const a = (responsavel, status, cor, diasParaPrazo, codigo) => ({ responsavel, status, cor, diasParaPrazo, codigo })
+  const r = metricasColaboradores([
+    a('Eliardo', 'aberta', 'verde', 5, 1), a('Eliardo', 'aberta', 'amarelo', 2, 2), a('Eliardo', 'aberta', 'vermelho', -3, 3),
+    a('Eliardo', 'feita', null, 0, 4), a('Eliardo', 'atualizado', null, 0, 5),
+    a('Priscilla', 'feita', null, 0, 6), a('Priscilla', 'saiu', null, 0, 7), a('Priscilla', 'aberta', 'vermelho', 0, 8), a('Priscilla', 'feita', null, 0, 9),
+    a('Maria', 'aberta', 'verde', 9, 10),
+  ])
+  const e = r.colaboradores.find((c) => c.nome === 'Eliardo')
+  assert.deepEqual([e.cards, e.noPrazo, e.atencao, e.vencido, e.feitos, e.total, e.taxa], [3, 1, 1, 1, 1, 4, 25])
+  assert.deepEqual(e.abertos.map((x) => x.codigo), [3, 2, 1])
+  const p = r.colaboradores.find((c) => c.nome === 'Priscilla')
+  assert.deepEqual([p.cards, p.vencido, p.feitos, p.saiu, p.taxa], [1, 1, 2, 1, 75])
+  assert.equal(r.colaboradores.find((c) => c.nome === 'João Martins').taxa, null)
+  assert.equal(r.outros.cards, 1)
 })

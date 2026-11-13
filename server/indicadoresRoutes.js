@@ -31,7 +31,7 @@ import { getPgSql, jsonb, TABELA_SQL } from './pgSql.js'
 import { loadSyncedEntity } from './syncStore.js'
 import { ID_META, LACUNAS, montarCards, montarEngResumo, montarSales, validarMeta } from './indicadores.js'
 import { lerPietaParaSla, montarChamadosSla, resumoDaCobertura } from './pietaSla.js'
-import { chaveAcao, diaBrasilia, ENTIDADE_ACOES, juntarAcoes, montarAcordos, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
+import { chaveAcao, diaBrasilia, ENTIDADE_ACOES, juntarAcoes, metricasColaboradores, montarAcordos, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
 import { registrarNoGroner } from './gronerAcoes.js'
 import prazosArquivo from './data/sla-etapas.json' with { type: 'json' }
 
@@ -285,6 +285,16 @@ export function createIndicadoresRouter({
           verdes: itens.filter((i) => i.cor === 'verde').length, amarelos: itens.filter((i) => i.cor === 'amarelo').length, vermelhos: itens.filter((i) => i.cor === 'vermelho').length,
         },
       })
+    } catch (err) { responderErro(res, err) }
+  })
+
+  router.get('/engenharia/colaboradores', async (_req, res) => {
+    try {
+      const hoje = diaBrasilia(new Date(agora()))
+      const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
+      const itens = montarAcordos(linhas, { de: '0000-01-01', ate: '9999-12-31', hoje })
+      res.set('Cache-Control', 'no-store')
+      res.json({ hoje, ...metricasColaboradores(itens) })
     } catch (err) { responderErro(res, err) }
   })
 
