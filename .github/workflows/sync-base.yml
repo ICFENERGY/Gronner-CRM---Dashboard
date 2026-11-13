@@ -1,14 +1,15 @@
 name: sync-base
 
-# Atualização da base do painel (Dashboard, Vendas e Engenharia) quatro vezes por dia: projetos (tick) e vendas.
+# Atualização da base do painel (Dashboard, Vendas e Engenharia) cinco vezes por dia: projetos (tick) e vendas.
 # O GitHub agenda em UTC; Brasília é UTC-3 (sem horário de verão):
-#   06:00 -> 09:00 UTC   12:00 -> 15:00 UTC   15:00 -> 18:00 UTC   19:00 -> 22:00 UTC
+#   06:00 -> 09:00 UTC   09:00 -> 12:00 UTC   12:00 -> 15:00 UTC   15:00 -> 18:00 UTC   19:00 -> 22:00 UTC
 # O GitHub pode atrasar alguns minutos o início de uma tarefa agendada em horários de pico.
 # Também pode ser disparado à mão (Actions > sync-base > Run workflow).
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 9 * * *'
+    - cron: '0 12 * * *'
     - cron: '0 15 * * *'
     - cron: '0 18 * * *'
     - cron: '0 22 * * *'
