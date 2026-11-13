@@ -30,7 +30,7 @@ export function Layout({
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 md:px-8">
           <div className="flex items-center gap-3">
             <IcfLogo height={34} />
-            <h1 className="hidden border-l border-white/25 pl-3 text-sm font-medium leading-tight text-white/80 lg:block">Painel Groner CRM</h1>
+            <h1 className="sr-only">ICF Energy</h1>
           </div>
 
           <nav aria-label="Áreas do painel" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto px-1 pb-0.5 sm:order-none sm:w-auto sm:flex-1">
