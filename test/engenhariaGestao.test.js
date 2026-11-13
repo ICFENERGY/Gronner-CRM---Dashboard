@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import express from 'express'
-import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao } from '../server/engenhariaGestao.js'
+import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos } from '../server/engenhariaGestao.js'
 import { createIndicadoresRouter } from '../server/indicadoresRoutes.js'
 import { registrarNoGroner, textoComentario, tituloDaTarefa } from '../server/gronerAcoes.js'
 
@@ -282,4 +282,75 @@ test('faixa: a data dos projetos é a do último tick quando for mais recente qu
   assert.equal(await montar(async () => ({ sourceUpdatedAt: '2026-11-01T00:00:00Z' })), '2026-11-09T21:06:41.062Z') // tick mais antigo não vence
   assert.equal(await montar(async () => { throw new Error('banco fora') }), '2026-11-09T21:06:41.062Z') // falha no status não derruba
   assert.equal(await montar(null), '2026-11-09T21:06:41.062Z') // sem status: só a carga
+})
+
+// ─── Acordos do dia ─────────────────────────────────────────────────────────────────────────────────────────────
+
+test('acordos: um por card e dia, status pelo acordo vigente, ação antiga entra no dia em que foi salva', () => {
+  const linhas = [
+    { chave: 'acordo:2026-11-10:100:10', dados: { dia: '2026-11-10', codigo: 100, funil: '10', etapa: 'X', acao: 'Cobrar', responsavel: 'Maria', prazo: '2026-11-12', criadoEm: '2026-11-10T13:00:00.000Z' } },
+    { chave: 'acordo:2026-11-11:100:10', dados: { dia: '2026-11-11', codigo: 100, funil: '10', etapa: 'X', acao: 'Cobrar de novo', responsavel: 'Maria', prazo: '2026-11-13', criadoEm: '2026-11-11T13:00:00.000Z' } },
+    { chave: 'acao:100:10', dados: { codigo: 100, funil: '10', etapa: 'X', acao: 'Cobrar de novo', responsavel: 'Maria', prazo: '2026-11-13', concluida: true, concluidaEm: '2026-11-11T20:00:00.000Z', motivo: 'marcada como feita' } },
+    { chave: 'acao:200:11', dados: { codigo: 200, funil: '11', etapa: 'Y', acao: 'Agendar', responsavel: 'Bruno', prazo: '2026-11-09', criadaEm: '2026-11-11T02:30:00.000Z', atualizadaEm: '2026-11-11T02:30:00.000Z' } },
+    { chave: 'acao:300:08', dados: { codigo: 300, funil: '08', etapa: 'Z', acao: 'Revisar', responsavel: 'Ana', prazo: '2026-11-20', criadaEm: '2026-11-11T15:00:00.000Z', concluida: true, concluidaEm: '2026-11-12T10:00:00.000Z', motivo: 'card mudou de etapa' } },
+  ]
+  const todos = montarAcordos(linhas, { de: '2026-11-01', ate: '2026-11-30', hoje: '2026-11-12' })
+  const por = (c, dia) => todos.find((a) => a.codigo === c && a.dia === dia)
+  assert.equal(por(100, '2026-11-10').status, 'atualizado')
+  assert.equal(por(100, '2026-11-11').status, 'feita')
+  // 02:30 UTC de 11/11 ainda é 10/11 em Brasília
+  assert.equal(por(200, '2026-11-10').status, 'aberta')
+  assert.equal(por(200, '2026-11-10').vencida, true)
+  assert.equal(por(200, '2026-11-10').cor, 'vermelho')
+  assert.equal(por(100, '2026-11-11').cor, null)
+  assert.equal(por(300, '2026-11-11').status, 'saiu')
+  assert.deepEqual(montarAcordos(linhas, { de: '2026-11-11', ate: '2026-11-11', hoje: '2026-11-12' }).map((a) => a.codigo), [300, 100])
+})
+
+test('acordos: cor pelo prazo — verde com mais de 2 dias, amarelo com 1 a 2, vermelho no dia ou depois', () => {
+  const l = (codigo, prazo) => ({ chave: `acao:${codigo}:10`, dados: { codigo, funil: '10', etapa: 'X', acao: 'a', responsavel: 'Maria', prazo, criadaEm: '2026-11-12T15:00:00.000Z' } })
+  const r = montarAcordos([l(1, '2026-11-16'), l(2, '2026-11-15'), l(3, '2026-11-14'), l(4, '2026-11-13'), l(5, '2026-11-12')], { de: '2026-11-12', ate: '2026-11-12', hoje: '2026-11-13' })
+  const cor = (c) => r.find((a) => a.codigo === c).cor
+  assert.deepEqual([1, 2, 3, 4, 5].map(cor), ['verde', 'amarelo', 'amarelo', 'vermelho', 'vermelho'])
+  assert.equal(r.find((a) => a.codigo === 5).diasParaPrazo, -1)
+})
+
+test('rotas: salvar a ação registra o acordo no dia; a tela lista e a conclusão marca como feita', async () => {
+  const pg = pgAcoes()
+  const projeto = { id: 100, nome: 'Cliente Teste', funil: '10. HOMOLOGAÇÃO', etapa: 'PIETA_CRIACAO DO PROJETO', dataEntradaStatus: '2026-10-20T10:00:00-03:00', dataInclusao: '2026-10-01T10:00:00-03:00', cidade: 'Londrina', estado: 'PR', valorVenda: 1000 }
+  const app = express()
+  app.use(express.json())
+  app.use('/api/indicadores', createIndicadoresRouter({
+    carregar: async (e) => (e === 'projetos' ? { items: [projeto], sync: { finishedAt: '2026-11-02T10:00:00Z' } } : null),
+    pg: () => pg, prazos: PRAZO_5, agora: () => Date.parse('2026-11-02T20:00:00-03:00'),
+  }))
+  const srv = http.createServer(app)
+  await new Promise((r) => srv.listen(0, r))
+  const base = `http://127.0.0.1:${srv.address().port}/api/indicadores/engenharia`
+  const anterior = process.env.METAS_TOKEN
+  try {
+    delete process.env.METAS_TOKEN
+    const corpo = { acao: 'Cobrar o parecer', responsavel: 'Maria', prazo: '2026-11-05' }
+    const put = () => fetch(`${base}/acoes/100/10`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) })
+    assert.equal((await put()).status, 200)
+    assert.equal((await put()).status, 200) // mesmo dia: atualiza o mesmo registro
+    let a = await (await fetch(`${base}/acordos`)).json()
+    assert.equal(a.de, '2026-11-02')
+    assert.equal(a.itens.length, 1)
+    assert.equal(a.itens[0].status, 'aberta')
+    assert.equal(a.itens[0].nome, 'Cliente Teste')
+    assert.deepEqual(a.resumo, { total: 1, feitas: 0, abertas: 1, vencidas: 0, saiu: 0, atualizados: 0, verdes: 1, amarelos: 0, vermelhos: 0 })
+    assert.equal((await fetch(`${base}/acordos?de=2026-11-03`)).status, 200)
+    assert.equal((await (await fetch(`${base}/acordos?de=2026-11-03`)).json()).itens.length, 0)
+    assert.equal((await fetch(`${base}/acordos?de=2026-11-05&ate=2026-11-01`)).status, 400)
+
+    assert.equal((await fetch(`${base}/acoes/100/10/concluir`, { method: 'POST' })).status, 200)
+    a = await (await fetch(`${base}/acordos`)).json()
+    assert.equal(a.itens[0].status, 'feita')
+    assert.equal(a.resumo.feitas, 1)
+  } finally {
+    if (anterior === undefined) delete process.env.METAS_TOKEN
+    else process.env.METAS_TOKEN = anterior
+    await new Promise((r) => srv.close(r))
+  }
 })

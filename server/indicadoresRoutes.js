@@ -31,7 +31,7 @@ import { getPgSql, jsonb, TABELA_SQL } from './pgSql.js'
 import { loadSyncedEntity } from './syncStore.js'
 import { ID_META, LACUNAS, montarCards, montarEngResumo, montarSales, validarMeta } from './indicadores.js'
 import { lerPietaParaSla, montarChamadosSla, resumoDaCobertura } from './pietaSla.js'
-import { chaveAcao, ENTIDADE_ACOES, juntarAcoes, montarGestao, resumoGestao, validarAcao } from './engenhariaGestao.js'
+import { chaveAcao, diaBrasilia, ENTIDADE_ACOES, juntarAcoes, montarAcordos, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
 import { registrarNoGroner } from './gronerAcoes.js'
 import prazosArquivo from './data/sla-etapas.json' with { type: 'json' }
 
@@ -254,7 +254,37 @@ export function createIndicadoresRouter({
         Object.assign(dados, { tarefaId: registro.tarefaId, gronerEm: registro.gronerEm, gronerErro: registro.gronerErro, responsavelId })
         await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
       }
+      // 3) Registra o acordo no dia em que foi feito (tela "Acordos do dia"); falha aqui não desfaz o combinado.
+      try {
+        const agoraData = new Date(agora())
+        const probe = registroAcordo({ card, acao: campos.acao, responsavel: campos.responsavel, prazo: campos.prazo, agora: agoraData })
+        const antesDia = (await clientePg().todas('config', ENTIDADE_ACOES)).find((x) => x.chave === probe.chave)?.dados
+        const reg = registroAcordo({ card, acao: campos.acao, responsavel: campos.responsavel, prazo: campos.prazo, agora: agoraData, antes: antesDia, tarefaId: dados.tarefaId ?? null })
+        await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave: reg.chave, dados: reg.dados }])
+      } catch (err) { console.error('[indicadores] registro do acordo', err.message) }
       res.json({ ok: true, dados })
+    } catch (err) { responderErro(res, err) }
+  })
+
+  router.get('/engenharia/acordos', async (req, res) => {
+    try {
+      const hoje = diaBrasilia(new Date(agora()))
+      const dia = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
+      const de = dia.test(String(req.query.de ?? '')) ? String(req.query.de) : hoje
+      const ate = dia.test(String(req.query.ate ?? '')) ? String(req.query.ate) : de
+      if (ate < de) return res.status(400).json({ error: 'Período inválido: a data final é anterior à inicial' })
+      if (Date.parse(`${ate}T00:00:00Z`) - Date.parse(`${de}T00:00:00Z`) > 92 * 86400_000) return res.status(400).json({ error: 'Período máximo de 92 dias' })
+      const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
+      const itens = montarAcordos(linhas, { de, ate, hoje })
+      const conta = (s) => itens.filter((i) => i.status === s).length
+      res.set('Cache-Control', 'no-store')
+      res.json({
+        de, ate, hoje, itens,
+        resumo: {
+          total: itens.length, feitas: conta('feita'), abertas: conta('aberta'), vencidas: itens.filter((i) => i.vencida).length, saiu: conta('saiu'), atualizados: conta('atualizado'),
+          verdes: itens.filter((i) => i.cor === 'verde').length, amarelos: itens.filter((i) => i.cor === 'amarelo').length, vermelhos: itens.filter((i) => i.cor === 'vermelho').length,
+        },
+      })
     } catch (err) { responderErro(res, err) }
   })
 

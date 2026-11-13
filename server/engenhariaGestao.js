@@ -230,3 +230,74 @@ export function juntarAcoes(itens, linhas, { agora = new Date() } = {}) {
   }
   return { abertas, resolver }
 }
+
+// ─── Acordos do dia (histórico: cada acordo fica registrado no dia em que foi feito) ──────────────────────────
+
+export const chaveAcordo = (dia, codigo, funil) => `acordo:${dia}:${codigo}:${funil}`
+
+/** Dia (AAAA-MM-DD) no horário de Brasília (UTC-3, sem horário de verão). */
+export function diaBrasilia(quando) {
+  const t = quando instanceof Date ? quando.getTime() : Date.parse(quando)
+  return Number.isNaN(t) ? null : new Date(t - 3 * 3600_000).toISOString().slice(0, 10)
+}
+
+/** Registro do acordo no dia em que foi salvo (um por card e por dia: salvar de novo no mesmo dia atualiza). */
+export function registroAcordo({ card, acao, responsavel, prazo, agora, antes = null, tarefaId = null }) {
+  const iso = agora.toISOString()
+  const dia = diaBrasilia(agora)
+  return {
+    chave: chaveAcordo(dia, card.codigo, card.funil),
+    dados: {
+      dia, codigo: Number(card.codigo), funil: card.funil, funilNome: card.funilNome ?? NOMES_FUNIL[card.funil] ?? null,
+      etapa: card.etapa, nome: card.nome ?? null, situacao: card.status ?? null,
+      acao, responsavel, prazo, tarefaId, criadoEm: antes?.criadoEm ?? iso, atualizadoEm: iso,
+    },
+  }
+}
+
+/**
+ * Lista os acordos feitos entre `de` e `ate` (AAAA-MM-DD, inclusive) e a situação de cada um:
+ *   aberta     — é o acordo vigente do card e ainda não foi feito
+ *   feita      — alguém marcou como feita depois do acordo
+ *   saiu       — o card mudou de etapa (resolvido sem marcar)
+ *   atualizado — o card ganhou um acordo mais novo, que substitui este
+ * Acordo aberto ganha a cor do prazo: verde (mais de 2 dias para o prazo), amarelo (faltam 1 ou 2 dias),
+ * vermelho (vence hoje ou já passou). `diasParaPrazo` é negativo quando estourou.
+ * `linhas` = tudo o que está guardado da Engenharia (acordos e ações). Ações anteriores ao histórico entram no
+ * dia em que foram salvas.
+ */
+export function montarAcordos(linhas, { de, ate, hoje }) {
+  const acoes = new Map()
+  const registros = []
+  for (const { chave, dados } of linhas) {
+    if (!dados) continue
+    if (chave.startsWith('acao:')) acoes.set(chave, dados)
+    else if (chave.startsWith('acordo:')) registros.push(dados)
+  }
+  const comHistorico = new Set(registros.map((r) => `${r.codigo}:${r.funil}`))
+  for (const [chave, a] of acoes) {
+    if (comHistorico.has(chave.slice(5))) continue
+    const quando = a.atualizadaEm ?? a.criadaEm
+    const dia = diaBrasilia(quando)
+    if (!dia) continue
+    registros.push({ dia, codigo: a.codigo, funil: a.funil, funilNome: NOMES_FUNIL[a.funil] ?? null, etapa: a.etapa, nome: null, situacao: null, acao: a.acao, responsavel: a.responsavel, prazo: a.prazo, tarefaId: a.tarefaId ?? null, criadoEm: quando, atualizadoEm: quando })
+  }
+  const maisNovo = new Map()
+  for (const r of registros) {
+    const k = `${r.codigo}:${r.funil}`
+    if (!maisNovo.has(k) || r.criadoEm > maisNovo.get(k)) maisNovo.set(k, r.criadoEm)
+  }
+  return registros
+    .filter((r) => r.dia >= de && r.dia <= ate)
+    .map((r) => {
+      const k = `${r.codigo}:${r.funil}`
+      const atual = acoes.get(`acao:${k}`)
+      let status = 'aberta'
+      if (r.criadoEm < maisNovo.get(k)) status = 'atualizado'
+      else if (atual?.concluida && (atual.concluidaEm ?? '') >= r.criadoEm) status = atual.motivo === 'card mudou de etapa' ? 'saiu' : 'feita'
+      const diasParaPrazo = Math.round((Date.parse(`${r.prazo}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86400_000)
+      const cor = status !== 'aberta' ? null : diasParaPrazo <= 0 ? 'vermelho' : diasParaPrazo <= 2 ? 'amarelo' : 'verde'
+      return { ...r, status, feitaEm: status === 'feita' ? atual.concluidaEm : null, vencida: status === 'aberta' && r.prazo < hoje, diasParaPrazo, cor }
+    })
+    .sort((a, b) => b.dia.localeCompare(a.dia) || a.responsavel.localeCompare(b.responsavel, 'pt-BR') || a.codigo - b.codigo)
+}

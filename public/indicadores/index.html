@@ -391,6 +391,7 @@ body {
     <button class="eng-tab-btn" data-tab="exec" type="button">Visão Executiva · por Etapa</button>
     <button class="eng-tab-btn" data-tab="sales" type="button">Vendas · Sales</button>
     <button class="eng-tab-btn" data-tab="gestao" type="button">Gestão diária</button>
+    <button class="eng-tab-btn" data-tab="acordos" type="button">Acordos do dia</button>
     <button class="eng-tab-btn" data-tab="funeng" type="button">Resumo por funil</button>
   </nav>
 
@@ -670,6 +671,8 @@ body {
   </section>
 
   <section class="eng-view" id="eng-view-gestao" hidden></section>
+
+  <section class="eng-view" id="eng-view-acordos" hidden></section>
 
   <section class="eng-view" id="eng-view-funeng" hidden>
     <section class="eng-filterbar">
@@ -980,12 +983,12 @@ body {
   tema(q.get('tema'));
   // Grupos: geral = Dashboard e Visão Executiva; engenharia = Gestão diária e Resumo por funil; vendas = só Vendas (sem barra de abas).
   var grupo = { vendas: 'vendas', engenharia: 'engenharia' }[q.get('grupo')] || 'geral';
-  var permitidas = { vendas: ['sales'], engenharia: ['gestao', 'funeng'], geral: ['dash', 'exec'] }[grupo];
+  var permitidas = { vendas: ['sales'], engenharia: ['gestao', 'acordos', 'funeng'], geral: ['dash', 'exec'] }[grupo];
   document.querySelectorAll('.eng-tab-btn').forEach(function (b) { if (permitidas.indexOf(b.dataset.tab) < 0) b.hidden = true; });
   if (grupo === 'vendas') html.classList.add('embed-sem-abas');
   if (grupo === 'engenharia') {
     // Evita o clarão do Dashboard antes dos dados chegarem: a primeira aba do grupo já nasce aberta.
-    ['dash', 'exec', 'sales', 'funeng'].forEach(function (v) { var el = document.getElementById('eng-view-' + v); if (el) el.hidden = true; });
+    ['dash', 'exec', 'sales', 'funeng', 'acordos'].forEach(function (v) { var el = document.getElementById('eng-view-' + v); if (el) el.hidden = true; });
     var gv = document.getElementById('eng-view-gestao'); if (gv) gv.hidden = false;
     var fb = document.getElementById('eng-main-filterbar'); if (fb) fb.hidden = true;
   }
@@ -1010,6 +1013,7 @@ body {
 </script>
 <script src="/indicadores/shim.js"></script>
 <script src="/indicadores/gestao.js"></script>
+<script src="/indicadores/acordos.js"></script>
 <script src="/indicadores/mapa-brasil.js"></script>
 <script>
 (function () {
@@ -2809,8 +2813,10 @@ body {
         document.getElementById('eng-view-sales').hidden = btn.dataset.tab !== 'sales';
         document.getElementById('eng-view-funeng').hidden = btn.dataset.tab !== 'funeng';
         document.getElementById('eng-view-gestao').hidden = btn.dataset.tab !== 'gestao';
-        document.getElementById('eng-main-filterbar').hidden = ['sales', 'funeng', 'gestao'].indexOf(btn.dataset.tab) >= 0;
+        document.getElementById('eng-view-acordos').hidden = btn.dataset.tab !== 'acordos';
+        document.getElementById('eng-main-filterbar').hidden = ['sales', 'funeng', 'gestao', 'acordos'].indexOf(btn.dataset.tab) >= 0;
         if (btn.dataset.tab === 'gestao' && window.engGestao) window.engGestao.mostrar();
+        if (btn.dataset.tab === 'acordos' && window.engAcordos) window.engAcordos.mostrar();
         if (btn.dataset.tab === 'dash') {
           drawDonut(); drawFunilChart(); drawMesChart(); drawEvolucaoChart(); drawAnoChart();
         } else if (btn.dataset.tab === 'exec') {

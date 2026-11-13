@@ -9,9 +9,9 @@ export type Aba = 'geral' | 'vendas' | 'usinas' | 'engenharia' | 'pieta'
 const ABAS: AbaItem[] = [
   { k: 'geral', rotulo: 'Visão Geral' },
   { k: 'vendas', rotulo: 'Vendas' },
-  { k: 'usinas', rotulo: 'Usinas' },
+  { k: 'usinas', rotulo: 'Gestão de Usinas' },
   { k: 'engenharia', rotulo: 'Engenharia' },
-  { k: 'pieta', rotulo: 'Pieta' },
+  { k: 'pieta', rotulo: 'Engenharia - Pieta' },
 ]
 
 /** Endereços antigos continuam abrindo a aba certa (links salvos). */
