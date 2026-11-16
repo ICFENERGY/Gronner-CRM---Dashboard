@@ -1,18 +1,20 @@
 name: sync-base
 
-# Atualização da base do painel (Dashboard, Vendas e Engenharia) cinco vezes por dia: projetos (tick) e vendas.
-# O GitHub agenda em UTC; Brasília é UTC-3 (sem horário de verão):
-#   06:00 -> 09:00 UTC   09:00 -> 12:00 UTC   12:00 -> 15:00 UTC   15:00 -> 18:00 UTC   19:00 -> 22:00 UTC
-# O GitHub pode atrasar alguns minutos o início de uma tarefa agendada em horários de pico.
-# Também pode ser disparado à mão (Actions > sync-base > Run workflow).
+# Atualização da base do painel (Dashboard, Vendas e Engenharia) cinco vezes por dia, no horário certo:
+#   06:00, 09:00, 12:00, 15:00 e 19:00 (Brasília, UTC-3, sem horário de verão) = 09, 12, 15, 18 e 22 UTC.
+# O agendador do GitHub atrasa tarefas agendadas (já chegou a mais de 1 hora). Por isso o agendamento dispara UMA HORA
+# ANTES do horário (08, 11, 14, 17 e 21 UTC) e a primeira etapa espera, com o relógio do servidor, até o minuto exato.
+# Se o GitHub atrasar além disso, a atualização roda assim que a tarefa começar.
+# O cronômetro do painel (src/lib/proximaAtualizacao.ts) usa estes mesmos horários.
+# Também pode ser disparado à mão (Actions > sync-base > Run workflow): nesse caso roda na hora.
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 9 * * *'
-    - cron: '0 12 * * *'
-    - cron: '0 15 * * *'
-    - cron: '0 18 * * *'
-    - cron: '0 22 * * *'
+    - cron: '0 8 * * *'
+    - cron: '0 11 * * *'
+    - cron: '0 14 * * *'
+    - cron: '0 17 * * *'
+    - cron: '0 21 * * *'
 
 concurrency:
   group: sync-base
@@ -21,8 +23,28 @@ concurrency:
 jobs:
   base:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 100
     steps:
+      - name: Esperar o horário marcado
+        if: github.event_name == 'schedule'
+        run: |
+          # Horários da atualização em UTC. Alvo = primeiro horário que ainda não passou há mais de 2 horas.
+          agora=$(date +%s)
+          dia=$(date -u -d "$(date -u +%F) 00:00:00" +%s)
+          alvo=0
+          for d in -86400 0 86400; do
+            for h in 9 12 15 18 22; do
+              t=$((dia + d + h * 3600))
+              if [ "$t" -gt $((agora - 7200)) ] && { [ "$alvo" = 0 ] || [ "$t" -lt "$alvo" ]; }; then alvo=$t; fi
+            done
+          done
+          espera=$((alvo - agora))
+          if [ "$espera" -gt 0 ]; then
+            echo "Esperando ${espera}s até $(date -u -d "@$alvo" '+%H:%M UTC')"
+            sleep "$espera"
+          else
+            echo "Atrasado em $((-espera))s: atualizando agora"
+          fi
       - name: Atualizar a base do painel
         env:
           TOKEN: ${{ secrets.GRONER_SYNC_TOKEN }}

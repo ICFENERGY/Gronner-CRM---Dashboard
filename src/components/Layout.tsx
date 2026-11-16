@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { IcfLogo } from './IcfLogo'
+import { ProximaAtualizacao } from './ProximaAtualizacao'
 import { ThemeToggle } from './ThemeToggle'
 
 export interface AbaItem { k: string; rotulo: string; badge?: number }
@@ -54,6 +55,7 @@ export function Layout({
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <ProximaAtualizacao />
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>
