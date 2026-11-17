@@ -83,23 +83,16 @@
     );
   })).then(function () { mostrarResultado(); avisar(); });
 
-  // Faixa com a origem dos dados (e o aviso quando o banco ainda não tem projetos).
+  // Faixa só para avisos (erro ao ler a situação ou banco sem projetos). Sem aviso, nada é mostrado.
   function faixa(status, erro) {
+    if (!erro && !(status && status.aviso)) return;
     var raiz = document.querySelector('#dash-root .eng-wrap');
     if (!raiz) return;
     var el = document.createElement('div');
     el.id = 'indicadores-origem';
     el.setAttribute('role', 'status');
     el.style.cssText = 'font-size:12px;line-height:1.5;color:var(--color-fg-muted);border:1px solid var(--color-border-line);background:var(--color-panel);border-radius:8px;padding:8px 12px';
-    var fmt = function (iso) { return iso ? new Date(iso).toLocaleString('pt-BR') : 'sem carga registrada'; };
-    var texto;
-    if (erro) {
-      texto = 'Não foi possível ler a situação dos dados: ' + erro;
-    } else {
-      texto = 'Fonte: banco do painel, sincronizado com o Groner. ' +
-        status.cards.total.toLocaleString('pt-BR') + ' cards (projetos: ' + fmt(status.cards.atualizadoEm) + ') · ' +
-        status.sales.total.toLocaleString('pt-BR') + ' vendas (' + fmt(status.sales.atualizadoEm) + ').';
-    }
+    var texto = erro ? 'Não foi possível ler a situação dos dados: ' + erro : '';
     el.textContent = texto;
     if (status && status.aviso) {
       var b = document.createElement('strong');
