@@ -158,12 +158,15 @@
     var lista = filtrados();
     var agora = new Date().toLocaleString('pt-BR');
     el.innerHTML = cabecalho() +
+      '<section class="eng-panel ac-no-print" id="ac-evolucao-box"><div id="ac-evolucao"></div></section>' +
       '<section class="eng-panel"><div class="ac-print-head"><h1>Acordos da Engenharia · ' + periodoTexto() + '</h1><p>' + lista.length + ' acordo(s)' + (S.resp !== 'all' ? ' · Responsável: ' + esc(S.resp) : '') + (S.status !== 'all' ? ' · ' + (S.status === 'abertas' ? 'só abertos' : 'só feitos') : '') + ' · gerado em ' + agora + '</p></div>' +
       '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>Verde: mais de 2 dias para o prazo</span><span><i style="background:#e6b422"></i>Amarelo: faltam 1 ou 2 dias</span><span><i style="background:var(--eng-red)"></i>Vermelho: vence hoje ou estourou</span></div>' +
       '<div class="eng-panel-head ac-no-print"><h2>Checklist de execução por dia do acordo</h2><span class="eng-panel-note">' + lista.length.toLocaleString('pt-BR') + ' acordo(s) · cada acordo aparece no dia em que foi feito</span></div>' +
       (lista.length ? porDia(lista) : '<div class="ge-vazio">Nenhum acordo neste período.</div>') +
       '</section>';
     ligar(el);
+    var ev = document.getElementById('ac-evolucao');
+    if (ev && window.engColab) window.engColab.evolucao(ev);
   }
 
   function codigoEdicao(forcar) {

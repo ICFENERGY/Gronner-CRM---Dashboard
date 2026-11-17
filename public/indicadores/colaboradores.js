@@ -172,10 +172,24 @@
       '<div class="co-sub">Verde: mais de 2 dias para o prazo · Amarelo: faltam 1 ou 2 dias · Vermelho: vence hoje ou estourou. Taxa de conclusão = acordos feitos (ou cujo card saiu da etapa) ÷ acordos feitos, abertos e saídos; acordos substituídos por um mais novo não contam.</div></section>';
     var b = document.getElementById('co-atualizar');
     if (b) b.onclick = function () { carregar(); };
-    var qu = document.getElementById('co-quem');
+    ligarEvolucao(el);
+    pintarExtra();
+  }
+
+  function ligarEvolucao(el) {
+    var qu = el.querySelector('#co-quem');
     if (qu) qu.onchange = function () { S.quem = qu.value; desenhar(); };
-    var sel = document.getElementById('co-dias');
+    var sel = el.querySelector('#co-dias');
     if (sel) sel.onchange = function () { S.dias = Number(sel.value); carregar(); };
+  }
+
+  // Gráfico e calendário por dia também aparecem dentro de "Acordos do dia" (S.extra = área reservada lá).
+  function pintarExtra() {
+    var x = S.extra;
+    if (!x || !document.body.contains(x)) return;
+    if (!S.dados || !S.dados.calendario) { x.innerHTML = S.erro ? '' : '<div class="ge-vazio">Carregando a evolução por colaborador…</div>'; return; }
+    x.innerHTML = grafico(S.dados.calendario) + calendario(S.dados.calendario);
+    ligarEvolucao(x);
   }
 
   function carregar() {
@@ -184,9 +198,17 @@
     return fetch('/api/indicadores/engenharia/colaboradores?dias=' + S.dias, { headers: { accept: 'application/json' } }).then(function (r) {
       if (!r.ok) return r.json().catch(function () { return {}; }).then(function (b) { throw new Error(b.error || ('Erro ' + r.status)); });
       return r.json();
-    }).then(function (d) { S.dados = d; S.erro = null; }, function (e) { S.erro = e.message; })
-      .then(function () { S.carregando = false; desenhar(); });
+    }).then(function (d) { S.dados = d; S.erro = null; S.carregadoEm = Date.now(); }, function (e) { S.erro = e.message; })
+      .then(function () { S.carregando = false; desenhar(); pintarExtra(); });
   }
 
-  window.engColab = { mostrar: function () { css(); desenhar(); carregar(); } };
+  window.engColab = {
+    mostrar: function () { css(); desenhar(); carregar(); },
+    evolucao: function (el) {
+      css();
+      S.extra = el;
+      pintarExtra();
+      if (!S.dados || Date.now() - (S.carregadoEm || 0) > 60000) carregar();
+    },
+  };
 })();
