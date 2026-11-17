@@ -4,7 +4,7 @@
  * por cor do prazo (no prazo / atenção / vencido) e a taxa de conclusão dos acordos.
  */
 (function () {
-  var S = { dados: null, carregando: false, erro: null, dias: 14 };
+  var S = { dados: null, carregando: false, erro: null, dias: 14, quem: 'todos' };
   var SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -90,6 +90,55 @@
       '</div>';
   }
 
+  function somaDia(cal, i) {
+    var t = { verde: 0, amarelo: 0, vermelho: 0, resolvidos: 0 };
+    cal.colaboradores.forEach(function (c) {
+      if (S.quem !== 'todos' && c.chave !== S.quem) return;
+      var x = c.porDia[i];
+      t.verde += x.verde; t.amarelo += x.amarelo; t.vermelho += x.vermelho; t.resolvidos += x.resolvidos;
+    });
+    return t;
+  }
+
+  function grafico(cal) {
+    var n = cal.dias.length, hoje = S.dados.hoje;
+    var vals = cal.dias.map(function (d, i) { return somaDia(cal, i); });
+    var max = Math.max(4, Math.max.apply(null, vals.map(function (v) { return v.verde + v.amarelo + v.vermelho; })));
+    var W = Math.max(560, n * 46 + 50), H = 230, L = 34, T = 22, B = 36, ph = H - T - B, bw = Math.min(30, (W - L - 10) / n * 0.62);
+    var passo = (W - L - 10) / n;
+    var cores = { verde: 'var(--eng-green)', amarelo: '#e6b422', vermelho: 'var(--eng-red)' };
+    var g = '';
+    [0, 0.5, 1].forEach(function (f) {
+      var y = T + ph - ph * f;
+      g += '<line x1="' + L + '" x2="' + (W - 6) + '" y1="' + y + '" y2="' + y + '" stroke="var(--color-border-line)" stroke-width="1"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10" fill="var(--color-fg-muted)">' + Math.round(max * f) + '</text>';
+    });
+    cal.dias.forEach(function (d, i) {
+      var v = vals[i], x = L + passo * i + (passo - bw) / 2, y = T + ph, tot = v.verde + v.amarelo + v.vermelho;
+      var tip = br(d) + ': ' + tot + ' em aberto — ' + v.verde + ' no prazo, ' + v.amarelo + ' atenção, ' + v.vermelho + ' venceu/estourou · ' + v.resolvidos + ' resolvido(s)';
+      g += '<g><title>' + esc(tip) + '</title>';
+      ['verde', 'amarelo', 'vermelho'].forEach(function (k) {
+        var h = ph * v[k] / max;
+        if (h <= 0) return;
+        y -= h;
+        g += '<rect x="' + x + '" y="' + (y + 1) + '" width="' + bw + '" height="' + Math.max(0, h - 2) + '" rx="3" fill="' + cores[k] + '"/>';
+        if (h >= 14) g += '<text x="' + (x + bw / 2) + '" y="' + (y + h / 2 + 4) + '" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">' + v[k] + '</text>';
+      });
+      if (tot) g += '<text x="' + (x + bw / 2) + '" y="' + (y - 4) + '" text-anchor="middle" font-size="11" font-weight="700" fill="var(--color-fg)">' + tot + '</text>';
+      g += '<text x="' + (x + bw / 2) + '" y="' + (H - 18) + '" text-anchor="middle" font-size="10" font-weight="' + (d === hoje ? 700 : 400) + '" fill="' + (d === hoje ? 'var(--color-fg)' : 'var(--color-fg-muted)') + '">' + d.slice(8, 10) + '/' + d.slice(5, 7) + '</text>';
+      g += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="var(--color-fg-muted)">' + SEM[new Date(d + 'T12:00:00').getDay()] + (d === hoje ? ' · hoje' : '') + '</text></g>';
+    });
+    var hi = cal.dias.indexOf(hoje), hv = hi >= 0 ? vals[hi] : null;
+    var resumo = hv ? 'Hoje (' + br(hoje) + '): <b>' + (hv.verde + hv.amarelo + hv.vermelho) + '</b> cards em aberto — <b style="color:var(--eng-green)">' + hv.verde + ' no prazo</b>, <b style="color:#b8860b">' + hv.amarelo + ' atenção</b>, <b style="color:var(--eng-red)">' + hv.vermelho + ' venceu ou estourou</b>.' : '';
+    var op = '<option value="todos"' + (S.quem === 'todos' ? ' selected' : '') + '>Todos</option>' + cal.colaboradores.map(function (c) {
+      return '<option value="' + esc(c.chave) + '"' + (S.quem === c.chave ? ' selected' : '') + '>' + esc(c.nome) + '</option>';
+    }).join('');
+    return '<div class="co-cal"><div class="eng-panel-head"><h3>Cards por dia: no prazo, atenção e venceu</h3><span class="eng-panel-note">cards com acordo em aberto no fim de cada dia</span>' +
+      '<select id="co-quem" class="eng-field" aria-label="Colaborador">' + op + '</select></div>' +
+      (resumo ? '<div class="co-sub" style="margin:0 0 6px;font-size:13px">' + resumo + '</div>' : '') +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Cards em aberto por dia, por cor do prazo" style="max-width:100%;height:auto">' + g + '</svg>' +
+      '<div class="ac-leg" style="display:flex;gap:14px;font-size:12px;color:var(--color-fg-muted)"><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-green);margin-right:5px"></i>No prazo (mais de 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e6b422;margin-right:5px"></i>Atenção (1 ou 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-red);margin-right:5px"></i>Venceu ou estourou</span></div></div>';
+  }
+
   function calendario(cal) {
     if (!cal || !cal.dias.length) return '';
     var hoje = S.dados.hoje;
@@ -119,10 +168,12 @@
     var cs = S.dados.colaboradores, o = S.dados.outros;
     var outros = o.total ? '<div class="co-sub">Acordos de outros responsáveis (fora desta lista): ' + o.cards + ' em aberto, ' + (o.feitos + o.saiu) + ' resolvido(s).</div>' : '';
     el.innerHTML = '<section class="eng-panel"><div class="eng-panel-head"><h2>Colaboradores · Engenharia</h2><span class="eng-panel-note">cards = acordos em aberto · cores pelo prazo · taxa = resolvidos ÷ todos os acordos</span><button id="co-atualizar" class="eng-clear-btn" type="button">Atualizar</button></div>' +
-      '<div class="co-grid">' + cs.map(cartao).join('') + '</div>' + calendario(S.dados.calendario) + outros +
+      '<div class="co-grid">' + cs.map(cartao).join('') + '</div>' + (S.dados.calendario ? grafico(S.dados.calendario) : '') + calendario(S.dados.calendario) + outros +
       '<div class="co-sub">Verde: mais de 2 dias para o prazo · Amarelo: faltam 1 ou 2 dias · Vermelho: vence hoje ou estourou. Taxa de conclusão = acordos feitos (ou cujo card saiu da etapa) ÷ acordos feitos, abertos e saídos; acordos substituídos por um mais novo não contam.</div></section>';
     var b = document.getElementById('co-atualizar');
     if (b) b.onclick = function () { carregar(); };
+    var qu = document.getElementById('co-quem');
+    if (qu) qu.onchange = function () { S.quem = qu.value; desenhar(); };
     var sel = document.getElementById('co-dias');
     if (sel) sel.onchange = function () { S.dias = Number(sel.value); carregar(); };
   }
