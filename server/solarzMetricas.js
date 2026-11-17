@@ -41,14 +41,6 @@ export function contarFarol(usinas) {
   return c
 }
 
-/**
- * Usinas da conta sem monitoramento premium (a Open API só informa o farol das premium, mas a lista simples diz que as outras existem).
- * Entram na série do farol como "Sem premium": só a existência, sem status. Arquivadas ficam de fora.
- */
-export function contarSemPremium(simplesEstado) {
-  return (simplesEstado?.usinas ?? []).filter((u) => u && !u.premium && !u.arquivada).length
-}
-
 export const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const MESES_NOME = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 

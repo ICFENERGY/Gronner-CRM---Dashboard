@@ -25,3 +25,10 @@ conversa-claude-codex/anexos/
 
 # Servidor MCP mantido localmente e fora deste repositório
 mcp-server/
+
+# Só locais (não publicar): configuração do Claude Code, exportações com nomes de clientes e ferramentas de auditoria
+.claude/
+docs/data_*.json
+docs/index.html
+docs/SLA de Atendimento.html
+vite.audit.config.ts
