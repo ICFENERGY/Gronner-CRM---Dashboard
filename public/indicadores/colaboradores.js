@@ -4,7 +4,8 @@
  * por cor do prazo (no prazo / atenção / vencido) e a taxa de conclusão dos acordos.
  */
 (function () {
-  var S = { dados: null, carregando: false, erro: null };
+  var S = { dados: null, carregando: false, erro: null, dias: 14 };
+  var SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function br(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '—'; }
@@ -43,6 +44,20 @@
       '.co-it .co-pz { font-size: 11.5px; color: var(--color-fg-muted); white-space: nowrap; }',
       '.co-it.vermelho .co-pz { color: var(--eng-red); font-weight: 700; }',
       '.co-it.amarelo .co-pz { color: color-mix(in srgb, var(--co-amarelo) 55%, var(--color-fg)); font-weight: 650; }',
+      '.co-cal { overflow-x: auto; margin-top: 18px; }',
+      '.co-cal h3 { font-size: 14px; margin: 0 0 4px; }',
+      '.co-cal table { border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: 100%; }',
+      '.co-cal th, .co-cal td { padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); text-align: center; min-width: 74px; }',
+      '.co-cal th { font-size: 11.5px; color: var(--color-fg-muted); font-weight: 650; background: var(--color-bg); position: sticky; top: 0; }',
+      '.co-cal th:first-child, .co-cal td:first-child { text-align: left; position: sticky; left: 0; background: var(--color-panel); font-weight: 700; min-width: 110px; z-index: 1; }',
+      '.co-cal th:first-child { background: var(--color-bg); z-index: 2; }',
+      '.co-cal th.hoje { color: var(--color-fg); box-shadow: inset 0 -3px var(--eng-teal); }',
+      '.co-cal .ab { font-size: 17px; font-weight: 750; font-variant-numeric: tabular-nums; display: block; }',
+      '.co-cal .ab.zero { color: var(--color-fg-muted); font-weight: 500; }',
+      '.co-cal .pt { display: inline-flex; gap: 6px; font-size: 11px; font-variant-numeric: tabular-nums; }',
+      '.co-cal .pt .v { color: var(--eng-green); } .co-cal .pt .a { color: color-mix(in srgb, var(--co-amarelo) 55%, var(--color-fg)); } .co-cal .pt .r { color: var(--eng-red); }',
+      '.co-cal .rs { display: block; font-size: 11px; color: var(--eng-teal); font-weight: 650; }',
+      '.co-cal .nv { display: block; font-size: 10.5px; color: var(--color-fg-muted); }',
       '.co-it.verde .co-pz { color: var(--eng-green); font-weight: 650; }'
     ].join('\n');
     document.head.appendChild(st);
@@ -75,6 +90,27 @@
       '</div>';
   }
 
+  function calendario(cal) {
+    if (!cal || !cal.dias.length) return '';
+    var hoje = S.dados.hoje;
+    var cab = '<tr><th>Colaborador</th>' + cal.dias.map(function (d) {
+      return '<th' + (d === hoje ? ' class="hoje"' : '') + '>' + SEM[new Date(d + 'T12:00:00').getDay()] + '<br>' + d.slice(8, 10) + '/' + d.slice(5, 7) + '</th>';
+    }).join('') + '</tr>';
+    var linhas = cal.colaboradores.map(function (c) {
+      return '<tr><td>' + esc(c.nome) + '</td>' + c.porDia.map(function (x) {
+        if (!x.abertos && !x.resolvidos && !x.novos) return '<td><span class="ab zero">0</span></td>';
+        return '<td title="' + esc(c.nome) + ' · ' + br(x.dia) + ': ' + x.abertos + ' aberto(s) ao fim do dia (' + x.verde + ' em prazo, ' + x.amarelo + ' atenção, ' + x.vermelho + ' vencido), ' + x.resolvidos + ' resolvido(s), ' + x.novos + ' acordo(s) novo(s)">' +
+          '<span class="ab' + (x.abertos ? '' : ' zero') + '">' + x.abertos + '</span>' +
+          (x.abertos ? '<span class="pt"><span class="v">' + x.verde + '</span><span class="a">' + x.amarelo + '</span><span class="r">' + x.vermelho + '</span></span>' : '') +
+          (x.resolvidos ? '<span class="rs">✓ ' + x.resolvidos + ' resolvido(s)</span>' : '') +
+          (x.novos ? '<span class="nv">+' + x.novos + ' acordo(s)</span>' : '') + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    var op = [7, 14, 30].map(function (n) { return '<option value="' + n + '"' + (S.dias === n ? ' selected' : '') + '>Últimos ' + n + ' dias</option>'; }).join('');
+    return '<div class="co-cal"><div class="eng-panel-head"><h3>Evolução por dia</h3><span class="eng-panel-note">cards em aberto no fim de cada dia · <span style="color:var(--eng-green)">verde</span> em prazo, <span style="color:#b8860b">amarelo</span> atenção, <span style="color:var(--eng-red)">vermelho</span> vencido</span><select id="co-dias" class="eng-field" aria-label="Período">' + op + '</select></div>' +
+      '<table><thead>' + cab + '</thead><tbody>' + linhas + '</tbody></table></div>';
+  }
+
   function desenhar() {
     var el = raiz();
     if (!el) return;
@@ -83,16 +119,18 @@
     var cs = S.dados.colaboradores, o = S.dados.outros;
     var outros = o.total ? '<div class="co-sub">Acordos de outros responsáveis (fora desta lista): ' + o.cards + ' em aberto, ' + (o.feitos + o.saiu) + ' resolvido(s).</div>' : '';
     el.innerHTML = '<section class="eng-panel"><div class="eng-panel-head"><h2>Colaboradores · Engenharia</h2><span class="eng-panel-note">cards = acordos em aberto · cores pelo prazo · taxa = resolvidos ÷ todos os acordos</span><button id="co-atualizar" class="eng-clear-btn" type="button">Atualizar</button></div>' +
-      '<div class="co-grid">' + cs.map(cartao).join('') + '</div>' + outros +
+      '<div class="co-grid">' + cs.map(cartao).join('') + '</div>' + calendario(S.dados.calendario) + outros +
       '<div class="co-sub">Verde: mais de 2 dias para o prazo · Amarelo: faltam 1 ou 2 dias · Vermelho: vence hoje ou estourou. Taxa de conclusão = acordos feitos (ou cujo card saiu da etapa) ÷ acordos feitos, abertos e saídos; acordos substituídos por um mais novo não contam.</div></section>';
     var b = document.getElementById('co-atualizar');
     if (b) b.onclick = function () { carregar(); };
+    var sel = document.getElementById('co-dias');
+    if (sel) sel.onchange = function () { S.dias = Number(sel.value); carregar(); };
   }
 
   function carregar() {
     if (S.carregando) return Promise.resolve();
     S.carregando = true;
-    return fetch('/api/indicadores/engenharia/colaboradores', { headers: { accept: 'application/json' } }).then(function (r) {
+    return fetch('/api/indicadores/engenharia/colaboradores?dias=' + S.dias, { headers: { accept: 'application/json' } }).then(function (r) {
       if (!r.ok) return r.json().catch(function () { return {}; }).then(function (b) { throw new Error(b.error || ('Erro ' + r.status)); });
       return r.json();
     }).then(function (d) { S.dados = d; S.erro = null; }, function (e) { S.erro = e.message; })

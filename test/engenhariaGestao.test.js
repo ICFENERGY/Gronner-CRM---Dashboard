@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import express from 'express'
-import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos, colaboradorDe, metricasColaboradores } from '../server/engenhariaGestao.js'
+import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos, colaboradorDe, metricasColaboradores, calendarioColaboradores } from '../server/engenhariaGestao.js'
 import { createIndicadoresRouter } from '../server/indicadoresRoutes.js'
 import { registrarNoGroner, textoComentario, tituloDaTarefa } from '../server/gronerAcoes.js'
 
@@ -375,4 +375,28 @@ test('colaboradores: reconhece pelo nome, conta abertos por cor e calcula a taxa
   assert.deepEqual([p.cards, p.vencido, p.feitos, p.saiu, p.taxa], [1, 1, 2, 1, 75])
   assert.equal(r.colaboradores.find((c) => c.nome === 'João Martins').taxa, null)
   assert.equal(r.outros.cards, 1)
+})
+
+test('calendário: cards abertos por dia e cor do prazo, resolvidos no dia, acordo novo substitui o anterior', () => {
+  const l = (chave, dados) => ({ chave, dados })
+  const base = { funil: '11', etapa: 'X', nome: null, situacao: null, tarefaId: null }
+  const linhas = [
+    // card 1: acordo dia 10 (prazo 14), renovado dia 12 (prazo 20), concluído dia 13
+    l('acordo:2026-11-10:1:11', { ...base, dia: '2026-11-10', codigo: 1, acao: 'a', responsavel: 'Eliardo', prazo: '2026-11-14', criadoEm: '2026-11-10T15:00:00Z', atualizadoEm: '2026-11-10T15:00:00Z' }),
+    l('acordo:2026-11-12:1:11', { ...base, dia: '2026-11-12', codigo: 1, acao: 'b', responsavel: 'Eliardo', prazo: '2026-11-20', criadoEm: '2026-11-12T15:00:00Z', atualizadoEm: '2026-11-12T15:00:00Z' }),
+    l('acao:1:11', { codigo: 1, funil: '11', etapa: 'X', acao: 'b', responsavel: 'Eliardo', prazo: '2026-11-20', concluida: true, concluidaEm: '2026-11-13T15:00:00Z', motivo: 'marcada como feita', criadaEm: '2026-11-12T15:00:00Z', atualizadaEm: '2026-11-12T15:00:00Z' }),
+    // card 2: acordo dia 11 (prazo 12), segue aberto
+    l('acordo:2026-11-11:2:11', { ...base, dia: '2026-11-11', codigo: 2, acao: 'c', responsavel: 'Priscilla', prazo: '2026-11-12', criadoEm: '2026-11-11T15:00:00Z', atualizadoEm: '2026-11-11T15:00:00Z' }),
+    l('acao:2:11', { codigo: 2, funil: '11', etapa: 'X', acao: 'c', responsavel: 'Priscilla', prazo: '2026-11-12', concluida: false, criadaEm: '2026-11-11T15:00:00Z', atualizadaEm: '2026-11-11T15:00:00Z' }),
+  ]
+  const r = calendarioColaboradores(linhas, { de: '2026-11-10', ate: '2026-11-14' })
+  assert.deepEqual(r.dias, ['2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14'])
+  const el = r.colaboradores.find((c) => c.nome === 'Eliardo').porDia
+  assert.deepEqual(el.map((d) => d.abertos), [1, 1, 1, 0, 0])
+  assert.deepEqual(el.map((d) => d.verde), [1, 1, 1, 0, 0])
+  assert.deepEqual(el.map((d) => d.resolvidos), [0, 0, 0, 1, 0])
+  assert.deepEqual(el.map((d) => d.novos), [1, 0, 1, 0, 0])
+  const pr = r.colaboradores.find((c) => c.nome === 'Priscilla').porDia
+  assert.deepEqual(pr.map((d) => d.abertos), [0, 1, 1, 1, 1])
+  assert.deepEqual([pr[1].amarelo, pr[2].vermelho, pr[4].vermelho], [1, 1, 1])
 })

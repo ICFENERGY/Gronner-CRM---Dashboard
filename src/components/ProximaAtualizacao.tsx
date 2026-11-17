@@ -40,15 +40,15 @@ export function ProximaAtualizacao() {
   return (
     <div
       className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-secondary)]"
-      title={`A base é atualizada automaticamente às 06:00, 09:00, 12:00, 15:00 e 19:00 (Brasília) e a tela recarrega sozinha. Próxima: ${horaBrasilia(proxima)}.`}
+      title={`A base é atualizada automaticamente às 06:00, 09:00, 12:00, 15:00 e 19:00 (Brasília) e a tela recarrega sozinha. Última: ${horaBrasilia(anterior)}. Próxima: ${horaBrasilia(proxima)}.`}
     >
       <span aria-hidden="true">⏱</span>
       {aguardando ? (
         <span className="font-semibold text-[var(--text-primary)]" role="status">Atualizando a base…</span>
       ) : (
         <span>
-          <span className="hidden sm:inline">Próxima atualização às {horaBrasilia(proxima)} · em </span>
-          <span className="sm:hidden">{horaBrasilia(proxima)} · </span>
+          <span className="hidden sm:inline">Atualizado às <b className="text-[var(--text-primary)]">{horaBrasilia(anterior)}</b> · próxima às {horaBrasilia(proxima)} em </span>
+          <span className="sm:hidden">✓ {horaBrasilia(anterior)} · próx. {horaBrasilia(proxima)} · </span>
           <b className="tabular-nums text-[var(--text-primary)]">{formatarContagem(proxima - agora)}</b>
         </span>
       )}

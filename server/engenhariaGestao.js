@@ -266,7 +266,7 @@ export function registroAcordo({ card, acao, responsavel, prazo, agora, antes = 
  * `linhas` = tudo o que está guardado da Engenharia (acordos e ações). Ações anteriores ao histórico entram no
  * dia em que foram salvas.
  */
-export function montarAcordos(linhas, { de, ate, hoje }) {
+function acordosBrutos(linhas) {
   const acoes = new Map()
   const registros = []
   for (const { chave, dados } of linhas) {
@@ -282,6 +282,11 @@ export function montarAcordos(linhas, { de, ate, hoje }) {
     if (!dia) continue
     registros.push({ dia, codigo: a.codigo, funil: a.funil, funilNome: NOMES_FUNIL[a.funil] ?? null, etapa: a.etapa, nome: null, situacao: null, acao: a.acao, responsavel: a.responsavel, prazo: a.prazo, tarefaId: a.tarefaId ?? null, criadoEm: quando, atualizadoEm: quando })
   }
+  return { acoes, registros }
+}
+
+export function montarAcordos(linhas, { de, ate, hoje }) {
+  const { acoes, registros } = acordosBrutos(linhas)
   const maisNovo = new Map()
   for (const r of registros) {
     const k = `${r.codigo}:${r.funil}`
@@ -350,4 +355,55 @@ export function metricasColaboradores(acordos) {
     return m
   }
   return { colaboradores: [...por.values()].map(fecha), outros: fecha(outros) }
+}
+
+const corNoDia = (prazo, dia) => {
+  const d = Math.round((Date.parse(`${prazo}T00:00:00Z`) - Date.parse(`${dia}T00:00:00Z`)) / 86400_000)
+  return d <= 0 ? 'vermelho' : d <= 2 ? 'amarelo' : 'verde'
+}
+
+/**
+ * Calendário de evolução por colaborador: para cada dia entre `de` e `ate`, quantos cards ele tinha com acordo em
+ * aberto no fim do dia (separados pela cor do prazo naquele dia), quantos resolveu no dia (feito ou card que saiu da
+ * etapa) e quantos acordos novos fez. O acordo em vigor num dia é o mais recente feito até aquele dia.
+ */
+export function calendarioColaboradores(linhas, { de, ate }) {
+  const { acoes, registros } = acordosBrutos(linhas)
+  const dias = []
+  for (let t = Date.parse(`${de}T00:00:00Z`); t <= Date.parse(`${ate}T00:00:00Z`); t += 86400_000) dias.push(new Date(t).toISOString().slice(0, 10))
+  const porCard = new Map()
+  for (const r of registros) {
+    const k = `${r.codigo}:${r.funil}`
+    if (!porCard.has(k)) porCard.set(k, [])
+    porCard.get(k).push(r)
+  }
+  const mapa = new Map(COLABORADORES.map((c) => [c.chave, { ...c, porDia: new Map(dias.map((d) => [d, { dia: d, abertos: 0, verde: 0, amarelo: 0, vermelho: 0, resolvidos: 0, novos: 0 }])) }]))
+  for (const [k, lista] of porCard) {
+    lista.sort((a, b) => (a.criadoEm < b.criadoEm ? -1 : 1))
+    const ultimo = lista[lista.length - 1]
+    const atual = acoes.get(`acao:${k}`)
+    const fimDia = atual?.concluida && (atual.concluidaEm ?? '') >= ultimo.criadoEm ? diaBrasilia(atual.concluidaEm) : null
+    for (const r of lista) {
+      const c = colaboradorDe(r.responsavel)
+      const celula = c && mapa.get(c.chave).porDia.get(r.dia)
+      if (celula) celula.novos++
+    }
+    if (fimDia) {
+      const c = colaboradorDe(ultimo.responsavel)
+      const celula = c && mapa.get(c.chave).porDia.get(fimDia)
+      if (celula) celula.resolvidos++
+    }
+    for (const dia of dias) {
+      let r = null
+      for (const x of lista) if (x.dia <= dia) r = x
+      if (!r) continue
+      if (r === ultimo && fimDia && fimDia <= dia) continue
+      const c = colaboradorDe(r.responsavel)
+      const celula = c && mapa.get(c.chave).porDia.get(dia)
+      if (!celula) continue
+      celula.abertos++
+      celula[corNoDia(r.prazo, dia)]++
+    }
+  }
+  return { dias, colaboradores: [...mapa.values()].map((c) => ({ chave: c.chave, nome: c.nome, porDia: dias.map((d) => c.porDia.get(d)) })) }
 }

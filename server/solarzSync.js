@@ -9,7 +9,7 @@
  */
 import { mapUsina } from './mappers.js'
 import {
-  ENTIDADE_SOLARZ, contarFarol, agruparTickets, agruparUnidades, mesAtualBrasilia, normalizarMeses, solarzRegistroParaArmazenar,
+  ENTIDADE_SOLARZ, contarFarol, contarSemPremium, agruparTickets, agruparUnidades, mesAtualBrasilia, normalizarMeses, solarzRegistroParaArmazenar,
 } from './solarzMetricas.js'
 import { ehIndisponivel } from './solarzClient.js'
 
@@ -85,7 +85,10 @@ export async function sincronizarSolarz({
   // Snapshot diário do farol de monitoramento (série histórica das contagens; 1 linha por data, regravada no mesmo dia).
   const dataHoje = new Date(agora()).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
   if (usinas.length && lista?.completo !== false) {
-    await gravarEstado(`farol-${dataHoje}`, { data: dataHoje, total: usinas.length, contagens: contarFarol(usinas) })
+    // As usinas sem premium não têm farol na API, mas existem: entram como "Sem premium" (só a contagem).
+    const estados = typeof pg.todas === 'function' ? await pg.todas('estado', ENTIDADE_SOLARZ) : []
+    const semPremium = contarSemPremium(estados.find((e) => e.chave === 'simples')?.dados)
+    await gravarEstado(`farol-${dataHoje}`, { data: dataHoje, total: usinas.length + semPremium, contagens: { ...contarFarol(usinas), 'Sem premium': semPremium } })
   }
 
   const fila = planejarBusca(usinas, armazenados, agora(), validadeMs)

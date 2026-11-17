@@ -31,7 +31,7 @@ import { getPgSql, jsonb, TABELA_SQL } from './pgSql.js'
 import { loadSyncedEntity } from './syncStore.js'
 import { ID_META, LACUNAS, montarCards, montarEngResumo, montarSales, validarMeta } from './indicadores.js'
 import { lerPietaParaSla, montarChamadosSla, resumoDaCobertura } from './pietaSla.js'
-import { chaveAcao, diaBrasilia, ENTIDADE_ACOES, juntarAcoes, metricasColaboradores, montarAcordos, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
+import { chaveAcao, diaBrasilia, ENTIDADE_ACOES, calendarioColaboradores, juntarAcoes, metricasColaboradores, montarAcordos, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
 import { registrarNoGroner } from './gronerAcoes.js'
 import prazosArquivo from './data/sla-etapas.json' with { type: 'json' }
 
@@ -288,13 +288,15 @@ export function createIndicadoresRouter({
     } catch (err) { responderErro(res, err) }
   })
 
-  router.get('/engenharia/colaboradores', async (_req, res) => {
+  router.get('/engenharia/colaboradores', async (req, res) => {
     try {
       const hoje = diaBrasilia(new Date(agora()))
+      const nDias = Math.min(31, Math.max(3, Number(req.query.dias) || 14))
+      const de = diaBrasilia(new Date(agora() - (nDias - 1) * 86400_000))
       const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
       const itens = montarAcordos(linhas, { de: '0000-01-01', ate: '9999-12-31', hoje })
       res.set('Cache-Control', 'no-store')
-      res.json({ hoje, ...metricasColaboradores(itens) })
+      res.json({ hoje, ...metricasColaboradores(itens), calendario: calendarioColaboradores(linhas, { de, ate: hoje }) })
     } catch (err) { responderErro(res, err) }
   })
 
