@@ -55,7 +55,7 @@ export function Layout({
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <ProximaAtualizacao />
+            {aba === 'engenharia' && <ProximaAtualizacao />}
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>
