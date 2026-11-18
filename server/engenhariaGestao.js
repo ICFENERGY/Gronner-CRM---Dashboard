@@ -302,7 +302,7 @@ export function montarAcordos(linhas, { de, ate, hoje }) {
       else if (atual?.concluida && (atual.concluidaEm ?? '') >= r.criadoEm) status = atual.motivo === 'card mudou de etapa' ? 'saiu' : 'feita'
       const diasParaPrazo = Math.round((Date.parse(`${r.prazo}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86400_000)
       const cor = status !== 'aberta' ? null : diasParaPrazo <= 0 ? 'vermelho' : diasParaPrazo <= 2 ? 'amarelo' : 'verde'
-      return { ...r, status, feitaEm: status === 'feita' ? atual.concluidaEm : null, vencida: status === 'aberta' && r.prazo < hoje, diasParaPrazo, cor }
+      return { ...r, colaborador: colaboradorDe(r.responsavel)?.chave ?? null, status, feitaEm: status === 'feita' ? atual.concluidaEm : null, vencida: status === 'aberta' && r.prazo < hoje, diasParaPrazo, cor }
     })
     .sort((a, b) => b.dia.localeCompare(a.dia) || a.responsavel.localeCompare(b.responsavel, 'pt-BR') || a.codigo - b.codigo)
 }

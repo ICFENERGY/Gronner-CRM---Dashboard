@@ -58,7 +58,30 @@
       '.co-cal .pt .v { color: var(--eng-green); } .co-cal .pt .a { color: color-mix(in srgb, var(--co-amarelo) 55%, var(--color-fg)); } .co-cal .pt .r { color: var(--eng-red); }',
       '.co-cal .rs { display: block; font-size: 11px; color: var(--eng-teal); font-weight: 650; }',
       '.co-cal .nv { display: block; font-size: 10.5px; color: var(--color-fg-muted); }',
-      '.co-it.verde .co-pz { color: var(--eng-green); font-weight: 650; }'
+      '.co-it.verde .co-pz { color: var(--eng-green); font-weight: 650; }',
+      '#co-print { display: none; }',
+      '@media print {',
+      '  body.co-imprimindo > *:not(#co-print) { display: none !important; }',
+      '  body.co-imprimindo #co-print { display: block; color: #111; font: 11.5px/1.45 system-ui, sans-serif; }',
+      '  body.co-imprimindo { background: #fff !important; }',
+      '  #co-print .cp-pag { break-after: page; }',
+      '  #co-print .cp-pag:last-child { break-after: auto; }',
+      '  #co-print h1 { font-size: 19px; margin: 0 0 2px; }',
+      '  #co-print h2 { font-size: 14px; margin: 14px 0 6px; }',
+      '  #co-print .cp-sub { color: #555; margin: 0 0 10px; }',
+      '  #co-print .cp-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }',
+      '  #co-print .cp-k { border: 1px solid #bbb; border-radius: 6px; padding: 6px 8px; }',
+      '  #co-print .cp-k b { display: block; font-size: 17px; }',
+      '  #co-print .cp-k span { font-size: 10px; color: #444; }',
+      '  #co-print .cp-res { border-left: 4px solid #1b8a8f; background: #f1f6f6; padding: 7px 10px; margin: 8px 0; font-size: 12.5px; }',
+      '  #co-print table { width: 100%; border-collapse: collapse; font-size: 10.5px; }',
+      '  #co-print th, #co-print td { border-bottom: 1px solid #ccc; padding: 4px 5px; text-align: left; vertical-align: top; }',
+      '  #co-print th { background: #eee; font-size: 10px; }',
+      '  #co-print tr { break-inside: avoid; }',
+      '  #co-print td.n, #co-print th.n { text-align: center; }',
+      '  #co-print .s-ok { color: #1e7a45; font-weight: 700; } #co-print .s-atr { color: #b06a00; font-weight: 700; } #co-print .s-venc { color: #c62828; font-weight: 700; } #co-print .s-at { color: #9a7400; font-weight: 700; } #co-print .s-pz { color: #1e7a45; } #co-print .s-saiu { color: #555; }',
+      '  @page { margin: 11mm; }',
+      '}'
     ].join('\n');
     document.head.appendChild(st);
   }
@@ -133,7 +156,7 @@
       return '<option value="' + esc(c.chave) + '"' + (S.quem === c.chave ? ' selected' : '') + '>' + esc(c.nome) + '</option>';
     }).join('');
     return '<div class="co-cal"><div class="eng-panel-head"><h3>Cards por dia: no prazo, atenção e venceu</h3><span class="eng-panel-note">cards com acordo em aberto no fim de cada dia</span>' +
-      '<select id="co-quem" class="eng-field" aria-label="Colaborador">' + op + '</select></div>' +
+      '<select id="co-quem" class="eng-field" aria-label="Colaborador">' + op + '</select><button type="button" class="eng-clear-btn co-pdf">Exportar PDF</button></div>' +
       (resumo ? '<div class="co-sub" style="margin:0 0 6px;font-size:13px">' + resumo + '</div>' : '') +
       '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Cards em aberto por dia, por cor do prazo" style="max-width:100%;height:auto">' + g + '</svg>' +
       '<div class="ac-leg" style="display:flex;gap:14px;font-size:12px;color:var(--color-fg-muted)"><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-green);margin-right:5px"></i>No prazo (mais de 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e6b422;margin-right:5px"></i>Atenção (1 ou 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-red);margin-right:5px"></i>Venceu ou estourou</span></div></div>';
@@ -177,6 +200,8 @@
   }
 
   function ligarEvolucao(el) {
+    var pdf = el.querySelector('.co-pdf');
+    if (pdf) pdf.onclick = function () { exportarPdf(pdf); };
     var qu = el.querySelector('#co-quem');
     if (qu) qu.onchange = function () { S.quem = qu.value; desenhar(); };
     var sel = el.querySelector('#co-dias');
@@ -200,6 +225,79 @@
       return r.json();
     }).then(function (d) { S.dados = d; S.erro = null; S.carregadoEm = Date.now(); }, function (e) { S.erro = e.message; })
       .then(function () { S.carregando = false; desenhar(); pintarExtra(); });
+  }
+
+  // ─── PDF: comparativo do que cada colaborador combinou e do que realizou no período do calendário ───
+  function diaBr(iso) { return iso ? new Date(Date.parse(iso) - 3 * 3600e3).toISOString().slice(0, 10) : null; }
+
+  function situacao(a) {
+    if (a.status === 'feita') {
+      var d = diaBr(a.feitaEm);
+      return d && d <= a.prazo ? { ord: 4, cls: 's-ok', txt: 'Feito no prazo (' + br(d) + ')' } : { ord: 3, cls: 's-atr', txt: 'Feito com atraso (' + br(d) + ')' };
+    }
+    if (a.status === 'saiu') return { ord: 5, cls: 's-saiu', txt: 'Card saiu da etapa' };
+    if (a.cor === 'vermelho') return { ord: 0, cls: 's-venc', txt: a.diasParaPrazo === 0 ? 'Vence hoje' : 'Vencido há ' + (-a.diasParaPrazo) + ' dia(s)' };
+    if (a.cor === 'amarelo') return { ord: 1, cls: 's-at', txt: 'Atenção (faltam ' + a.diasParaPrazo + ' dia(s))' };
+    return { ord: 2, cls: 's-pz', txt: 'No prazo (faltam ' + a.diasParaPrazo + ' dias)' };
+  }
+
+  function paginaPdf(c, itens, cal, de, ate) {
+    var lista = itens.filter(function (a) { return a.colaborador === c.chave && a.status !== 'atualizado'; })
+      .map(function (a) { return { a: a, s: situacao(a) }; })
+      .sort(function (x, y) { return x.s.ord - y.s.ord || (x.a.prazo < y.a.prazo ? -1 : 1); });
+    var n = function (cls) { return lista.filter(function (x) { return x.s.cls === cls; }).length; };
+    var noPrazo = n('s-ok'), atraso = n('s-atr'), saiu = n('s-saiu'), venc = n('s-venc'), aten = n('s-at'), pz = n('s-pz');
+    var total = lista.length, resolvidos = noPrazo + atraso + saiu, cobrados = noPrazo + atraso + venc;
+    var pc = function (a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; };
+    var linhaCal = '';
+    var col = cal.colaboradores.filter(function (x) { return x.chave === c.chave; })[0];
+    if (col) {
+      linhaCal = '<h2>Cards em aberto no fim de cada dia</h2><table><thead><tr><th></th>' + cal.dias.map(function (d) { return '<th class="n">' + d.slice(8, 10) + '/' + d.slice(5, 7) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        [['Em aberto', 'abertos'], ['No prazo', 'verde'], ['Atenção', 'amarelo'], ['Vencido', 'vermelho'], ['Resolvidos no dia', 'resolvidos'], ['Acordos novos', 'novos']].map(function (r) {
+          return '<tr><td>' + r[0] + '</td>' + col.porDia.map(function (x) { return '<td class="n">' + (x[r[1]] || 0) + '</td>'; }).join('') + '</tr>';
+        }).join('') + '</tbody></table>';
+    }
+    var k = function (v, t) { return '<div class="cp-k"><b>' + v + '</b><span>' + t + '</span></div>'; };
+    return '<section class="cp-pag"><h1>' + esc(c.nome) + ' · acordos da Engenharia</h1>' +
+      '<p class="cp-sub">Período: ' + br(de) + ' a ' + br(ate) + ' (acordos feitos nesses dias) · gerado em ' + new Date().toLocaleString('pt-BR') + '</p>' +
+      '<div class="cp-kpis">' + k(total, 'acordos no período') + k(resolvidos + ' · ' + pc(resolvidos, total), 'resolvidos (taxa de conclusão)') +
+      k(noPrazo, 'feitos no prazo') + k(atraso, 'feitos com atraso') + k(saiu, 'card saiu da etapa') +
+      k(pz, 'em aberto · no prazo') + k(aten, 'em aberto · atenção') + k(venc, 'em aberto · vencidos') + '</div>' +
+      '<div class="cp-res"><b>Comparativo:</b> combinou ' + total + ' acordo(s) e resolveu ' + resolvidos + ' (' + pc(resolvidos, total) + '). ' +
+      'Dos acordos cujo prazo já foi cobrado (feitos ou vencidos), cumpriu no prazo ' + noPrazo + ' de ' + cobrados + ' (' + pc(noPrazo, cobrados) + '). ' +
+      (venc ? '<b>' + venc + ' vencido(s) sem conclusão.</b>' : 'Nenhum acordo vencido sem conclusão.') + '</div>' +
+      linhaCal +
+      '<h2>Cards com acordo (' + total + ')</h2>' +
+      (total ? '<table><thead><tr><th>Card</th><th>Cliente / etapa</th><th>O que foi combinado</th><th>Acordo em</th><th>Prazo</th><th>Situação</th></tr></thead><tbody>' +
+        lista.map(function (x) {
+          var a = x.a;
+          return '<tr><td>#' + a.codigo + '</td><td>' + esc(a.nome || '—') + '<br><span style="color:#555">' + esc(a.funil) + (a.funilNome ? ' · ' + esc(a.funilNome) : '') + ' · ' + esc(a.etapa || '') + '</span></td><td>' + esc(a.acao) + '</td><td>' + br(a.dia) + '</td><td>' + br(a.prazo) + '</td><td class="' + x.s.cls + '">' + x.s.txt + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<p>Nenhum acordo deste colaborador no período.</p>') +
+      '</section>';
+  }
+
+  function exportarPdf(botao) {
+    var cal = S.dados && S.dados.calendario;
+    if (!cal || !cal.dias.length) return;
+    var de = cal.dias[0], ate = cal.dias[cal.dias.length - 1];
+    var rotulo = botao.textContent;
+    botao.disabled = true; botao.textContent = 'Gerando…';
+    fetch('/api/indicadores/engenharia/acordos?de=' + de + '&ate=' + ate, { headers: { accept: 'application/json' } }).then(function (r) {
+      if (!r.ok) return r.json().catch(function () { return {}; }).then(function (b) { throw new Error(b.error || ('Erro ' + r.status)); });
+      return r.json();
+    }).then(function (d) {
+      var quem = cal.colaboradores.filter(function (c) { return S.quem === 'todos' || c.chave === S.quem; });
+      var box = document.getElementById('co-print');
+      if (!box) { box = document.createElement('div'); box.id = 'co-print'; document.body.appendChild(box); }
+      box.innerHTML = quem.map(function (c) { return paginaPdf(c, d.itens, cal, de, ate); }).join('');
+      var titulo = document.title;
+      document.title = 'Acordos-' + (S.quem === 'todos' ? 'Colaboradores' : quem[0].nome.replace(/\s+/g, '-')) + '-' + de + '_a_' + ate;
+      document.body.classList.add('co-imprimindo');
+      var fim = function () { document.body.classList.remove('co-imprimindo'); document.title = titulo; window.removeEventListener('afterprint', fim); };
+      window.addEventListener('afterprint', fim);
+      window.print();
+    }).catch(function (e) { window.alert('Não foi possível gerar o PDF: ' + e.message); })
+      .then(function () { botao.disabled = false; botao.textContent = rotulo; });
   }
 
   window.engColab = {
