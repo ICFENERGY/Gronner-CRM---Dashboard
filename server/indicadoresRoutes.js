@@ -294,10 +294,20 @@ export function createIndicadoresRouter({
       // ?mes=AAAA-MM: o mês inteiro (até hoje, se for o mês corrente); senão os últimos `dias` dias.
       const mes = /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(String(req.query.mes ?? '')) ? String(req.query.mes) : null
       if (mes && `${mes}-01` > hoje) return res.status(400).json({ error: 'Mês ainda não começou' })
+      // ?de=&ate= (AAAA-MM-DD, até 62 dias): o período escolhido em "Acordos do dia" (usado no PDF).
+      const dia = (v) => (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(v ?? '')) ? String(v) : null)
+      const pDe = dia(req.query.de), pAte = dia(req.query.ate)
       const nDias = Math.min(31, Math.max(3, Number(req.query.dias) || 14))
-      const de = mes ? `${mes}-01` : diaBrasilia(new Date(agora() - (nDias - 1) * 86400_000))
+      let de = mes ? `${mes}-01` : diaBrasilia(new Date(agora() - (nDias - 1) * 86400_000))
       const fimMes = mes ? new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10) : hoje
-      const ate = fimMes < hoje ? fimMes : hoje
+      let ate = fimMes < hoje ? fimMes : hoje
+      if (!mes && pDe && pAte) {
+        if (pDe > pAte) return res.status(400).json({ error: 'Período inválido' })
+        ate = pAte < hoje ? pAte : hoje
+        const min = new Date(Date.parse(`${ate}T12:00:00Z`) - 61 * 86400_000).toISOString().slice(0, 10)
+        de = pDe < min ? min : pDe
+        if (de > ate) de = ate
+      }
       const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
       const itens = montarAcordos(linhas, { de: '0000-01-01', ate: '9999-12-31', hoje })
       res.set('Cache-Control', 'no-store')
