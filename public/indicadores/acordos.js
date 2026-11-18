@@ -8,7 +8,10 @@
   var BASE = '/api/indicadores/engenharia';
   var CHAVE_CODIGO = 'indicadores-metas-codigo';
   var DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-  var S = { dados: null, carregando: false, erro: null, de: null, ate: null, status: 'all', resp: 'all', salvando: {} };
+  var S = { dados: null, carregando: false, erro: null, de: null, ate: null, status: 'all', resp: 'all', salvando: {}, mes: null, meses: {}, buscandoMes: {} };
+  var ORDEM_COLAB = ['eliardo', 'joao martins', 'priscilla'];
+  var NOME_COLAB = { eliardo: 'Eliardo', 'joao martins': 'João Martins', priscilla: 'Priscilla' };
+  var MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   var ROTULO = { aberta: 'Aberto', feita: 'Feito', saiu: 'Saiu da etapa', atualizado: 'Substituído' };
 
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -54,6 +57,26 @@
       '.ac-tag.aberta { background: color-mix(in srgb, var(--eng-orange) 18%, transparent); color: var(--eng-orange); }',
       '.ac-tag.feita { background: color-mix(in srgb, var(--eng-green) 16%, transparent); color: var(--eng-green); }',
       '.ac-print-head { display: none; }',
+      '.ac-print-colab { display: none; }',
+      '.ac-mes-colab { margin-top: 16px; }',
+      '.ac-mes-colab h3 { font-size: 15px; margin: 0 0 6px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }',
+      '.ac-mes-colab h3 small { font-size: 12px; font-weight: 600; color: var(--color-fg-muted); }',
+      '.ac-mes-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }',
+      '.ac-mes-sem { font-size: 11px; font-weight: 700; color: var(--color-fg-muted); text-align: center; padding: 2px 0; text-transform: uppercase; }',
+      '.ac-mes-d { border: 1px solid var(--color-border-line); border-radius: 8px; padding: 6px 8px; min-height: 76px; background: var(--color-panel); font-size: 11.5px; }',
+      '.ac-mes-d.vazio { border: 0; background: transparent; }',
+      '.ac-mes-d.futuro { opacity: .45; }',
+      '.ac-mes-d.hoje { box-shadow: inset 0 0 0 2px var(--eng-teal); }',
+      '.ac-mes-d .dn { font-weight: 700; color: var(--color-fg-muted); }',
+      '.ac-mes-d .ab { font-size: 20px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.1; }',
+      '.ac-mes-d .ab small { font-size: 10.5px; font-weight: 600; color: var(--color-fg-muted); }',
+      '.ac-mes-d .barra { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0; background: color-mix(in srgb, var(--eng-gray) 18%, transparent); }',
+      '.ac-mes-d .barra i { display: block; height: 100%; }',
+      '.ac-mes-d .ct { display: flex; gap: 6px; font-variant-numeric: tabular-nums; font-weight: 700; }',
+      '.ac-mes-d .ct .v { color: var(--eng-green); } .ac-mes-d .ct .a { color: color-mix(in srgb, var(--ac-amarelo, #e6b422) 55%, var(--color-fg)); } .ac-mes-d .ct .r { color: var(--eng-red); }',
+      '.ac-mes-d .ex { color: var(--color-fg-muted); font-size: 10.5px; }',
+      '.ac-mes-d .ex b { color: var(--eng-teal); }',
+      '@media (max-width: 700px) { .ac-mes-d { min-height: 60px; padding: 4px; } .ac-mes-d .ab { font-size: 15px; } .ac-mes-d .ex { display: none; } }',
       '.ac-quick { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }',
       '@media (max-width: 900px) { .ac-item { grid-template-columns: 26px minmax(0,1fr); } .ac-item > :nth-child(2) { grid-column: 2; } .ac-item > :nth-child(n+3) { grid-column: 2; } }',
       '@media print {',
@@ -65,6 +88,12 @@
       '  body.ac-imprimindo #eng-view-acordos .ac-print-head h1 { margin: 0 0 4px; font-size: 20px; }',
       '  body.ac-imprimindo #eng-view-acordos .ac-print-head p { margin: 0; font-size: 12px; color: #444; }',
       '  body.ac-imprimindo .ac-dia { border-color: #bbb; }',
+      '  body.ac-imprimindo .ac-por-dia { display: none !important; }',
+      '  body.ac-imprimindo .ac-print-colab { display: block; }',
+      '  body.ac-imprimindo .ac-colab-pag { break-before: page; }',
+      '  body.ac-imprimindo .ac-colab-pag:first-child { break-before: auto; }',
+      '  body.ac-imprimindo .ac-colab-h { font-size: 17px; font-weight: 750; margin: 0 0 4px; }',
+      '  body.ac-imprimindo .ac-colab-s { font-size: 12px; color: #444; margin: 0 0 10px; }',
       '  body.ac-imprimindo .ac-item input[type=checkbox] { accent-color: #111; }',
       '  @page { margin: 12mm; }',
       '}'
@@ -162,9 +191,11 @@
       '<section class="eng-panel"><div class="ac-print-head"><h1>Acordos da Engenharia · ' + periodoTexto() + '</h1><p>' + lista.length + ' acordo(s)' + (S.resp !== 'all' ? ' · Responsável: ' + esc(S.resp) : '') + (S.status !== 'all' ? ' · ' + (S.status === 'abertas' ? 'só abertos' : 'só feitos') : '') + ' · gerado em ' + agora + '</p></div>' +
       '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>Verde: mais de 2 dias para o prazo</span><span><i style="background:#e6b422"></i>Amarelo: faltam 1 ou 2 dias</span><span><i style="background:var(--eng-red)"></i>Vermelho: vence hoje ou estourou</span></div>' +
       '<div class="eng-panel-head ac-no-print"><h2>Checklist de execução por dia do acordo</h2><span class="eng-panel-note">' + lista.length.toLocaleString('pt-BR') + ' acordo(s) · cada acordo aparece no dia em que foi feito</span></div>' +
-      (lista.length ? porDia(lista) : '<div class="ge-vazio">Nenhum acordo neste período.</div>') +
-      '</section>';
+      (lista.length ? '<div class="ac-por-dia">' + porDia(lista) + '</div><div class="ac-print-colab"></div>' : '<div class="ge-vazio">Nenhum acordo neste período.</div>') +
+      '</section>' +
+      '<section class="eng-panel ac-no-print" id="ac-mes"></section>';
     ligar(el);
+    pintarMes();
     var ev = document.getElementById('ac-evolucao');
     if (ev && window.engColab) window.engColab.evolucao(ev);
   }
@@ -185,13 +216,102 @@
     });
   }
 
+  // PDF: tudo do Eliardo no período, depois João Martins, depois Priscilla (e por último outros responsáveis).
+  function porColaborador(lista) {
+    var grupos = {};
+    lista.forEach(function (i) { var k = i.colaborador || ('~' + i.responsavel); (grupos[k] = grupos[k] || []).push(i); });
+    var chaves = Object.keys(grupos).sort(function (a, b) {
+      var ia = ORDEM_COLAB.indexOf(a), ib = ORDEM_COLAB.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, 'pt-BR');
+    });
+    return chaves.map(function (k) {
+      var d = grupos[k].slice().sort(function (a, b) { return a.dia.localeCompare(b.dia) || a.codigo - b.codigo; });
+      var conta = function (f) { return d.filter(f).length; };
+      var nome = NOME_COLAB[k] || d[0].responsavel;
+      var dias = {};
+      d.forEach(function (i) { (dias[i.dia] = dias[i.dia] || []).push(i); });
+      return '<section class="ac-colab-pag"><div class="ac-colab-h">' + esc(nome) + '</div>' +
+        '<div class="ac-colab-s">' + periodoTexto() + ' · ' + d.length + ' acordo(s) · ' + conta(function (i) { return i.status === 'feita'; }) + ' feito(s) · ' +
+        conta(function (i) { return i.status === 'saiu'; }) + ' saiu(ram) da etapa · em aberto: ' + conta(function (i) { return i.cor === 'verde'; }) + ' no prazo, ' +
+        conta(function (i) { return i.cor === 'amarelo'; }) + ' atenção, ' + conta(function (i) { return i.cor === 'vermelho'; }) + ' vence hoje ou vencido</div>' +
+        '<div class="ac-dia">' + Object.keys(dias).sort().map(function (dia) {
+          var x = dias[dia];
+          return '<div class="ac-resp"><span>' + semana(dia) + ', ' + br(dia) + '</span><span>' + x.filter(function (i) { return i.status === 'feita'; }).length + ' de ' + x.length + ' feito(s)</span></div>' + x.map(linha).join('');
+        }).join('') + '</div></section>';
+    }).join('');
+  }
+
   function exportarPdf() {
+    var box = raiz() && raiz().querySelector('.ac-print-colab');
+    if (box) box.innerHTML = porColaborador(filtrados());
     var titulo = document.title;
     document.title = 'Acordos-Engenharia-' + S.de + (S.de === S.ate ? '' : '_a_' + S.ate);
     document.body.classList.add('ac-imprimindo');
     var fim = function () { document.body.classList.remove('ac-imprimindo'); document.title = titulo; window.removeEventListener('afterprint', fim); };
     window.addEventListener('afterprint', fim);
     window.print();
+  }
+
+  // ─── Demonstrativo do mês: por colaborador, um calendário com os cards acumulados (em aberto) em cada dia ───
+  function mesAtual() { return hoje(0).slice(0, 7); }
+
+  function pintarMes() {
+    var el = document.getElementById('ac-mes');
+    if (!el) return;
+    if (!S.mes) S.mes = mesAtual();
+    var d = S.meses[S.mes];
+    var op = [];
+    for (var i = 0; i < 6; i++) {
+      var dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() - i);
+      var v = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
+      op.push('<option value="' + v + '"' + (v === S.mes ? ' selected' : '') + '>' + MESES[dt.getMonth()] + ' de ' + dt.getFullYear() + '</option>');
+    }
+    var cab = '<div class="eng-panel-head"><h2>Demonstrativo do mês por colaborador</h2><span class="eng-panel-note">cards com acordo em aberto acumulados no fim de cada dia · resolvidos e acordos novos do dia</span>' +
+      '<select id="ac-mes-sel" class="eng-field" aria-label="Mês">' + op.join('') + '</select></div>';
+    if (!d) { el.innerHTML = cab + '<div class="ge-vazio">Carregando o mês…</div>'; ligarMes(el); carregarMes(S.mes); return; }
+    if (d.erro) { el.innerHTML = cab + '<div class="ge-vazio">Não foi possível carregar o mês: ' + esc(d.erro) + '</div>'; ligarMes(el); return; }
+    var cal = d.calendario, ano = Number(S.mes.slice(0, 4)), m = Number(S.mes.slice(5, 7));
+    var nDias = new Date(Date.UTC(ano, m, 0)).getUTCDate();
+    var primeiro = new Date(Date.UTC(ano, m - 1, 1)).getUTCDay();
+    var sem = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    var blocos = cal.colaboradores.map(function (c) {
+      var porDia = {};
+      c.porDia.forEach(function (x) { porDia[x.dia] = x; });
+      var tot = c.porDia.reduce(function (t, x) { t.novos += x.novos; t.resolvidos += x.resolvidos; return t; }, { novos: 0, resolvidos: 0 });
+      var ult = c.porDia[c.porDia.length - 1];
+      var celulas = '';
+      for (var b = 0; b < primeiro; b++) celulas += '<div class="ac-mes-d vazio"></div>';
+      for (var dia = 1; dia <= nDias; dia++) {
+        var iso = S.mes + '-' + String(dia).padStart(2, '0'), x = porDia[iso];
+        if (!x) { celulas += '<div class="ac-mes-d futuro"><span class="dn">' + dia + '</span></div>'; continue; }
+        var t = x.abertos || 0, pct = function (n) { return t ? (n / t * 100) + '%' : '0'; };
+        celulas += '<div class="ac-mes-d' + (iso === d.hoje ? ' hoje' : '') + '" title="' + esc(c.nome) + ' · ' + br(iso) + ': ' + t + ' em aberto (' + x.verde + ' no prazo, ' + x.amarelo + ' atenção, ' + x.vermelho + ' vencido) · ' + x.resolvidos + ' resolvido(s) · ' + x.novos + ' acordo(s) novo(s)">' +
+          '<span class="dn">' + dia + '</span>' +
+          '<div class="ab">' + t + ' <small>em aberto</small></div>' +
+          '<div class="barra"><i style="width:' + pct(x.verde) + ';background:var(--eng-green)"></i><i style="width:' + pct(x.amarelo) + ';background:#e6b422"></i><i style="width:' + pct(x.vermelho) + ';background:var(--eng-red)"></i></div>' +
+          '<div class="ct"><span class="v">' + x.verde + '</span><span class="a">' + x.amarelo + '</span><span class="r">' + x.vermelho + '</span></div>' +
+          '<div class="ex">' + (x.resolvidos ? '<b>✓ ' + x.resolvidos + '</b> ' : '') + (x.novos ? '+' + x.novos + ' acordo(s)' : '') + '</div></div>';
+      }
+      return '<div class="ac-mes-colab"><h3>' + esc(c.nome) + '<small>' + tot.novos + ' acordo(s) no mês · ' + tot.resolvidos + ' resolvido(s) · ' + (ult ? ult.abertos + ' em aberto em ' + br(ult.dia) + ' (' + ult.verde + ' no prazo, ' + ult.amarelo + ' atenção, ' + ult.vermelho + ' vencido)' : '') + '</small></h3>' +
+        '<div class="ac-mes-grid">' + sem.map(function (n) { return '<div class="ac-mes-sem">' + n + '</div>'; }).join('') + celulas + '</div></div>';
+    }).join('');
+    el.innerHTML = cab + '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>No prazo</span><span><i style="background:#e6b422"></i>Atenção</span><span><i style="background:var(--eng-red)"></i>Vence hoje ou vencido</span><span>✓ resolvidos no dia · +acordos novos no dia</span></div>' + blocos;
+    ligarMes(el);
+  }
+
+  function ligarMes(el) {
+    var sel = el.querySelector('#ac-mes-sel');
+    if (sel) sel.onchange = function () { S.mes = sel.value; pintarMes(); };
+  }
+
+  function carregarMes(mes) {
+    if ((S.meses[mes] && !S.meses[mes].erro) || S.buscandoMes[mes]) return;
+    S.buscandoMes[mes] = true;
+    fetch(BASE + '/colaboradores?mes=' + encodeURIComponent(mes), { headers: { accept: 'application/json' } }).then(function (r) {
+      if (!r.ok) return r.json().catch(function () { return {}; }).then(function (b) { throw new Error(b.error || ('Erro ' + r.status)); });
+      return r.json();
+    }).then(function (d) { S.meses[mes] = d; }, function (e) { S.meses[mes] = { erro: e.message }; })
+      .then(function () { S.buscandoMes[mes] = false; if (S.mes === mes) pintarMes(); });
   }
 
   function periodo(de, ate) { S.de = de; S.ate = ate; carregar(); }
@@ -205,7 +325,7 @@
     });
     q('ac-resp').onchange = function () { S.resp = this.value; desenhar(); };
     q('ac-st').onchange = function () { S.status = this.value; desenhar(); };
-    q('ac-atualizar').onclick = function () { carregar(); };
+    q('ac-atualizar').onclick = function () { S.meses = {}; carregar(); };
     q('ac-pdf').onclick = exportarPdf;
     el.querySelectorAll('.ac-item input[type=checkbox]').forEach(function (c) {
       c.onchange = function () {

@@ -291,12 +291,17 @@ export function createIndicadoresRouter({
   router.get('/engenharia/colaboradores', async (req, res) => {
     try {
       const hoje = diaBrasilia(new Date(agora()))
+      // ?mes=AAAA-MM: o mês inteiro (até hoje, se for o mês corrente); senão os últimos `dias` dias.
+      const mes = /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(String(req.query.mes ?? '')) ? String(req.query.mes) : null
+      if (mes && `${mes}-01` > hoje) return res.status(400).json({ error: 'Mês ainda não começou' })
       const nDias = Math.min(31, Math.max(3, Number(req.query.dias) || 14))
-      const de = diaBrasilia(new Date(agora() - (nDias - 1) * 86400_000))
+      const de = mes ? `${mes}-01` : diaBrasilia(new Date(agora() - (nDias - 1) * 86400_000))
+      const fimMes = mes ? new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10) : hoje
+      const ate = fimMes < hoje ? fimMes : hoje
       const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
       const itens = montarAcordos(linhas, { de: '0000-01-01', ate: '9999-12-31', hoje })
       res.set('Cache-Control', 'no-store')
-      res.json({ hoje, ...metricasColaboradores(itens), calendario: calendarioColaboradores(linhas, { de, ate: hoje }) })
+      res.json({ hoje, ...metricasColaboradores(itens), calendario: calendarioColaboradores(linhas, { de, ate }) })
     } catch (err) { responderErro(res, err) }
   })
 
