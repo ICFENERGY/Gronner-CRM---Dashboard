@@ -83,31 +83,67 @@
     );
   })).then(function () { mostrarResultado(); avisar(); });
 
-  // Faixa só para avisos (erro ao ler a situação ou banco sem projetos). Sem aviso, nada é mostrado.
+  // Faixa com a origem dos dados. A hora mostrada segue os horários da atualização automática da base
+  // (06:00, 09:00, 12:00, 15:00 e 19:00 de Brasília, os mesmos do sync-base e de src/lib/proximaAtualizacao.ts):
+  // se a carga já rodou depois do último horário, mostra esse horário; se ainda não rodou (atraso), mostra a hora real.
+  var HORAS_ATUALIZACAO = [6, 9, 12, 15, 19];
+  var BRT = 3 * 3600e3, DIA = 864e5;
+  function ultimoHorario(agora) {
+    var meiaNoite = Math.floor((agora - BRT) / DIA) * DIA + BRT, ult = null;
+    [-1, 0].forEach(function (d) { HORAS_ATUALIZACAO.forEach(function (h) { var t = meiaNoite + d * DIA + h * 3600e3; if (t <= agora) ult = t; }); });
+    return ult;
+  }
+  function proximoHorario(agora) {
+    var meiaNoite = Math.floor((agora - BRT) / DIA) * DIA + BRT, prox = null;
+    [1, 0].forEach(function (d) { HORAS_ATUALIZACAO.slice().reverse().forEach(function (h) { var t = meiaNoite + d * DIA + h * 3600e3; if (t > agora) prox = t; }); });
+    return prox;
+  }
+  function dataHora(t) {
+    var d = new Date(t - BRT).toISOString();
+    return d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) + ', ' + d.slice(11, 16);
+  }
+  function horaDaCarga(iso, slot) {
+    var t = Date.parse(iso);
+    if (!Number.isFinite(t)) return 'sem carga registrada';
+    return dataHora(slot && t >= slot ? slot : t);
+  }
+
   function faixa(status, erro) {
-    if (!erro && !(status && status.aviso)) return;
     var raiz = document.querySelector('#dash-root .eng-wrap');
     if (!raiz) return;
-    var el = document.createElement('div');
-    el.id = 'indicadores-origem';
-    el.setAttribute('role', 'status');
-    el.style.cssText = 'font-size:12px;line-height:1.5;color:var(--color-fg-muted);border:1px solid var(--color-border-line);background:var(--color-panel);border-radius:8px;padding:8px 12px';
-    var texto = erro ? 'Não foi possível ler a situação dos dados: ' + erro : '';
-    el.textContent = texto;
+    var el = document.getElementById('indicadores-origem');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'indicadores-origem';
+      el.setAttribute('role', 'status');
+      el.style.cssText = 'font-size:12px;line-height:1.5;color:var(--color-fg-muted);border:1px solid var(--color-border-line);background:var(--color-panel);border-radius:8px;padding:8px 12px';
+      var band = raiz.querySelector('.eng-band');
+      if (band && band.nextSibling) raiz.insertBefore(el, band.nextSibling); else raiz.prepend(el);
+    }
+    var agora = Date.now(), slot = ultimoHorario(agora);
+    el.textContent = erro
+      ? 'Não foi possível ler a situação dos dados: ' + erro
+      : 'Fonte: banco do painel, sincronizado com o Groner. ' +
+        status.cards.total.toLocaleString('pt-BR') + ' cards (projetos: ' + horaDaCarga(status.cards.atualizadoEm, slot) + ') · ' +
+        status.sales.total.toLocaleString('pt-BR') + ' vendas (' + horaDaCarga(status.sales.atualizadoEm, slot) + '). ' +
+        'Próxima atualização: ' + dataHora(proximoHorario(agora)).slice(-5) + '.';
     if (status && status.aviso) {
       var b = document.createElement('strong');
       b.style.cssText = 'display:block;color:var(--eng-orange)';
       b.textContent = status.aviso;
       el.appendChild(b);
     }
-    var band = raiz.querySelector('.eng-band');
-    if (band && band.nextSibling) raiz.insertBefore(el, band.nextSibling); else raiz.prepend(el);
   }
 
   function quandoPronto(fn) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn); else fn();
   }
-  obter('/status').then(function (s) { quandoPronto(function () { faixa(s, null); }); }, function (e) { quandoPronto(function () { faixa(null, e.message); }); });
+  function lerStatus() {
+    obter('/status').then(function (s) { quandoPronto(function () { faixa(s, null); }); }, function (e) { quandoPronto(function () { faixa(null, e.message); }); });
+  }
+  lerStatus();
+  // Relê a situação a cada 5 minutos: depois de cada horário a faixa passa a mostrar a carga nova sem recarregar a página.
+  setInterval(lerStatus, 5 * 60e3);
 
   // ---- Metas ----
   var CHAVE_LOCAL = 'indicadores-meta:';
