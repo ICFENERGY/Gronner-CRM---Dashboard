@@ -16,8 +16,9 @@ on:
     - cron: '0 17 * * *'
     - cron: '0 21 * * *'
 
+# Disparo à mão fica num grupo separado: não espera na fila atrás de uma tarefa agendada que está aguardando o horário.
 concurrency:
-  group: sync-base
+  group: sync-base-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
@@ -39,7 +40,11 @@ jobs:
             done
           done
           espera=$((alvo - agora))
-          if [ "$espera" -gt 0 ]; then
+          # Mais de 90 min de espera = o GitHub atrasou tanto que já passou do horário desta tarefa: roda agora
+          # (antes ela esperava o próximo horário e estourava o tempo limite).
+          if [ "$espera" -gt 5400 ]; then
+            echo "Tarefa atrasada além do horário: atualizando agora"
+          elif [ "$espera" -gt 0 ]; then
             echo "Esperando ${espera}s até $(date -u -d "@$alvo" '+%H:%M UTC')"
             sleep "$espera"
           else
