@@ -78,6 +78,19 @@
       '.ac-mes-d .ct .v { color: var(--eng-green); } .ac-mes-d .ct .a { color: color-mix(in srgb, var(--ac-amarelo, #e6b422) 55%, var(--color-fg)); } .ac-mes-d .ct .r { color: var(--eng-red); }',
       '.ac-mes-d .ex { color: var(--color-fg-muted); font-size: 10.5px; }',
       '.ac-mes-d .ex b { color: var(--eng-teal); }',
+      '#ac-dia-box .co-cal { overflow-x: auto; margin-top: 18px; }',
+      '#ac-dia-box .co-cal h3, #ac-dia-box h3 { font-size: 14px; margin: 0 0 4px; }',
+      '#ac-dia-box table { border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: 100%; }',
+      '#ac-dia-box th, #ac-dia-box td { padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); text-align: center; min-width: 74px; }',
+      '#ac-dia-box th { font-size: 11.5px; color: var(--color-fg-muted); font-weight: 650; background: var(--color-bg); }',
+      '#ac-dia-box th:first-child, #ac-dia-box td:first-child { text-align: left; position: sticky; left: 0; background: var(--color-panel); font-weight: 700; min-width: 120px; z-index: 1; }',
+      '#ac-dia-box th:first-child { background: var(--color-bg); }',
+      '#ac-dia-box th.hoje { color: var(--color-fg); box-shadow: inset 0 -3px var(--eng-teal); }',
+      '#ac-dia-box .ab { font-size: 17px; font-weight: 750; font-variant-numeric: tabular-nums; display: block; }',
+      '#ac-dia-box .ab small { font-size: 11px; font-weight: 600; color: var(--color-fg-muted); }',
+      '#ac-dia-box .ab.zero { color: var(--color-fg-muted); font-weight: 500; }',
+      '#ac-dia-box .pt { display: inline-flex; gap: 6px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }',
+      '#ac-dia-box .pt .v { color: var(--eng-green); } #ac-dia-box .pt .a { color: #b8860b; } #ac-dia-box .pt .r { color: var(--eng-red); }',
       '.ac-mes-d.livre { opacity: .6; }',
       '.ac-mes-d.fut { border-style: dashed; }',
       '.ac-mes-its { margin-top: 4px; display: grid; gap: 2px; }',
@@ -211,6 +224,78 @@
     }).join('');
   }
 
+  // ─── Cards por dia e Evolução por dia: só os acordos combinados para cada dia do período escolhido em cima ───
+  // Seguem os filtros de cima (período, responsável e situação). Cada acordo conta no dia do prazo:
+  // feito no dia (concluído até o fim do dia), não feito (o dia passou) ou pendente (hoje ou dia futuro).
+  function diasEntre(de, ate) {
+    var r = [];
+    for (var t = Date.parse(de + 'T12:00:00Z'); t <= Date.parse(ate + 'T12:00:00Z'); t += 864e5) r.push(new Date(t).toISOString().slice(0, 10));
+    return r;
+  }
+  function situacaoNoDia(i) { return i.cumpridoNoDia ? 'ok' : i.prazo < S.dados.hoje ? 'no' : 'pend'; }
+  var COR_SIT = { ok: 'var(--eng-green)', pend: '#e6b422', no: 'var(--eng-red)' };
+  var NOME_SIT = { ok: 'Feito no dia', pend: 'Pendente', no: 'Não feito' };
+  function porDiaDoPrazo(lista) {
+    var m = {};
+    lista.forEach(function (i) { if (!i.atrasado) (m[i.prazo] = m[i.prazo] || []).push(i); });
+    return m;
+  }
+  function graficoDia(lista) {
+    var dias = diasEntre(S.de, S.ate), m = porDiaDoPrazo(lista), hj = S.dados.hoje, n = dias.length;
+    var vals = dias.map(function (d) { var v = { ok: 0, pend: 0, no: 0 }; (m[d] || []).forEach(function (i) { v[situacaoNoDia(i)]++; }); return v; });
+    var max = Math.max(4, Math.max.apply(null, vals.map(function (v) { return v.ok + v.pend + v.no; })));
+    var box = document.getElementById('ac-dia-box'), larg = box ? box.clientWidth - 44 : 0;
+    var W = Math.max(560, n * 46 + 50, larg), H = 230, L = 34, T = 22, B = 36, ph = H - T - B, passo = (W - L - 10) / n, bw = Math.min(56, passo * 0.6);
+    var g = '';
+    [0, 0.5, 1].forEach(function (f) {
+      var y = T + ph - ph * f;
+      g += '<line x1="' + L + '" x2="' + (W - 6) + '" y1="' + y + '" y2="' + y + '" stroke="var(--color-border-line)"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10" fill="var(--color-fg-muted)">' + Math.round(max * f) + '</text>';
+    });
+    dias.forEach(function (d, k) {
+      var v = vals[k], x = L + passo * k + (passo - bw) / 2, y = T + ph, tot = v.ok + v.pend + v.no;
+      g += '<g><title>' + esc(br(d) + ': ' + tot + ' card(s) combinados · ' + v.ok + ' feito(s) no dia, ' + v.pend + ' pendente(s), ' + v.no + ' não feito(s)') + '</title>';
+      ['ok', 'pend', 'no'].forEach(function (s2) {
+        var h = ph * v[s2] / max;
+        if (h <= 0) return;
+        y -= h;
+        g += '<rect x="' + x + '" y="' + (y + 1) + '" width="' + bw + '" height="' + Math.max(0, h - 2) + '" rx="3" fill="' + COR_SIT[s2] + '"/>';
+        if (h >= 14) g += '<text x="' + (x + bw / 2) + '" y="' + (y + h / 2 + 4) + '" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">' + v[s2] + '</text>';
+      });
+      if (tot) g += '<text x="' + (x + bw / 2) + '" y="' + (y - 4) + '" text-anchor="middle" font-size="11" font-weight="700" fill="var(--color-fg)">' + tot + '</text>';
+      g += '<text x="' + (x + bw / 2) + '" y="' + (H - 18) + '" text-anchor="middle" font-size="10" font-weight="' + (d === hj ? 700 : 400) + '" fill="' + (d === hj ? 'var(--color-fg)' : 'var(--color-fg-muted)') + '">' + d.slice(8, 10) + '/' + d.slice(5, 7) + '</text>' +
+        '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="var(--color-fg-muted)">' + semana(d).slice(0, 3).toLowerCase() + (d === hj ? ' · hoje' : '') + '</text></g>';
+    });
+    var t = vals.reduce(function (a, v) { a.ok += v.ok; a.pend += v.pend; a.no += v.no; return a; }, { ok: 0, pend: 0, no: 0 });
+    var leg = ['ok', 'pend', 'no'].map(function (k) { return '<span><i style="background:' + COR_SIT[k] + '"></i>' + NOME_SIT[k] + ' (' + t[k] + ')</span>'; }).join('');
+    return '<div class="eng-panel-head"><h3>Cards por dia</h3><span class="eng-panel-note">só os cards combinados para cada dia de ' + periodoTexto() + ' · segue os filtros de cima</span></div>' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Cards combinados por dia" style="width:100%;height:auto;display:block">' + g + '</svg>' +
+      '<div class="ac-leg">' + leg + '<span>feito no dia = concluído até o fim do dia combinado</span></div>';
+  }
+  function tabelaDia(lista) {
+    var dias = diasEntre(S.de, S.ate), m = porDiaDoPrazo(lista), hj = S.dados.hoje;
+    var pessoas = {};
+    lista.forEach(function (i) { if (!i.atrasado) { var k = NOME_COLAB[i.colaborador] || i.responsavel; pessoas[k] = true; } });
+    var nomes = Object.keys(pessoas).sort(function (a, b) {
+      var ia = ORDEM_COLAB.map(function (c) { return NOME_COLAB[c]; }).indexOf(a), ib = ORDEM_COLAB.map(function (c) { return NOME_COLAB[c]; }).indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, 'pt-BR');
+    });
+    if (!nomes.length) return '';
+    var cab = '<tr><th>Responsável</th>' + dias.map(function (d) { return '<th' + (d === hj ? ' class="hoje"' : '') + '>' + semana(d).slice(0, 3).toLowerCase() + '<br>' + d.slice(8, 10) + '/' + d.slice(5, 7) + '</th>'; }).join('') + '</tr>';
+    var linhas = nomes.map(function (nome) {
+      return '<tr><td>' + esc(nome) + '</td>' + dias.map(function (d) {
+        var x = (m[d] || []).filter(function (i) { return (NOME_COLAB[i.colaborador] || i.responsavel) === nome; });
+        if (!x.length) return '<td><span class="ab zero">—</span></td>';
+        var c = { ok: 0, pend: 0, no: 0 };
+        x.forEach(function (i) { c[situacaoNoDia(i)]++; });
+        return '<td title="' + esc(nome + ' · ' + br(d) + '\n' + x.map(function (i) { return (situacaoNoDia(i) === 'ok' ? '✓ ' : situacaoNoDia(i) === 'no' ? '✗ ' : '… ') + '#' + i.codigo + ' ' + (i.nome || '') + ' — ' + i.acao; }).join('\n')) + '">' +
+          '<span class="ab">' + c.ok + '<small> de ' + x.length + '</small></span>' +
+          '<span class="pt">' + (c.ok ? '<span class="v">✓' + c.ok + '</span>' : '') + (c.pend ? '<span class="a">…' + c.pend + '</span>' : '') + (c.no ? '<span class="r">✗' + c.no + '</span>' : '') + '</span></td>';
+      }).join('') + '</tr>';
+    }).join('');
+    return '<div class="co-cal"><div class="eng-panel-head"><h3>Evolução por dia</h3><span class="eng-panel-note">por responsável: feitos no dia de quantos combinados · ✓ feito · … pendente · ✗ não feito</span></div>' +
+      '<table><thead>' + cab + '</thead><tbody>' + linhas + '</tbody></table></div>';
+  }
+
   function desenhar() {
     var el = raiz();
     if (!el) return;
@@ -219,18 +304,20 @@
     var lista = filtrados();
     var agora = new Date().toLocaleString('pt-BR');
     el.innerHTML = cabecalho() +
-      '<section class="eng-panel ac-no-print" id="ac-evolucao-box"><div id="ac-evolucao"></div></section>' +
+      '<section class="eng-panel ac-no-print" id="ac-dia-box"></section>' +
       '<section class="eng-panel"><div class="ac-print-head"><h1>Acordos da Engenharia · combinados para ' + periodoTexto() + '</h1><p>' + lista.length + ' acordo(s)' + (S.resp !== 'all' ? ' · Responsável: ' + esc(S.resp) : '') + (S.status !== 'all' ? ' · ' + ({ abertas: 'só abertos', feitas: 'só feitos', verde: 'no prazo', amarelo: 'atenção', vermelho: 'vence hoje ou vencido' })[S.status] : '') + ' · gerado em ' + agora + '</p></div>' +
       '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>Verde: mais de 2 dias para o prazo</span><span><i style="background:#e6b422"></i>Amarelo: faltam 1 ou 2 dias</span><span><i style="background:var(--eng-red)"></i>Vermelho: vence hoje ou estourou</span></div>' +
       '<div class="eng-panel-head ac-no-print"><h2>Checklist de execução por dia combinado</h2><span class="eng-panel-note">' + lista.length.toLocaleString('pt-BR') + ' card(s) em acordo · cada acordo aparece no dia combinado (prazo), por responsável; hoje inclui os vencidos ainda em aberto</span></div>' +
       (lista.length ? '<div class="ac-por-dia">' + porDia(lista) + '</div><div class="ac-print-colab"></div>' : '<div class="ge-vazio">Nenhum acordo neste período.</div>') +
       '</section>' +
       '<section class="eng-panel ac-no-print" id="ac-mes"></section>';
+    var box = document.getElementById('ac-dia-box');
+    if (box) box.innerHTML = graficoDia(lista) + tabelaDia(lista);
     ligar(el);
     pintarMes();
-    var ev = document.getElementById('ac-evolucao');
-    if (ev && window.engColab) window.engColab.evolucao(ev);
   }
+  var redim = null;
+  window.addEventListener('resize', function () { clearTimeout(redim); redim = setTimeout(function () { var b = document.getElementById('ac-dia-box'); if (b && S.dados && raiz() && !raiz().hidden) b.innerHTML = graficoDia(filtrados()) + tabelaDia(filtrados()); }, 250); });
 
   function codigoEdicao(forcar) {
     var c = lerLocal(CHAVE_CODIGO);
@@ -350,16 +437,11 @@
   function pintarMes() {
     var el = document.getElementById('ac-mes');
     if (!el) return;
-    if (!S.mes) S.mes = mesAtual();
+    S.mes = (S.de || hoje(0)).slice(0, 7); // segue o filtro de cima: o mês da data "De"
     var d = S.meses[S.mes];
-    var op = [];
-    for (var i = -1; i < 6; i++) {
-      var dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() - i);
-      var v = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
-      op.push('<option value="' + v + '"' + (v === S.mes ? ' selected' : '') + '>' + MESES[dt.getMonth()] + ' de ' + dt.getFullYear() + '</option>');
-    }
+    var nomeMes = MESES[Number(S.mes.slice(5, 7)) - 1] + ' de ' + S.mes.slice(0, 4);
     var cab = '<div class="eng-panel-head"><h2>Demonstrativo do mês por colaborador</h2><span class="eng-panel-note">kickoff diário: os acordos de cada um em cada dia e se foram entregues no dia · dias futuros: a fazer</span>' +
-      '<select id="ac-mes-sel" class="eng-field" aria-label="Mês">' + op.join('') + '</select></div>';
+      '<span class="eng-panel-note"><b>' + nomeMes + '</b> (mês da data "De")</span></div>';
     if (!d) { el.innerHTML = cab + '<div class="ge-vazio">Carregando o mês…</div>'; ligarMes(el); carregarMes(S.mes); return; }
     if (d.erro) { el.innerHTML = cab + '<div class="ge-vazio">Não foi possível carregar o mês: ' + esc(d.erro) + '</div>'; ligarMes(el); return; }
     var hj = d.hoje, ano = Number(S.mes.slice(0, 4)), m = Number(S.mes.slice(5, 7));
@@ -375,7 +457,9 @@
       if (i.remarcado) return '✗ (remarcada em ' + br(diaDoIso(i.substituidoEm)) + ') ';
       return '✗ ';
     };
-    var blocos = ORDEM_COLAB.map(function (k) {
+    var chaveResp = null;
+    if (S.resp !== 'all') S.dados.itens.concat(d.itens).some(function (i) { if (i.responsavel === S.resp) { chaveResp = i.colaborador || '~'; return true; } return false; });
+    var blocos = ORDEM_COLAB.filter(function (k) { return S.resp === 'all' || chaveResp === k; }).map(function (k) {
       var porDia = {};
       d.itens.forEach(function (i) { if (i.colaborador === k && !i.atrasado) (porDia[i.prazo] = porDia[i.prazo] || []).push(i); });
       var tot = { t: 0, f: 0 };
@@ -405,6 +489,7 @@
       return '<div class="ac-mes-colab"><h3>' + esc(NOME_COLAB[k]) + '<small>' + resumo + '</small></h3>' +
         '<div class="ac-mes-grid">' + sem.map(function (n) { return '<div class="ac-mes-sem">' + n + '</div>'; }).join('') + celulas + '</div></div>';
     }).join('');
+    if (!blocos) blocos = '<div class="ge-vazio">O responsável escolhido não é um dos colaboradores do demonstrativo.</div>';
     el.innerHTML = cab + '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>Feita no dia (marcada como feita ou o card saiu da etapa até o fim do dia)</span><span><i style="background:var(--eng-red)"></i>Não feita: o dia passou sem concluir (inclui feita depois e remarcada)</span><span><i style="background:#e6b422"></i>… Hoje: pendente, ainda dá para fazer</span><span>○ Dia futuro: a fazer</span><span>passe o mouse no card para ver a ação combinada</span></div>' + blocos;
     ligarMes(el);
   }
