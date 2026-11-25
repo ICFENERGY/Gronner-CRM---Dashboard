@@ -79,9 +79,16 @@
       '.ac-mes-d .ex { color: var(--color-fg-muted); font-size: 10.5px; }',
       '.ac-mes-d .ex b { color: var(--eng-teal); }',
       '.ac-mes-d.livre { opacity: .6; }',
+      '.ac-mes-d.fut { border-style: dashed; }',
+      '.ac-mes-its { margin-top: 4px; display: grid; gap: 2px; }',
+      '.ac-mes-it { font-size: 10.5px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 4px; border-radius: 4px; border-left: 3px solid transparent; }',
+      '.ac-mes-it.ok { border-left-color: var(--eng-green); background: color-mix(in srgb, var(--eng-green) 12%, transparent); }',
+      '.ac-mes-it.no { border-left-color: var(--eng-red); background: color-mix(in srgb, var(--eng-red) 12%, transparent); }',
+      '.ac-mes-it.pend { border-left-color: #e6b422; background: color-mix(in srgb, #e6b422 14%, transparent); }',
+      '.ac-mes-it.fut { border-left-color: var(--color-fg-muted); color: var(--color-fg-muted); }',
       '.ac-mes-d .nada { margin-top: 6px; font-size: 11px; color: var(--color-fg-muted); }',
       '.ac-mes-d .ct { flex-direction: column; gap: 1px; font-size: 11px; }',
-      '@media (max-width: 700px) { .ac-mes-d { min-height: 60px; padding: 4px; } .ac-mes-d .ab { font-size: 15px; } .ac-mes-d .ex { display: none; } }',
+      '@media (max-width: 700px) { .ac-mes-d { min-height: 60px; padding: 4px; } .ac-mes-d .ab { font-size: 15px; } .ac-mes-d .ex { display: none; } .ac-mes-it { font-size: 9.5px; } }',
       '.ac-quick { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }',
       '@media (max-width: 900px) { .ac-item { grid-template-columns: 26px minmax(0,1fr); } .ac-item > :nth-child(2) { grid-column: 2; } .ac-item > :nth-child(n+3) { grid-column: 2; } }',
       '@media print {',
@@ -332,7 +339,8 @@
   // ─── Demonstrativo do mês: por colaborador, um calendário só com o que estava combinado para cada dia ───
   // É o planejamento do kickoff diário: cada tarefa entra no dia combinado (prazo) e só conta como feita se foi concluída
   // (marcada como feita ou o card saiu da etapa) até o fim daquele dia. Feita depois, ou vencida e remarcada, é não feita.
-  // Dias futuros não entram; no dia de hoje o que falta aparece como "pendente".
+  // No dia de hoje o que falta aparece como "pendente"; nos dias futuros os acordos aparecem como "a fazer" (não entram na conta).
+  // Cada dia lista os acordos (card e cliente); passando o mouse aparece a ação combinada.
   function mesAtual() { return hoje(0).slice(0, 7); }
   function fimDoMes(mes) { return new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10); }
 
@@ -342,12 +350,12 @@
     if (!S.mes) S.mes = mesAtual();
     var d = S.meses[S.mes];
     var op = [];
-    for (var i = 0; i < 6; i++) {
+    for (var i = -1; i < 6; i++) {
       var dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() - i);
       var v = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
       op.push('<option value="' + v + '"' + (v === S.mes ? ' selected' : '') + '>' + MESES[dt.getMonth()] + ' de ' + dt.getFullYear() + '</option>');
     }
-    var cab = '<div class="eng-panel-head"><h2>Demonstrativo do mês por colaborador</h2><span class="eng-panel-note">kickoff diário: o que cada um tinha para entregar no dia e se entregou no dia · dias futuros não entram</span>' +
+    var cab = '<div class="eng-panel-head"><h2>Demonstrativo do mês por colaborador</h2><span class="eng-panel-note">kickoff diário: os acordos de cada um em cada dia e se foram entregues no dia · dias futuros: a fazer</span>' +
       '<select id="ac-mes-sel" class="eng-field" aria-label="Mês">' + op.join('') + '</select></div>';
     if (!d) { el.innerHTML = cab + '<div class="ge-vazio">Carregando o mês…</div>'; ligarMes(el); carregarMes(S.mes); return; }
     if (d.erro) { el.innerHTML = cab + '<div class="ge-vazio">Não foi possível carregar o mês: ' + esc(d.erro) + '</div>'; ligarMes(el); return; }
@@ -359,36 +367,42 @@
     var motivo = function (i, eHoje) {
       if (i.cumpridoNoDia) return '✓ ';
       if (eHoje) return '… ';
+      if (eHoje === null) return '○ ';
       if (i.concluidaEm) return '✗ (feita depois, em ' + br(diaDoIso(i.concluidaEm)) + ') ';
       if (i.remarcado) return '✗ (remarcada em ' + br(diaDoIso(i.substituidoEm)) + ') ';
       return '✗ ';
     };
     var blocos = ORDEM_COLAB.map(function (k) {
       var porDia = {};
-      d.itens.forEach(function (i) { if (i.colaborador === k && !i.atrasado && i.prazo <= hj) (porDia[i.prazo] = porDia[i.prazo] || []).push(i); });
+      d.itens.forEach(function (i) { if (i.colaborador === k && !i.atrasado) (porDia[i.prazo] = porDia[i.prazo] || []).push(i); });
       var tot = { t: 0, f: 0 };
       Object.keys(porDia).forEach(function (dia) { if (dia < hj) { tot.t += porDia[dia].length; tot.f += porDia[dia].filter(feito).length; } });
       var celulas = '';
       for (var b = 0; b < primeiro; b++) celulas += '<div class="ac-mes-d vazio"></div>';
       for (var dia = 1; dia <= nDias; dia++) {
         var iso = S.mes + '-' + String(dia).padStart(2, '0');
-        if (iso > hj) { celulas += '<div class="ac-mes-d futuro"><span class="dn">' + dia + '</span></div>'; continue; }
-        var x = porDia[iso] || [], f = x.filter(feito).length, nf = x.length - f, eHoje = iso === hj;
-        var cls = 'ac-mes-d' + (eHoje ? ' hoje' : '') + (!x.length ? ' livre' : '');
-        if (!x.length) { celulas += '<div class="' + cls + '"><span class="dn">' + dia + '</span><div class="nada">sem tarefa</div></div>'; continue; }
-        var dica = esc(NOME_COLAB[k]) + ' · ' + br(iso) + '\n' + x.map(function (i) { return motivo(i, eHoje) + '#' + i.codigo + ' ' + (i.nome || '') + ' — ' + i.acao; }).map(esc).join('\n');
-        celulas += '<div class="' + cls + '" title="' + dica + '"><span class="dn">' + dia + '</span>' +
-          '<div class="ab">' + f + '<small> de ' + x.length + ' feita(s)</small></div>' +
-          '<div class="barra"><i style="width:' + (f / x.length * 100) + '%;background:var(--eng-green)"></i><i style="width:' + (nf / x.length * 100) + '%;background:' + (eHoje ? '#e6b422' : 'var(--eng-red)') + '"></i></div>' +
-          '<div class="ct">' + (f ? '<span class="v">✓ ' + f + ' feita(s)</span>' : '') + (nf ? '<span class="' + (eHoje ? 'a' : 'r') + '">' + (eHoje ? '… ' + nf + ' pendente(s)' : '✗ ' + nf + ' não feita(s)') + '</span>' : '') + '</div></div>';
+        var x = porDia[iso] || [], f = x.filter(feito).length, nf = x.length - f, fut = iso > hj, eHoje = fut ? null : iso === hj;
+        var cls = 'ac-mes-d' + (eHoje ? ' hoje' : '') + (fut ? ' fut' : '') + (!x.length ? ' livre' : '');
+        if (!x.length) { celulas += '<div class="' + cls + '"><span class="dn">' + dia + '</span><div class="nada">sem acordo</div></div>'; continue; }
+        var itens = x.map(function (i) {
+          var st = i.cumpridoNoDia ? 'ok' : fut ? 'fut' : eHoje ? 'pend' : 'no';
+          return '<div class="ac-mes-it ' + st + '" title="' + esc(motivo(i, eHoje) + '#' + i.codigo + ' ' + (i.nome || '') + ' — ' + i.acao) + '">' + motivo(i, eHoje).trim().slice(0, 1) + ' <b>#' + i.codigo + '</b> ' + esc(i.nome || i.acao) + '</div>';
+        }).join('');
+        var topo = fut
+          ? '<div class="ab">' + x.length + '<small> combinado(s)' + (f ? ' · ' + f + ' já feita(s)' : ' a fazer') + '</small></div>'
+          : '<div class="ab">' + f + '<small> de ' + x.length + ' feita(s)</small></div>' +
+            '<div class="barra"><i style="width:' + (f / x.length * 100) + '%;background:var(--eng-green)"></i><i style="width:' + (nf / x.length * 100) + '%;background:' + (eHoje ? '#e6b422' : 'var(--eng-red)') + '"></i></div>';
+        celulas += '<div class="' + cls + '"><span class="dn">' + dia + '</span>' + topo + '<div class="ac-mes-its">' + itens + '</div></div>';
       }
       var hjx = porDia[hj] || [];
       var resumo = tot.t ? 'até ontem: ' + tot.f + ' de ' + tot.t + ' tarefa(s) entregues no dia (' + Math.round(tot.f / tot.t * 100) + '%) · ' + (tot.t - tot.f) + ' não feita(s)' : 'nenhuma tarefa com prazo até ontem';
       if (hjx.length) resumo += ' · hoje: ' + hjx.filter(feito).length + ' de ' + hjx.length + ' feita(s)';
+      var futN = Object.keys(porDia).filter(function (dia) { return dia > hj; }).reduce(function (t, dia) { return t + porDia[dia].length; }, 0);
+      if (futN) resumo += ' · ' + futN + ' a fazer nos próximos dias do mês';
       return '<div class="ac-mes-colab"><h3>' + esc(NOME_COLAB[k]) + '<small>' + resumo + '</small></h3>' +
         '<div class="ac-mes-grid">' + sem.map(function (n) { return '<div class="ac-mes-sem">' + n + '</div>'; }).join('') + celulas + '</div></div>';
     }).join('');
-    el.innerHTML = cab + '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>Feita no dia (marcada como feita ou o card saiu da etapa até o fim do dia)</span><span><i style="background:var(--eng-red)"></i>Não feita: o dia passou sem concluir (inclui feita depois e remarcada)</span><span><i style="background:#e6b422"></i>Hoje: pendente, ainda dá para fazer</span><span>passe o mouse no dia para ver os cards</span></div>' + blocos;
+    el.innerHTML = cab + '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>Feita no dia (marcada como feita ou o card saiu da etapa até o fim do dia)</span><span><i style="background:var(--eng-red)"></i>Não feita: o dia passou sem concluir (inclui feita depois e remarcada)</span><span><i style="background:#e6b422"></i>… Hoje: pendente, ainda dá para fazer</span><span>○ Dia futuro: a fazer</span><span>passe o mouse no card para ver a ação combinada</span></div>' + blocos;
     ligarMes(el);
   }
 
