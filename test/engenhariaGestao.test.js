@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import express from 'express'
-import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos, colaboradorDe, metricasColaboradores, calendarioColaboradores } from '../server/engenhariaGestao.js'
+import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos, colaboradorDe, metricasColaboradores, calendarioColaboradores, previsaoColaboradores } from '../server/engenhariaGestao.js'
 import { createIndicadoresRouter } from '../server/indicadoresRoutes.js'
 import { registrarNoGroner, textoComentario, tituloDaTarefa } from '../server/gronerAcoes.js'
 
@@ -326,6 +326,20 @@ test('acordos por prazo: cada acordo no dia combinado, sem substituídos; hoje t
   assert.deepEqual(montarAcordos(linhas, { ...op, de: '2026-11-22', ate: '2026-11-22' }).map((a) => [a.codigo, a.status]), [[3, 'feita']])
 })
 
+test('acordos por prazo: cumprido só se concluído até o dia combinado; vencido e remarcado depois conta no dia dele', () => {
+  const ac = (dia, codigo, prazo, criadoEm) => ({ chave: `acordo:${dia}:${codigo}:10`, dados: { dia, codigo, funil: '10', etapa: 'X', acao: 'a', responsavel: 'Priscilla', prazo, criadoEm } })
+  const linhas = [
+    ac('2026-11-18', 1, '2026-11-20', '2026-11-18T13:00:00.000Z'),
+    { chave: 'acao:1:10', dados: { codigo: 1, funil: '10', prazo: '2026-11-20', concluida: true, concluidaEm: '2026-11-21T01:00:00.000Z', motivo: 'marcada como feita' } }, // 22h de 20/11 em Brasília
+    ac('2026-11-18', 2, '2026-11-20', '2026-11-18T13:00:00.000Z'),
+    { chave: 'acao:2:10', dados: { codigo: 2, funil: '10', prazo: '2026-11-20', concluida: true, concluidaEm: '2026-11-22T12:00:00.000Z', motivo: 'marcada como feita' } }, // feito com atraso
+    ac('2026-11-18', 3, '2026-11-20', '2026-11-18T13:00:00.000Z'), // venceu e foi remarcado em 23/11
+    ac('2026-11-23', 3, '2026-11-27', '2026-11-23T13:00:00.000Z'),
+  ]
+  const r = montarAcordos(linhas, { de: '2026-11-20', ate: '2026-11-20', hoje: '2026-11-25', por: 'prazo' })
+  assert.deepEqual(r.map((a) => [a.codigo, a.status, a.cumpridoNoDia, a.remarcado ?? false]), [[1, 'feita', true, false], [2, 'feita', false, false], [3, 'atualizado', false, true]])
+})
+
 test('acordos: cor pelo prazo — verde com mais de 2 dias, amarelo com 1 a 2, vermelho no dia ou depois', () => {
   const l = (codigo, prazo) => ({ chave: `acao:${codigo}:10`, dados: { codigo, funil: '10', etapa: 'X', acao: 'a', responsavel: 'Maria', prazo, criadaEm: '2026-11-12T15:00:00.000Z' } })
   const r = montarAcordos([l(1, '2026-11-16'), l(2, '2026-11-15'), l(3, '2026-11-14'), l(4, '2026-11-13'), l(5, '2026-11-12')], { de: '2026-11-12', ate: '2026-11-12', hoje: '2026-11-13' })
@@ -418,4 +432,14 @@ test('calendário: cards abertos por dia e cor do prazo, resolvidos no dia, acor
   const pr = r.colaboradores.find((c) => c.nome === 'Priscilla').porDia
   assert.deepEqual(pr.map((d) => d.abertos), [0, 1, 1, 1, 1])
   assert.deepEqual([pr[1].amarelo, pr[2].vermelho, pr[4].vermelho], [1, 1, 1])
+})
+
+test('previsão: acordos em aberto agora nos próximos dias, com a cor de cada dia e quantos vencem no dia', () => {
+  const ac = (codigo, prazo) => ({ chave: `acordo:2026-11-24:${codigo}:10`, dados: { dia: '2026-11-24', codigo, funil: '10', acao: 'a', responsavel: 'Eliardo', prazo, criadoEm: '2026-11-24T13:00:00.000Z' } })
+  const linhas = [ac(1, '2026-11-27'), ac(2, '2026-11-26'),
+    { chave: 'acao:2:10', dados: { codigo: 2, funil: '10', prazo: '2026-11-26', concluida: true, concluidaEm: '2026-11-25T12:00:00.000Z', motivo: 'marcada como feita' } }]
+  const p = previsaoColaboradores(linhas, { hoje: '2026-11-25', dias: 3 })
+  assert.deepEqual(p.dias, ['2026-11-26', '2026-11-27', '2026-11-28'])
+  const e = p.colaboradores.find((c) => c.chave === 'eliardo').porDia
+  assert.deepEqual(e.map((x) => [x.abertos, x.amarelo, x.vermelho, x.vencem]), [[1, 1, 0, 0], [1, 0, 1, 1], [1, 0, 1, 0]])
 })

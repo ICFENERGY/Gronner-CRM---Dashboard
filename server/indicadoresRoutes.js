@@ -31,7 +31,7 @@ import { getPgSql, jsonb, TABELA_SQL } from './pgSql.js'
 import { loadSyncedEntity } from './syncStore.js'
 import { ID_META, LACUNAS, montarCards, montarEngResumo, montarSales, validarMeta } from './indicadores.js'
 import { lerPietaParaSla, montarChamadosSla, resumoDaCobertura } from './pietaSla.js'
-import { chaveAcao, diaBrasilia, ENTIDADE_ACOES, calendarioColaboradores, juntarAcoes, metricasColaboradores, montarAcordos, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
+import { chaveAcao, diaBrasilia, ENTIDADE_ACOES, calendarioColaboradores, juntarAcoes, metricasColaboradores, montarAcordos, previsaoColaboradores, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
 import { registrarNoGroner } from './gronerAcoes.js'
 import prazosArquivo from './data/sla-etapas.json' with { type: 'json' }
 
@@ -313,7 +313,7 @@ export function createIndicadoresRouter({
       const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
       const itens = montarAcordos(linhas, { de: '0000-01-01', ate: '9999-12-31', hoje })
       res.set('Cache-Control', 'no-store')
-      res.json({ hoje, ...metricasColaboradores(itens), calendario: calendarioColaboradores(linhas, { de, ate }) })
+      res.json({ hoje, ...metricasColaboradores(itens), calendario: calendarioColaboradores(linhas, { de, ate }), ...(ate === hoje ? { previsao: previsaoColaboradores(linhas, { hoje, dias: 7 }) } : {}) })
     } catch (err) { responderErro(res, err) }
   })
 

@@ -288,16 +288,21 @@ function acordosBrutos(linhas) {
 /**
  * Acordos de um período. `por`:
  *   'registro' (padrão) — pelo dia em que o acordo foi registrado (r.dia);
- *   'prazo' — pelo dia combinado (r.prazo), sem os substituídos; se o período inclui hoje, os acordos ainda em aberto
- *             com prazo anterior ao período também vêm (atrasado: true), para aparecerem no dia de hoje.
+ *   'prazo' — pelo dia combinado (r.prazo); se o período inclui hoje, os acordos ainda em aberto com prazo anterior ao
+ *             período também vêm (atrasado: true), para aparecerem no dia de hoje. Substituídos só entram quando o novo
+ *             acordo veio depois do dia combinado (o dia passou sem cumprir: remarcado: true); remarcados antes saem.
+ * Cada item traz `concluidaEm` (feita ou saiu da etapa) e `cumpridoNoDia`: concluído até o fim do dia combinado.
  */
 export function montarAcordos(linhas, { de, ate, hoje, por = 'registro' }) {
   const { acoes, registros } = acordosBrutos(linhas)
   const maisNovo = new Map()
+  const criacoes = new Map()
   for (const r of registros) {
     const k = `${r.codigo}:${r.funil}`
     if (!maisNovo.has(k) || r.criadoEm > maisNovo.get(k)) maisNovo.set(k, r.criadoEm)
+    criacoes.set(k, [...(criacoes.get(k) ?? []), r.criadoEm])
   }
+  const substituidoEm = (k, criadoEm) => (criacoes.get(k) ?? []).filter((c) => c > criadoEm).sort()[0] ?? null
   const porPrazo = por === 'prazo'
   const incluiHoje = de <= hoje && hoje <= ate
   return registros
@@ -310,9 +315,13 @@ export function montarAcordos(linhas, { de, ate, hoje, por = 'registro' }) {
       else if (atual?.concluida && (atual.concluidaEm ?? '') >= r.criadoEm) status = atual.motivo === 'card mudou de etapa' ? 'saiu' : 'feita'
       const diasParaPrazo = Math.round((Date.parse(`${r.prazo}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86400_000)
       const cor = status !== 'aberta' ? null : diasParaPrazo <= 0 ? 'vermelho' : diasParaPrazo <= 2 ? 'amarelo' : 'verde'
-      return { ...r, colaborador: colaboradorDe(r.responsavel)?.chave ?? null, status, feitaEm: status === 'feita' ? atual.concluidaEm : null, vencida: status === 'aberta' && r.prazo < hoje, diasParaPrazo, cor, ...(porPrazo && r.prazo < de ? { atrasado: true } : {}) }
+      const concluidaEm = status === 'feita' || status === 'saiu' ? atual.concluidaEm ?? null : null
+      const extra = {}
+      if (status === 'atualizado') { const sub = substituidoEm(k, r.criadoEm); extra.substituidoEm = sub; if (sub && diaBrasilia(sub) > r.prazo) extra.remarcado = true }
+      if (porPrazo && r.prazo < de) extra.atrasado = true
+      return { ...r, colaborador: colaboradorDe(r.responsavel)?.chave ?? null, status, feitaEm: status === 'feita' ? atual.concluidaEm : null, concluidaEm, cumpridoNoDia: Boolean(concluidaEm && diaBrasilia(concluidaEm) <= r.prazo), vencida: status === 'aberta' && r.prazo < hoje, diasParaPrazo, cor, ...extra }
     })
-    .filter((i) => !porPrazo || (i.status !== 'atualizado' && (!i.atrasado || i.status === 'aberta')))
+    .filter((i) => !porPrazo || (i.atrasado ? i.status === 'aberta' : i.status !== 'atualizado' || i.remarcado))
     .sort((a, b) => porPrazo
       ? a.prazo.localeCompare(b.prazo) || a.responsavel.localeCompare(b.responsavel, 'pt-BR') || a.codigo - b.codigo
       : b.dia.localeCompare(a.dia) || a.responsavel.localeCompare(b.responsavel, 'pt-BR') || a.codigo - b.codigo)
@@ -378,6 +387,34 @@ const corNoDia = (prazo, dia) => {
  * aberto no fim do dia (separados pela cor do prazo naquele dia), quantos resolveu no dia (feito ou card que saiu da
  * etapa) e quantos acordos novos fez. O acordo em vigor num dia é o mais recente feito até aquele dia.
  */
+/**
+ * Previsão dos próximos `dias` dias para o gráfico "Cards por dia": os acordos em aberto agora (o mais novo de cada card,
+ * ainda não concluído), com a cor que terão em cada dia se nada for concluído; `vencem` = quantos têm prazo naquele dia.
+ */
+export function previsaoColaboradores(linhas, { hoje, dias: n = 7 }) {
+  const { acoes, registros } = acordosBrutos(linhas)
+  const dias = []
+  for (let i = 1; i <= n; i++) dias.push(new Date(Date.parse(`${hoje}T00:00:00Z`) + i * 86400_000).toISOString().slice(0, 10))
+  const ultimo = new Map()
+  for (const r of registros) {
+    const k = `${r.codigo}:${r.funil}`
+    if (!ultimo.has(k) || r.criadoEm > ultimo.get(k).criadoEm) ultimo.set(k, r)
+  }
+  const mapa = new Map(COLABORADORES.map((c) => [c.chave, { ...c, porDia: dias.map((d) => ({ dia: d, abertos: 0, verde: 0, amarelo: 0, vermelho: 0, vencem: 0 })) }]))
+  for (const [k, r] of ultimo) {
+    const atual = acoes.get(`acao:${k}`)
+    if (atual?.concluida && (atual.concluidaEm ?? '') >= r.criadoEm) continue
+    const c = colaboradorDe(r.responsavel)
+    if (!c) continue
+    for (const x of mapa.get(c.chave).porDia) {
+      x.abertos++
+      x[corNoDia(r.prazo, x.dia)]++
+      if (r.prazo === x.dia) x.vencem++
+    }
+  }
+  return { dias, colaboradores: [...mapa.values()].map((c) => ({ chave: c.chave, nome: c.nome, porDia: c.porDia })) }
+}
+
 export function calendarioColaboradores(linhas, { de, ate }) {
   const { acoes, registros } = acordosBrutos(linhas)
   const dias = []

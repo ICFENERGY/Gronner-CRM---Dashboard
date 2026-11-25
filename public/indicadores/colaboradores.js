@@ -114,20 +114,25 @@
   }
 
   function somaDia(cal, i) {
-    var t = { verde: 0, amarelo: 0, vermelho: 0, resolvidos: 0 };
+    var t = { verde: 0, amarelo: 0, vermelho: 0, resolvidos: 0, vencem: 0 };
     cal.colaboradores.forEach(function (c) {
       if (S.quem !== 'todos' && c.chave !== S.quem) return;
       var x = c.porDia[i];
-      t.verde += x.verde; t.amarelo += x.amarelo; t.vermelho += x.vermelho; t.resolvidos += x.resolvidos;
+      t.verde += x.verde; t.amarelo += x.amarelo; t.vermelho += x.vermelho; t.resolvidos += x.resolvidos || 0; t.vencem += x.vencem || 0;
     });
     return t;
   }
 
+  // Depois de hoje vêm os próximos 7 dias como previsão (S.dados.previsao): os cards em aberto agora, com a cor que
+  // terão em cada dia se nada for concluído. Barras mais claras, depois de uma linha tracejada.
   function grafico(cal) {
-    var n = cal.dias.length, hoje = S.dados.hoje;
+    var prev = S.dados.previsao && cal === S.dados.calendario ? S.dados.previsao : null;
+    var hoje = S.dados.hoje, nPassado = cal.dias.length;
     var vals = cal.dias.map(function (d, i) { return somaDia(cal, i); });
+    if (prev) { vals = vals.concat(prev.dias.map(function (d, i) { return somaDia(prev, i); })); }
+    var todosDias = prev ? cal.dias.concat(prev.dias) : cal.dias, n = todosDias.length;
     var max = Math.max(4, Math.max.apply(null, vals.map(function (v) { return v.verde + v.amarelo + v.vermelho; })));
-    var W = Math.max(560, n * 46 + 50), H = 230, L = 34, T = 22, B = 36, ph = H - T - B, bw = Math.min(30, (W - L - 10) / n * 0.62);
+    var ex = prev ? 13 : 0, W = Math.max(560, n * 46 + 50), H = 230 + ex, L = 34, T = 22, B = 36 + ex, ph = H - T - B, bw = Math.min(30, (W - L - 10) / n * 0.62);
     var passo = (W - L - 10) / n;
     var cores = { verde: 'var(--eng-green)', amarelo: '#e6b422', vermelho: 'var(--eng-red)' };
     var g = '';
@@ -135,10 +140,18 @@
       var y = T + ph - ph * f;
       g += '<line x1="' + L + '" x2="' + (W - 6) + '" y1="' + y + '" y2="' + y + '" stroke="var(--color-border-line)" stroke-width="1"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10" fill="var(--color-fg-muted)">' + Math.round(max * f) + '</text>';
     });
-    cal.dias.forEach(function (d, i) {
+    if (prev) {
+      var xs = L + passo * nPassado;
+      g += '<line x1="' + xs + '" x2="' + xs + '" y1="' + (T - 14) + '" y2="' + (T + ph) + '" stroke="var(--color-fg-muted)" stroke-dasharray="4 4"/>' +
+        '<text x="' + (xs + 6) + '" y="' + (T - 6) + '" font-size="10.5" font-weight="700" fill="var(--color-fg-muted)">previsão se nada for concluído →</text>';
+    }
+    todosDias.forEach(function (d, i) {
+      var fut = i >= nPassado;
       var v = vals[i], x = L + passo * i + (passo - bw) / 2, y = T + ph, tot = v.verde + v.amarelo + v.vermelho;
-      var tip = br(d) + ': ' + tot + ' em aberto — ' + v.verde + ' no prazo, ' + v.amarelo + ' atenção, ' + v.vermelho + ' venceu/estourou · ' + v.resolvidos + ' resolvido(s)';
-      g += '<g><title>' + esc(tip) + '</title>';
+      var tip = fut
+        ? br(d) + ' (previsão): ' + tot + ' em aberto se nada for concluído — ' + v.verde + ' no prazo, ' + v.amarelo + ' atenção, ' + v.vermelho + ' vencido · ' + v.vencem + ' com prazo neste dia'
+        : br(d) + ': ' + tot + ' em aberto — ' + v.verde + ' no prazo, ' + v.amarelo + ' atenção, ' + v.vermelho + ' venceu/estourou · ' + v.resolvidos + ' resolvido(s)';
+      g += '<g' + (fut ? ' opacity="0.5"' : '') + '><title>' + esc(tip) + '</title>';
       ['verde', 'amarelo', 'vermelho'].forEach(function (k) {
         var h = ph * v[k] / max;
         if (h <= 0) return;
@@ -147,15 +160,17 @@
         if (h >= 14) g += '<text x="' + (x + bw / 2) + '" y="' + (y + h / 2 + 4) + '" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">' + v[k] + '</text>';
       });
       if (tot) g += '<text x="' + (x + bw / 2) + '" y="' + (y - 4) + '" text-anchor="middle" font-size="11" font-weight="700" fill="var(--color-fg)">' + tot + '</text>';
-      g += '<text x="' + (x + bw / 2) + '" y="' + (H - 18) + '" text-anchor="middle" font-size="10" font-weight="' + (d === hoje ? 700 : 400) + '" fill="' + (d === hoje ? 'var(--color-fg)' : 'var(--color-fg-muted)') + '">' + d.slice(8, 10) + '/' + d.slice(5, 7) + '</text>';
-      g += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="var(--color-fg-muted)">' + SEM[new Date(d + 'T12:00:00').getDay()] + (d === hoje ? ' · hoje' : '') + '</text></g>';
+      g += '<text x="' + (x + bw / 2) + '" y="' + (H - 18 - ex) + '" text-anchor="middle" font-size="10" font-weight="' + (d === hoje ? 700 : 400) + '" fill="' + (d === hoje ? 'var(--color-fg)' : 'var(--color-fg-muted)') + '">' + d.slice(8, 10) + '/' + d.slice(5, 7) + '</text>';
+      g += '<text x="' + (x + bw / 2) + '" y="' + (H - 6 - ex) + '" text-anchor="middle" font-size="9" fill="var(--color-fg-muted)">' + SEM[new Date(d + 'T12:00:00').getDay()] + (d === hoje ? ' · hoje' : '') + '</text>';
+      if (fut && v.vencem) g += '<text x="' + (x + bw / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="9" font-weight="700" fill="var(--eng-red)">' + v.vencem + ' vence' + (v.vencem > 1 ? 'm' : '') + '</text>';
+      g += '</g>';
     });
     var hi = cal.dias.indexOf(hoje), hv = hi >= 0 ? vals[hi] : null;
     var resumo = hv ? 'Hoje (' + br(hoje) + '): <b>' + (hv.verde + hv.amarelo + hv.vermelho) + '</b> cards em aberto — <b style="color:var(--eng-green)">' + hv.verde + ' no prazo</b>, <b style="color:#b8860b">' + hv.amarelo + ' atenção</b>, <b style="color:var(--eng-red)">' + hv.vermelho + ' venceu ou estourou</b>.' : '';
     var op = '<option value="todos"' + (S.quem === 'todos' ? ' selected' : '') + '>Todos</option>' + cal.colaboradores.map(function (c) {
       return '<option value="' + esc(c.chave) + '"' + (S.quem === c.chave ? ' selected' : '') + '>' + esc(c.nome) + '</option>';
     }).join('');
-    return '<div class="co-cal"><div class="eng-panel-head"><h3>Cards por dia: no prazo, atenção e venceu</h3><span class="eng-panel-note">cards com acordo em aberto no fim de cada dia</span>' +
+    return '<div class="co-cal"><div class="eng-panel-head"><h3>Cards por dia: no prazo, atenção e venceu</h3><span class="eng-panel-note">cards com acordo em aberto no fim de cada dia' + (prev ? ' · próximos 7 dias: previsão' : '') + '</span>' +
       '<select id="co-quem" class="eng-field" aria-label="Colaborador">' + op + '</select><button type="button" class="eng-clear-btn co-pdf">Exportar PDF</button></div>' +
       (resumo ? '<div class="co-sub" style="margin:0 0 6px;font-size:13px">' + resumo + '</div>' : '') +
       '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Cards em aberto por dia, por cor do prazo" style="max-width:100%;height:auto">' + g + '</svg>' +
