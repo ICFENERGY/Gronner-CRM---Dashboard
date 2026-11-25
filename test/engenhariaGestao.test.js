@@ -234,6 +234,57 @@ test('rotas: salvar a ação grava no Groner, guarda a tarefa e lista as pessoas
   }
 })
 
+test('atraso: exige motivo, responsável e novo prazo; vira tarefa ATRASO com o motivo no comentário', async () => {
+  const card = { codigo: 100 }
+  assert.throws(() => validarAcao({ codigo: '100', funil: '10' }, { atraso: true, motivo: '', responsavel: 'Eliardo', prazo: '2026-11-30' }, card), /motivo do atraso/)
+  assert.throws(() => validarAcao({ codigo: '100', funil: '10' }, { atraso: true, motivo: 'Falta material', responsavel: '', prazo: '2026-11-30' }, card), /responsável pelo tratamento/)
+  assert.throws(() => validarAcao({ codigo: '100', funil: '10' }, { atraso: true, motivo: 'Falta material', responsavel: 'Eliardo', prazo: 'x' }, card), /Novo prazo/)
+  assert.deepEqual(validarAcao({ codigo: '100', funil: '10' }, { atraso: true, motivo: 'Falta material', responsavel: 'Eliardo', prazo: '2026-11-30' }, card),
+    { acao: 'Tratar atraso: Falta material', responsavel: 'Eliardo', prazo: '2026-11-30', atraso: true, motivoAtraso: 'Falta material' })
+  const g = gronerFalso()
+  const r = await registrarNoGroner({ deps: g.deps, item: itemCard, acao: 'Tratar atraso: Falta material', responsavel: 'Eliardo Lemos', responsavelId: 29, prazo: '2026-11-30', motivoAtraso: 'Falta material' })
+  assert.equal(r.tarefaId, 555)
+  assert.match(g.chamadas.criadas[0].Titulo, /^ATRASO · Gestão diária/)
+  assert.match(g.chamadas.comentarios[0].texto, /Card em ATRASO/)
+  assert.match(g.chamadas.comentarios[0].texto, /Motivo do atraso: Falta material/)
+  assert.ok(g.chamadas.comentarios[0].texto.includes('Novo prazo: 30/11/2026'))
+})
+
+test('rotas: atraso cria tarefa própria no Groner (não reaproveita a da ação) e entra no acordo do dia', async () => {
+  const pg = pgAcoes()
+  const g = gronerFalso()
+  const projeto = { id: 100, nome: 'Cliente Teste', funil: '10. HOMOLOGAÇÃO', etapa: 'PIETA_CRIACAO DO PROJETO', dataEntradaStatus: '2026-10-20T10:00:00-03:00', dataInclusao: '2026-10-01T10:00:00-03:00', valorVenda: 1000 }
+  const app = express()
+  app.use(express.json())
+  app.use('/api/indicadores', createIndicadoresRouter({
+    carregar: async (e) => (e === 'projetos' ? { items: [projeto], sync: { finishedAt: '2026-11-02T10:00:00Z' } } : null),
+    pg: () => pg, prazos: PRAZO_5, agora: () => Date.parse('2026-11-02T20:00:00-03:00'), gronerAcoes: async () => g.deps,
+  }))
+  const srv = http.createServer(app)
+  await new Promise((r) => srv.listen(0, r))
+  const base = `http://127.0.0.1:${srv.address().port}/api/indicadores/engenharia`
+  const anterior = process.env.METAS_TOKEN
+  try {
+    delete process.env.METAS_TOKEN
+    const put = (c) => fetch(`${base}/acoes/100/10`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(c) })
+    await put({ acao: 'Cobrar o parecer', responsavel: 'Eliardo Lemos', responsavelId: 29, prazo: '2026-11-05' })
+    let n = 0
+    g.deps.criarTarefa = async (corpo) => { g.chamadas.criadas.push(corpo); n++; return { id: 600 + n } }
+    const r = await (await put({ atraso: true, motivo: 'Cliente sem retorno', responsavel: 'João Martins', responsavelId: 67, prazo: '2026-11-09' })).json()
+    assert.equal(r.dados.atraso, true)
+    assert.equal(r.dados.tarefaId, 601)
+    assert.match(g.chamadas.criadas.at(-1).Titulo, /^ATRASO/)
+    const ac = await (await fetch(`${base}/acordos?por=prazo&de=2026-11-09&ate=2026-11-09`)).json()
+    assert.equal(ac.itens.length, 1)
+    assert.equal(ac.itens[0].atraso, true)
+    assert.equal(ac.itens[0].motivoAtraso, 'Cliente sem retorno')
+  } finally {
+    if (anterior === undefined) delete process.env.METAS_TOKEN
+    else process.env.METAS_TOKEN = anterior
+    await new Promise((r) => srv.close(r))
+  }
+})
+
 // ─── Detalhe das vendas (liga a venda ao negócio) ──────────────────────────────────────────────────────────────
 
 test('vendas: busca o detalhe só de quem ainda não tem o projeto; o resto reaproveita o guardado', async () => {

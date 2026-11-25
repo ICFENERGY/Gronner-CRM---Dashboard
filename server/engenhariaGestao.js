@@ -202,13 +202,17 @@ export function validarAcao({ codigo, funil }, corpo, card) {
   if (!ID_CARD.test(String(codigo)) || !ID_FUNIL.test(String(funil)) || !ENG_ETAPAS[funil]) throw erro('Card ou funil inválido')
   if (!card) throw erro('Card não encontrado nos funis de engenharia')
   const limpa = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
-  const acao = limpa(corpo?.acao, 300)
+  // Atraso: o card fica onde está; registra o motivo, quem trata e o novo prazo (vira tarefa ATRASO no Groner).
+  const atraso = corpo?.atraso === true
+  const motivoAtraso = atraso ? limpa(corpo?.motivo, 280) : ''
+  if (atraso && motivoAtraso.length < 3) throw erro('Descreva o motivo do atraso')
+  const acao = atraso ? `Tratar atraso: ${motivoAtraso}` : limpa(corpo?.acao, 300)
   const responsavel = limpa(corpo?.responsavel, 80)
   const prazo = String(corpo?.prazo ?? '')
   if (acao.length < 3) throw erro('Descreva a ação (o que será feito)')
-  if (!responsavel) throw erro('Informe o responsável')
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(prazo) || Number.isNaN(Date.parse(`${prazo}T12:00:00`))) throw erro('Prazo inválido')
-  return { acao, responsavel, prazo }
+  if (!responsavel) throw erro(atraso ? 'Informe o responsável pelo tratamento' : 'Informe o responsável')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(prazo) || Number.isNaN(Date.parse(`${prazo}T12:00:00`))) throw erro(atraso ? 'Novo prazo inválido' : 'Prazo inválido')
+  return atraso ? { acao, responsavel, prazo, atraso: true, motivoAtraso } : { acao, responsavel, prazo }
 }
 
 /**
@@ -242,7 +246,7 @@ export function diaBrasilia(quando) {
 }
 
 /** Registro do acordo no dia em que foi salvo (um por card e por dia: salvar de novo no mesmo dia atualiza). */
-export function registroAcordo({ card, acao, responsavel, prazo, agora, antes = null, tarefaId = null }) {
+export function registroAcordo({ card, acao, responsavel, prazo, agora, antes = null, tarefaId = null, atraso = false, motivoAtraso = null }) {
   const iso = agora.toISOString()
   const dia = diaBrasilia(agora)
   return {
@@ -251,6 +255,7 @@ export function registroAcordo({ card, acao, responsavel, prazo, agora, antes = 
       dia, codigo: Number(card.codigo), funil: card.funil, funilNome: card.funilNome ?? NOMES_FUNIL[card.funil] ?? null,
       etapa: card.etapa, nome: card.nome ?? null, situacao: card.status ?? null,
       acao, responsavel, prazo, tarefaId, criadoEm: antes?.criadoEm ?? iso, atualizadoEm: iso,
+      ...(atraso ? { atraso: true, motivoAtraso } : {}),
     },
   }
 }

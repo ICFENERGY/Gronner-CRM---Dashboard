@@ -7,7 +7,7 @@
 (function () {
   var BASE = '/api/indicadores/engenharia';
   var CHAVE_CODIGO = 'indicadores-metas-codigo';
-  var S = { usuarios: [], salvando: {}, dados: null, carregando: false, erro: null, abertos: {}, grupos: {}, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
+  var S = { usuarios: [], salvando: {}, atrasoAberto: {}, dados: null, carregando: false, erro: null, abertos: {}, grupos: {}, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
   var MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   var BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
   var ROTULO = { late: 'Atrasado', risk: 'Em risco', cobrar: 'Cobrar', ok: 'No prazo', repouso: 'Repouso' };
@@ -67,6 +67,9 @@
       '.ge-form input, .ge-form textarea { font: inherit; font-size: 13px; color: var(--color-fg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: 6px; padding: 7px 9px; width: 100%; box-sizing: border-box; }',
       '.ge-form .ge-r2 { display: grid; grid-template-columns: 1fr 160px; gap: 8px; }',
       '.ge-form .ge-btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }',
+      '.ge-atraso { border: 1px solid color-mix(in srgb, var(--eng-red) 45%, transparent); border-left: 4px solid var(--eng-red); border-radius: 8px; padding: 10px 12px; background: color-mix(in srgb, var(--eng-red) 7%, transparent); margin-top: 6px; }',
+      '.ge-tag-atraso { display: inline-block; font-size: 10.5px; font-weight: 750; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--eng-red) 18%, transparent); color: var(--eng-red); margin-right: 6px; }',
+      '.ge-btn.atraso { border-color: var(--eng-red); color: var(--eng-red); }',
       '.ge-btn { font: inherit; font-size: 13px; font-weight: 650; padding: 7px 14px; border-radius: 7px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); cursor: pointer; }',
       '.ge-btn.prim { background: var(--eng-teal); border-color: var(--eng-teal); color: #08261f; }',
       '.ge-vazio { padding: 26px 16px; text-align: center; color: var(--color-fg-muted); }',
@@ -181,7 +184,7 @@
   function linha(i) {
     var a = i.acao, aberto = !!S.abertos[chave(i)];
     var acao = a
-      ? '<div><b>' + esc(a.acao) + '</b></div><div class="ge-sub' + (a.prazo < hoje(0) ? ' ge-venc' : '') + '">' + esc(a.responsavel) + ' · até ' + br(a.prazo) + (a.prazo < hoje(0) ? ' (vencida)' : '') + '</div>'
+      ? '<div>' + (a.atraso ? '<span class="ge-tag-atraso">⚠ ATRASO</span>' : '') + '<b>' + esc(a.atraso ? a.motivoAtraso || a.acao : a.acao) + '</b></div><div class="ge-sub' + (a.prazo < hoje(0) ? ' ge-venc' : '') + '">' + esc(a.responsavel) + ' · até ' + br(a.prazo) + (a.prazo < hoje(0) ? ' (vencida)' : '') + '</div>'
       : (i.status === 'ok' ? '<div class="ge-sub">—</div>' : '<div class="' + (i.status === 'late' ? 'ge-sem' : 'ge-sub') + '">' + (i.status === 'late' ? 'Sem ação: combinar plano, responsável e prazo' : 'Sem ação combinada') + '</div>');
     var h = '<div class="ge-item"><button class="ge-linha" data-k="' + chave(i) + '" aria-expanded="' + aberto + '">' +
       '<span class="ge-cod">#' + i.codigo + '</span>' +
@@ -193,6 +196,7 @@
   }
 
   function campoResponsavel(id, a, i) {
+    if (a && a.__vazio) a = null;
     if (!S.usuarios.length) return '<input id="' + id + '" name="responsavel" value="' + esc(a ? a.responsavel : '') + '" placeholder="' + esc(i.papel || 'Nome') + '" required>';
     var atual = a ? a.responsavel : '';
     var lista = S.usuarios.slice();
@@ -225,8 +229,24 @@
       '<label for="' + id + '-p">Prazo<input id="' + id + '-p" name="prazo" type="date" value="' + esc(a ? a.prazo : hoje(2)) + '" required></label></div>' +
       '<div class="ge-btns"><button class="ge-btn prim" type="submit"' + (S.salvando[chave(i)] ? ' disabled' : '') + '>' + (S.salvando[chave(i)] ? 'Salvando no Groner…' : (a ? 'Salvar alterações' : 'Salvar ação')) + '</button>' +
       (a ? '<button class="ge-btn" type="button" data-feito="1">Marcar como feita</button>' : '') +
+      '<button class="ge-btn atraso" type="button" data-atraso-abrir="1">' + (S.atrasoAberto[chave(i)] ? 'Fechar atraso' : (a && a.atraso ? 'Atualizar atraso' : 'Registrar atraso')) + '</button>' +
       '<span class="ge-aviso">' + avisoGroner(a) + '</span></div>' +
-      '</form></div>';
+      '</form>' + (S.atrasoAberto[chave(i)] ? formAtraso(i, id) : '') + '</div>';
+  }
+
+  // Atraso: o card fica onde está no Groner; registra o motivo, quem trata e o novo prazo. Vira uma tarefa
+  // "ATRASO" dentro do card (com o @ do responsável e o prazo) e entra em "Acordos do dia" no novo prazo.
+  function formAtraso(i, id) {
+    var a = i.acao && i.acao.atraso ? i.acao : null;
+    var k = chave(i);
+    return '<form class="ge-form ge-atraso" data-k="' + k + '" data-atraso="1">' +
+      '<h4 style="margin:0">⚠ Registrar atraso</h4>' +
+      '<label for="' + id + '-m">Motivo do atraso<textarea id="' + id + '-m" name="motivo" rows="2" required placeholder="Por que o card atrasou?">' + esc(a ? a.motivoAtraso : '') + '</textarea></label>' +
+      '<div class="ge-r2"><label for="' + id + '-ar">Responsável pelo tratamento' + campoResponsavel(id + '-ar', a || { __vazio: true }, i) + '</label>' +
+      '<label for="' + id + '-np">Novo prazo<input id="' + id + '-np" name="prazo" type="date" value="' + esc(a ? a.prazo : hoje(2)) + '" required></label></div>' +
+      '<div class="ge-btns"><button class="ge-btn prim" type="submit"' + (S.salvando[k] ? ' disabled' : '') + '>' + (S.salvando[k] ? 'Salvando no Groner…' : (a ? 'Salvar atraso' : 'Registrar atraso')) + '</button>' +
+      '<span class="ge-aviso">O card continua na mesma etapa. No Groner vira uma tarefa ATRASO dentro do card, com o responsável e o novo prazo.</span></div>' +
+      '</form>';
   }
 
   function desenhar() {
@@ -287,10 +307,17 @@
         var k = f.dataset.k;
         S.salvando[k] = true;
         desenhar();
-        enviar(caminho, 'PUT', { acao: fd.get('acao'), responsavel: fd.get('responsavel'), responsavelId: opt && opt.dataset.id ? Number(opt.dataset.id) : undefined, prazo: fd.get('prazo') })
-          .then(function () { delete S.salvando[k]; return carregar(true); })
+        var rid = opt && opt.dataset.id ? Number(opt.dataset.id) : undefined;
+        var corpo = f.dataset.atraso
+          ? { atraso: true, motivo: fd.get('motivo'), responsavel: fd.get('responsavel'), responsavelId: rid, prazo: fd.get('prazo') }
+          : { acao: fd.get('acao'), responsavel: fd.get('responsavel'), responsavelId: rid, prazo: fd.get('prazo') };
+        var eraAtraso = !!f.dataset.atraso;
+        enviar(caminho, 'PUT', corpo)
+          .then(function () { delete S.salvando[k]; if (eraAtraso) delete S.atrasoAberto[k]; return carregar(true); })
           .catch(function (err) { delete S.salvando[k]; desenhar(); window.alert('Não foi possível salvar: ' + err.message); });
       };
+      var abrir = f.querySelector('[data-atraso-abrir]');
+      if (abrir) abrir.onclick = function () { var k = f.dataset.k; if (S.atrasoAberto[k]) delete S.atrasoAberto[k]; else S.atrasoAberto[k] = true; desenhar(); };
       var feito = f.querySelector('[data-feito]');
       if (feito) feito.onclick = function () {
         enviar(caminho + '/concluir', 'POST')

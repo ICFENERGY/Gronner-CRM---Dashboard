@@ -177,7 +177,7 @@
       '<section class="eng-filterbar ac-no-print"><div class="eng-filters-row">' +
       '<label class="eng-field"><span>De</span><input id="ac-de" type="date" value="' + esc(S.de) + '"></label>' +
       '<label class="eng-field"><span>Até</span><input id="ac-ate" type="date" value="' + esc(S.ate) + '"></label>' +
-      '<div class="ac-quick"><button class="eng-clear-btn" type="button" data-p="0">Hoje</button><button class="eng-clear-btn" type="button" data-p="1">Amanhã</button><button class="eng-clear-btn" type="button" data-p="+7">Próximos 7 dias</button></div>' +
+      '<div class="ac-quick"><button class="eng-clear-btn" type="button" data-p="0">Hoje</button><button class="eng-clear-btn" type="button" data-p="1">Amanhã</button><button class="eng-clear-btn" type="button" data-p="+7">Próximos 7 dias</button><button class="eng-clear-btn" type="button" data-p="-7">Últimos 7 dias</button></div>' +
       '<label class="eng-field"><span>Responsável</span><select id="ac-resp">' + opResp + '</select></label>' +
       '<label class="eng-field"><span>Situação</span><select id="ac-st">' + opSt + '</select></label>' +
       '<button id="ac-atualizar" class="eng-clear-btn" type="button">Atualizar</button>' +
@@ -198,7 +198,7 @@
       '<input type="checkbox" data-c="' + i.codigo + '" data-f="' + esc(i.funil) + '"' + (i.status === 'feita' ? ' checked' : '') + (pode && !S.salvando[k] ? '' : ' disabled') + ' aria-label="Marcar o acordo do card ' + i.codigo + ' como feito">' +
       '<span class="ac-cod">#' + i.codigo + '</span>' +
       '<span><div class="ac-nome">' + esc(i.nome || '—') + '</div><div class="ac-sub">' + esc(i.funil) + (i.funilNome ? ' · ' + esc(i.funilNome) : '') + ' · ' + esc(i.etapa || '') + '</div></span>' +
-      '<span class="ac-acao"><div><b>' + esc(i.acao) + '</b></div><div class="ac-sub' + (cor ? ' cor-' + cor : '') + '">' + prazoTxt + '</div><div class="ac-sub">Registrado em ' + br(i.dia) +
+      '<span class="ac-acao"><div>' + (i.atraso ? '<span class="ac-tag vermelho" style="margin-right:6px">⚠ Atraso</span>' : '') + '<b>' + esc(i.atraso && i.motivoAtraso ? 'Motivo do atraso: ' + i.motivoAtraso : i.acao) + '</b></div><div class="ac-sub' + (cor ? ' cor-' + cor : '') + '">' + prazoTxt + '</div><div class="ac-sub">Registrado em ' + br(i.dia) +
         (i.remarcado ? ' · <span class="ac-venc">não cumprido no dia: remarcado em ' + br(diaDoIso(i.substituidoEm)) + '</span>' : '') +
         (i.concluidaEm && !i.cumpridoNoDia ? ' · <span class="ac-venc">feito depois do dia combinado</span>' : '') + '</div></span>' +
       '<span><span class="ac-tag ' + (cor || i.status) + '">' + rotulo + '</span>' + (i.status === 'feita' && i.feitaEm ? '<div class="ac-sub">em ' + new Date(i.feitaEm).toLocaleString('pt-BR') + '</div>' : '') + '</span>' +

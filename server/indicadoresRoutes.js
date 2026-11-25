@@ -240,7 +240,8 @@ export function createIndicadoresRouter({
       const dados = {
         ...campos, codigo: Number(codigo), funil, etapa: card.etapa, concluida: false,
         criadaEm: aberta ? aberta.criadaEm : agoraIso, atualizadaEm: agoraIso,
-        tarefaId: aberta?.tarefaId ?? null,
+        // Atraso e ação comum são tarefas diferentes no Groner: só reaproveita a tarefa se for do mesmo tipo.
+        tarefaId: aberta && Boolean(aberta.atraso) === Boolean(campos.atraso) ? aberta.tarefaId ?? null : null,
       }
       // 1) Salva no painel (Neon) primeiro: o combinado nunca se perde se o Groner estiver lento ou fora.
       await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
@@ -249,7 +250,7 @@ export function createIndicadoresRouter({
         const responsavelId = Number(req.body?.responsavelId) || null
         const registro = await registrarNoGroner({
           deps: await gronerAcoes(), item: card, acao: campos.acao, responsavel: campos.responsavel, responsavelId,
-          prazo: campos.prazo, tarefaId: dados.tarefaId, agora: new Date(agora()),
+          prazo: campos.prazo, tarefaId: dados.tarefaId, agora: new Date(agora()), motivoAtraso: campos.motivoAtraso ?? null,
         })
         Object.assign(dados, { tarefaId: registro.tarefaId, gronerEm: registro.gronerEm, gronerErro: registro.gronerErro, responsavelId })
         await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
@@ -259,7 +260,7 @@ export function createIndicadoresRouter({
         const agoraData = new Date(agora())
         const probe = registroAcordo({ card, acao: campos.acao, responsavel: campos.responsavel, prazo: campos.prazo, agora: agoraData })
         const antesDia = (await clientePg().todas('config', ENTIDADE_ACOES)).find((x) => x.chave === probe.chave)?.dados
-        const reg = registroAcordo({ card, acao: campos.acao, responsavel: campos.responsavel, prazo: campos.prazo, agora: agoraData, antes: antesDia, tarefaId: dados.tarefaId ?? null })
+        const reg = registroAcordo({ card, acao: campos.acao, responsavel: campos.responsavel, prazo: campos.prazo, agora: agoraData, antes: antesDia, tarefaId: dados.tarefaId ?? null, atraso: Boolean(campos.atraso), motivoAtraso: campos.motivoAtraso ?? null })
         await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave: reg.chave, dados: reg.dados }])
       } catch (err) { console.error('[indicadores] registro do acordo', err.message) }
       res.json({ ok: true, dados })

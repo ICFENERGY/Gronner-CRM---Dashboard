@@ -12,13 +12,23 @@
  */
 export const TIPO_TAREFA_ACAO_PADRAO = 44 // "IMPORTANTE"; troque com GRONER_TIPO_TAREFA_ACAO
 export const PREFIXO_TITULO = 'Ação combinada · Gestão diária'
+export const PREFIXO_TITULO_ATRASO = 'ATRASO · Gestão diária'
 
 const dataBr = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '—')
 
-export const tituloDaTarefa = (item) => `${PREFIXO_TITULO} · ${item.etapa}`.slice(0, 120)
+export const tituloDaTarefa = (item, atraso = false) => `${atraso ? PREFIXO_TITULO_ATRASO : PREFIXO_TITULO} · ${item.etapa}`.slice(0, 120)
 
 /** Texto do comentário no card. tipo: 'novo' | 'atualizado' | 'feito' */
-export function textoComentario({ item, acao, responsavel, prazo, tipo = 'novo' }) {
+export function textoComentario({ item, acao, responsavel, prazo, tipo = 'novo', motivoAtraso = null }) {
+  if (motivoAtraso && tipo !== 'feito') {
+    return [
+      tipo === 'atualizado' ? '⚠️ Atraso atualizado (Gestão diária da Engenharia)' : '⚠️ Card em ATRASO (Gestão diária da Engenharia)',
+      `Etapa: ${item.funil} · ${item.etapa}`,
+      `Motivo do atraso: ${motivoAtraso}`,
+      `Responsável pelo tratamento: @${responsavel}`,
+      `Novo prazo: ${dataBr(prazo)}`,
+    ].join('\n')
+  }
   if (tipo === 'feito') return `✅ Ação marcada como feita na Gestão diária da Engenharia.\nO que foi combinado: ${acao}\nResponsável: @${responsavel}`
   const cabeca = tipo === 'atualizado' ? '📌 Combinado atualizado na reunião (Gestão diária da Engenharia)' : '📌 Combinado na reunião (Gestão diária da Engenharia)'
   return [
@@ -37,11 +47,11 @@ export function textoComentario({ item, acao, responsavel, prazo, tipo = 'novo' 
  * @param deps.tarefasDoCard (projetoId) => lista de tarefas do card (para não duplicar)
  * @returns { tarefaId, gronerEm, gronerErro }
  */
-export async function registrarNoGroner({ deps, item, acao, responsavel, responsavelId, prazo, tarefaId = null, tipo = 'novo', agora = new Date() }) {
+export async function registrarNoGroner({ deps, item, acao, responsavel, responsavelId, prazo, tarefaId = null, tipo = 'novo', agora = new Date(), motivoAtraso = null }) {
   const resultado = { tarefaId, gronerEm: null, gronerErro: null }
   try {
     if (!resultado.tarefaId) {
-      const titulo = tituloDaTarefa(item)
+      const titulo = tituloDaTarefa(item, Boolean(motivoAtraso))
       const corpo = {
         Titulo: titulo,
         TipoId: Number(process.env.GRONER_TIPO_TAREFA_ACAO) || TIPO_TAREFA_ACAO_PADRAO,
@@ -63,7 +73,7 @@ export async function registrarNoGroner({ deps, item, acao, responsavel, respons
       resultado.tarefaId = criada?.id ?? null
       if (!resultado.tarefaId) throw new Error('O Groner não devolveu o código da tarefa')
     }
-    await deps.comentar(resultado.tarefaId, textoComentario({ item, acao, responsavel, prazo, tipo: tipo === 'feito' ? 'feito' : tarefaId ? 'atualizado' : 'novo' }))
+    await deps.comentar(resultado.tarefaId, textoComentario({ item, acao, responsavel, prazo, motivoAtraso, tipo: tipo === 'feito' ? 'feito' : tarefaId ? 'atualizado' : 'novo' }))
     resultado.gronerEm = agora.toISOString()
   } catch (err) {
     resultado.gronerErro = String(err?.message ?? err).slice(0, 200)
