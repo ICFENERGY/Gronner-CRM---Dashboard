@@ -4,7 +4,7 @@
  * por cor do prazo (no prazo / atenção / vencido) e a taxa de conclusão dos acordos.
  */
 (function () {
-  var S = { dados: null, carregando: false, erro: null, dias: 14, quem: 'todos' };
+  var S = { dados: null, carregando: false, erro: null, dias: 14, quem: 'todos', cor: null };
   var SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -125,6 +125,37 @@
 
   // Depois de hoje vêm os próximos 7 dias como previsão (S.dados.previsao): os cards em aberto agora, com a cor que
   // terão em cada dia se nada for concluído. Barras mais claras, depois de uma linha tracejada.
+  // Filtro por cor abaixo do gráfico: mostra quais cards estão hoje no prazo, em atenção ou vencidos (com o responsável).
+  var COR_NOME = { verde: 'No prazo', amarelo: 'Atenção', vermelho: 'Vence hoje ou vencido' };
+  function cardsPorCor() {
+    var t = { verde: [], amarelo: [], vermelho: [] };
+    (S.dados.colaboradores || []).forEach(function (c) {
+      if (S.quem !== 'todos' && c.chave !== S.quem) return;
+      c.abertos.forEach(function (a) { if (t[a.cor]) t[a.cor].push({ a: a, nome: c.nome }); });
+    });
+    return t;
+  }
+  function filtroCor() {
+    var t = cardsPorCor();
+    var bot = function (k, rot, n, cor) {
+      var on = S.cor === k;
+      return '<button type="button" class="eng-clear-btn co-fcor" data-cor="' + k + '" aria-pressed="' + on + '" style="' + (on ? 'outline:2px solid ' + cor + ';font-weight:750' : '') + '">' +
+        (cor ? '<i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + cor + ';margin-right:6px"></i>' : '') + rot + (n == null ? '' : ' (' + n + ')') + '</button>';
+    };
+    var h = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 4px"><span style="font-size:12px;font-weight:700;color:var(--color-fg-muted)">VER OS CARDS DE HOJE:</span>' +
+      bot('verde', 'No prazo', t.verde.length, 'var(--eng-green)') + bot('amarelo', 'Atenção', t.amarelo.length, '#e6b422') + bot('vermelho', 'Vence hoje ou vencido', t.vermelho.length, 'var(--eng-red)') +
+      (S.cor ? bot('', 'Fechar lista', null, '') : '') + '</div>';
+    if (!S.cor) return h;
+    var lista = t[S.cor];
+    if (!lista.length) return h + '<div class="ge-vazio">Nenhum card ' + COR_NOME[S.cor].toLowerCase() + ' hoje.</div>';
+    return h + '<div class="co-cal"><table><thead><tr><th>Responsável</th><th>Card</th><th style="text-align:left">Cliente</th><th style="text-align:left">Ação combinada</th><th>Prazo</th></tr></thead><tbody>' +
+      lista.map(function (x) {
+        var a = x.a;
+        return '<tr><td>' + esc(x.nome) + '</td><td><b>#' + a.codigo + '</b></td><td style="text-align:left">' + esc(a.nome || '—') + '<div class="co-sub">' + esc(a.funil) + ' · ' + esc(a.etapa || '') + '</div></td>' +
+          '<td style="text-align:left">' + esc(a.acao) + '</td><td style="white-space:nowrap;font-weight:700;color:' + (S.cor === 'vermelho' ? 'var(--eng-red)' : S.cor === 'amarelo' ? '#b8860b' : 'var(--eng-green)') + '">' + prazoTxt(a) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
   function grafico(cal) {
     var prev = S.dados.previsao && cal === S.dados.calendario ? S.dados.previsao : null;
     var hoje = S.dados.hoje, nPassado = cal.dias.length;
@@ -174,7 +205,8 @@
       '<select id="co-quem" class="eng-field" aria-label="Colaborador">' + op + '</select><button type="button" class="eng-clear-btn co-pdf">Exportar PDF</button></div>' +
       (resumo ? '<div class="co-sub" style="margin:0 0 6px;font-size:13px">' + resumo + '</div>' : '') +
       '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Cards em aberto por dia, por cor do prazo" style="max-width:100%;height:auto">' + g + '</svg>' +
-      '<div class="ac-leg" style="display:flex;gap:14px;font-size:12px;color:var(--color-fg-muted)"><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-green);margin-right:5px"></i>No prazo (mais de 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e6b422;margin-right:5px"></i>Atenção (1 ou 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-red);margin-right:5px"></i>Venceu ou estourou</span></div></div>';
+      '<div class="ac-leg" style="display:flex;gap:14px;font-size:12px;color:var(--color-fg-muted)"><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-green);margin-right:5px"></i>No prazo (mais de 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e6b422;margin-right:5px"></i>Atenção (1 ou 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-red);margin-right:5px"></i>Venceu ou estourou</span></div>' +
+      filtroCor() + '</div>';
   }
 
   function calendario(cal) {
@@ -214,11 +246,17 @@
     pintarExtra();
   }
 
+  // Fora da aba Colaboradores (dentro de "Acordos do dia") só a área extra existe.
+  function repintar() { if (raiz()) desenhar(); else pintarExtra(); }
+
   function ligarEvolucao(el) {
     var pdf = el.querySelector('.co-pdf');
     if (pdf) pdf.onclick = function () { exportarPdf(pdf); };
     var qu = el.querySelector('#co-quem');
-    if (qu) qu.onchange = function () { S.quem = qu.value; desenhar(); };
+    if (qu) qu.onchange = function () { S.quem = qu.value; repintar(); };
+    el.querySelectorAll('.co-fcor').forEach(function (b) {
+      b.onclick = function () { S.cor = b.dataset.cor && S.cor !== b.dataset.cor ? b.dataset.cor : null; repintar(); };
+    });
     var sel = el.querySelector('#co-dias');
     if (sel) sel.onchange = function () { S.dias = Number(sel.value); carregar(); };
   }
