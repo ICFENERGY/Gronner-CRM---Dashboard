@@ -89,7 +89,8 @@
       '.ac-mes-d .nada { margin-top: 6px; font-size: 11px; color: var(--color-fg-muted); }',
       '.ac-mes-d .ct { flex-direction: column; gap: 1px; font-size: 11px; }',
       '@media (max-width: 700px) { .ac-mes-d { min-height: 60px; padding: 4px; } .ac-mes-d .ab { font-size: 15px; } .ac-mes-d .ex { display: none; } .ac-mes-it { font-size: 9.5px; } }',
-      '.ac-quick { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }',
+      '.ac-quick { display: flex; gap: 6px; flex-wrap: nowrap; align-items: flex-end; flex-shrink: 0; }',
+      '.ac-quick .eng-clear-btn { white-space: nowrap; }',
       '@media (max-width: 900px) { .ac-item { grid-template-columns: 26px minmax(0,1fr); } .ac-item > :nth-child(2) { grid-column: 2; } .ac-item > :nth-child(n+3) { grid-column: 2; } }',
       '@media print {',
       '  html, html[data-theme] { --color-fg: #111 !important; --color-bg: #fff !important; --color-panel: #fff !important; --color-fg-muted: #444 !important; --color-border-line: #bbb !important; background: #fff !important; }',
@@ -161,7 +162,7 @@
       '<section class="eng-filterbar ac-no-print"><div class="eng-filters-row">' +
       '<label class="eng-field"><span>De</span><input id="ac-de" type="date" value="' + esc(S.de) + '"></label>' +
       '<label class="eng-field"><span>Até</span><input id="ac-ate" type="date" value="' + esc(S.ate) + '"></label>' +
-      '<div class="ac-quick"><button class="eng-clear-btn" type="button" data-p="0">Hoje</button><button class="eng-clear-btn" type="button" data-p="1">Amanhã</button><button class="eng-clear-btn" type="button" data-p="+7">Próximos 7 dias</button><button class="eng-clear-btn" type="button" data-p="-7">Últimos 7 dias</button></div>' +
+      '<div class="ac-quick"><button class="eng-clear-btn" type="button" data-p="0">Hoje</button><button class="eng-clear-btn" type="button" data-p="1">Amanhã</button><button class="eng-clear-btn" type="button" data-p="+7">Próximos 7 dias</button></div>' +
       '<label class="eng-field"><span>Responsável</span><select id="ac-resp">' + opResp + '</select></label>' +
       '<label class="eng-field"><span>Situação</span><select id="ac-st">' + opSt + '</select></label>' +
       '<button id="ac-atualizar" class="eng-clear-btn" type="button">Atualizar</button>' +
