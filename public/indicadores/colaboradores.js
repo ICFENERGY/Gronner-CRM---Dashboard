@@ -124,7 +124,7 @@
   }
 
   // Depois de hoje vêm os próximos 7 dias como previsão (S.dados.previsao): os cards em aberto agora, com a cor que
-  // terão em cada dia se nada for concluído. Barras mais claras, depois de uma linha tracejada.
+  // terão em cada dia se nada for concluído, desenhados igual aos outros dias.
   // Filtro por cor abaixo do gráfico: mostra quais cards estão hoje no prazo, em atenção ou vencidos (com o responsável).
   var COR_NOME = { verde: 'No prazo', amarelo: 'Atenção', vermelho: 'Vence hoje ou vencido' };
   function cardsPorCor() {
@@ -179,18 +179,13 @@
       var y = T + ph - ph * f;
       g += '<line x1="' + L + '" x2="' + (W - 6) + '" y1="' + y + '" y2="' + y + '" stroke="var(--color-border-line)" stroke-width="1"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10" fill="var(--color-fg-muted)">' + Math.round(max * f) + '</text>';
     });
-    if (prev) {
-      var xs = L + passo * nPassado;
-      g += '<line x1="' + xs + '" x2="' + xs + '" y1="' + (T - 14) + '" y2="' + (T + ph) + '" stroke="var(--color-fg-muted)" stroke-dasharray="4 4"/>' +
-        '<text x="' + (xs + 6) + '" y="' + (T - 6) + '" font-size="10.5" font-weight="700" fill="var(--color-fg-muted)">previsão se nada for concluído →</text>';
-    }
     todosDias.forEach(function (d, i) {
       var fut = i >= nPassado;
       var v = vals[i], x = L + passo * i + (passo - bw) / 2, y = T + ph, tot = v.verde + v.amarelo + v.vermelho;
       var tip = fut
         ? br(d) + ' (previsão): ' + tot + ' em aberto se nada for concluído — ' + v.verde + ' no prazo, ' + v.amarelo + ' atenção, ' + v.vermelho + ' vencido · ' + v.vencem + ' com prazo neste dia'
         : br(d) + ': ' + tot + ' em aberto — ' + v.verde + ' no prazo, ' + v.amarelo + ' atenção, ' + v.vermelho + ' venceu/estourou · ' + v.resolvidos + ' resolvido(s)';
-      g += '<g' + (fut ? ' opacity="0.5"' : '') + '><title>' + esc(tip) + '</title>';
+      g += '<g><title>' + esc(tip) + '</title>';
       ['verde', 'amarelo', 'vermelho'].forEach(function (k) {
         var h = ph * v[k] / max;
         if (h <= 0) return;
