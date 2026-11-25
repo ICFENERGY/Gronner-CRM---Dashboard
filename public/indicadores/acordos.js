@@ -1,6 +1,8 @@
 /*
  * Acordos do dia (aba "Acordos do dia" do grupo Engenharia).
- * Lê /api/indicadores/engenharia/acordos: cada ação combinada na Gestão diária fica registrada no dia em que foi feita.
+ * Lê /api/indicadores/engenharia/acordos?por=prazo: cada acordo aparece no dia combinado (prazo), separado por responsável;
+ * o dia em que foi registrado aparece só como informação. No dia de hoje entram também os acordos ainda em aberto com
+ * prazo já vencido (atrasado: true).
  * A tela é o checklist da execução: marcar o item como feito conclui a ação (a mesma de "Marcar como feita" na Gestão
  * diária). "Exportar PDF" abre a impressão do navegador só com esta tela (escolher "Salvar como PDF").
  */
@@ -122,6 +124,9 @@
     return '<div class="eng-kpi eng-kpi--' + cor + '"><div class="eng-kpi-label">' + rotulo + '</div><div class="eng-kpi-value">' + valor + '</div><div class="eng-kpi-sub">' + sub + '</div></div>';
   }
 
+  function diaDoAcordo(i) { return i.atrasado ? S.dados.hoje : i.prazo; }
+  function rotuloDia(dia) { var h = S.dados && S.dados.hoje; return dia === h ? 'Hoje' : dia === hoje(1) && h === hoje(0) ? 'Amanhã' : semana(dia); }
+
   function periodoTexto() { return S.de === S.ate ? br(S.de) : br(S.de) + ' a ' + br(S.ate); }
 
   function cabecalho() {
@@ -135,16 +140,16 @@
       return '<option value="' + s[0] + '"' + (S.status === s[0] ? ' selected' : '') + '>' + s[1] + '</option>';
     }).join('');
     return '<section class="eng-kpi-row ac-no-print">' +
-      kpi('gray', 'ACORDOS NO PERÍODO', r.total.toLocaleString('pt-BR'), periodoTexto()) +
+      kpi('gray', 'ACORDOS COMBINADOS', r.total.toLocaleString('pt-BR'), 'para ' + periodoTexto()) +
       kpi('teal', 'FEITOS', r.feitas.toLocaleString('pt-BR'), 'marcados como feitos') +
       kpi('green', 'NO PRAZO', r.verdes.toLocaleString('pt-BR'), 'mais de 2 dias para o prazo') +
       kpi('orange', 'ATENÇÃO', r.amarelos.toLocaleString('pt-BR'), 'faltam 1 ou 2 dias') +
       kpi('red', 'VENCE HOJE OU VENCIDO', r.vermelhos.toLocaleString('pt-BR'), r.vencidas.toLocaleString('pt-BR') + ' já estouraram o prazo') +
       '</section>' +
       '<section class="eng-filterbar ac-no-print"><div class="eng-filters-row">' +
-      '<label class="eng-field"><span>De</span><input id="ac-de" type="date" value="' + esc(S.de) + '" max="' + hoje(0) + '"></label>' +
-      '<label class="eng-field"><span>Até</span><input id="ac-ate" type="date" value="' + esc(S.ate) + '" max="' + hoje(0) + '"></label>' +
-      '<div class="ac-quick"><button class="eng-clear-btn" type="button" data-p="0">Hoje</button><button class="eng-clear-btn" type="button" data-p="1">Ontem</button><button class="eng-clear-btn" type="button" data-p="7">Últimos 7 dias</button></div>' +
+      '<label class="eng-field"><span>De</span><input id="ac-de" type="date" value="' + esc(S.de) + '"></label>' +
+      '<label class="eng-field"><span>Até</span><input id="ac-ate" type="date" value="' + esc(S.ate) + '"></label>' +
+      '<div class="ac-quick"><button class="eng-clear-btn" type="button" data-p="0">Hoje</button><button class="eng-clear-btn" type="button" data-p="1">Amanhã</button><button class="eng-clear-btn" type="button" data-p="+7">Próximos 7 dias</button><button class="eng-clear-btn" type="button" data-p="-7">Últimos 7 dias</button></div>' +
       '<label class="eng-field"><span>Responsável</span><select id="ac-resp">' + opResp + '</select></label>' +
       '<label class="eng-field"><span>Situação</span><select id="ac-st">' + opSt + '</select></label>' +
       '<button id="ac-atualizar" class="eng-clear-btn" type="button">Atualizar</button>' +
@@ -165,20 +170,22 @@
       '<input type="checkbox" data-c="' + i.codigo + '" data-f="' + esc(i.funil) + '"' + (i.status === 'feita' ? ' checked' : '') + (pode && !S.salvando[k] ? '' : ' disabled') + ' aria-label="Marcar o acordo do card ' + i.codigo + ' como feito">' +
       '<span class="ac-cod">#' + i.codigo + '</span>' +
       '<span><div class="ac-nome">' + esc(i.nome || '—') + '</div><div class="ac-sub">' + esc(i.funil) + (i.funilNome ? ' · ' + esc(i.funilNome) : '') + ' · ' + esc(i.etapa || '') + '</div></span>' +
-      '<span class="ac-acao"><div><b>' + esc(i.acao) + '</b></div><div class="ac-sub' + (cor ? ' cor-' + cor : '') + '">' + prazoTxt + '</div></span>' +
+      '<span class="ac-acao"><div><b>' + esc(i.acao) + '</b></div><div class="ac-sub' + (cor ? ' cor-' + cor : '') + '">' + prazoTxt + '</div><div class="ac-sub">Registrado em ' + br(i.dia) + '</div></span>' +
       '<span><span class="ac-tag ' + (cor || i.status) + '">' + rotulo + '</span>' + (i.status === 'feita' && i.feitaEm ? '<div class="ac-sub">em ' + new Date(i.feitaEm).toLocaleString('pt-BR') + '</div>' : '') + '</span>' +
       '</div>';
   }
 
   function porDia(lista) {
     var dias = {};
-    lista.forEach(function (i) { (dias[i.dia] = dias[i.dia] || []).push(i); });
-    return Object.keys(dias).sort().reverse().map(function (dia) {
+    lista.forEach(function (i) { var d = diaDoAcordo(i); (dias[d] = dias[d] || []).push(i); });
+    return Object.keys(dias).sort().map(function (dia) {
       var doDia = dias[dia];
       var feitas = doDia.filter(function (i) { return i.status === 'feita'; }).length;
+      var atras = doDia.filter(function (i) { return i.atrasado; }).length;
       var resps = {};
       doDia.forEach(function (i) { (resps[i.responsavel] = resps[i.responsavel] || []).push(i); });
-      var h = '<section class="ac-dia"><div class="ac-dia-h">' + semana(dia) + ', ' + br(dia) + '<small>' + doDia.length + ' acordo(s) · ' + feitas + ' feito(s)</small></div>';
+      var h = '<section class="ac-dia"><div class="ac-dia-h">' + rotuloDia(dia) + ', ' + br(dia) + '<small>' + doDia.length + ' card(s) em acordo · ' + feitas + ' feito(s)' +
+        (atras ? ' · ' + atras + ' vencido(s) de dias anteriores' : '') + '</small></div>';
       Object.keys(resps).sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); }).forEach(function (nome) {
         var d = resps[nome], f = d.filter(function (i) { return i.status === 'feita'; }).length;
         h += '<div class="ac-resp"><span>' + esc(nome) + '</span><span>' + f + ' de ' + d.length + ' feito(s)</span></div>' + d.map(linha).join('');
@@ -196,9 +203,9 @@
     var agora = new Date().toLocaleString('pt-BR');
     el.innerHTML = cabecalho() +
       '<section class="eng-panel ac-no-print" id="ac-evolucao-box"><div id="ac-evolucao"></div></section>' +
-      '<section class="eng-panel"><div class="ac-print-head"><h1>Acordos da Engenharia · ' + periodoTexto() + '</h1><p>' + lista.length + ' acordo(s)' + (S.resp !== 'all' ? ' · Responsável: ' + esc(S.resp) : '') + (S.status !== 'all' ? ' · ' + (S.status === 'abertas' ? 'só abertos' : 'só feitos') : '') + ' · gerado em ' + agora + '</p></div>' +
+      '<section class="eng-panel"><div class="ac-print-head"><h1>Acordos da Engenharia · combinados para ' + periodoTexto() + '</h1><p>' + lista.length + ' acordo(s)' + (S.resp !== 'all' ? ' · Responsável: ' + esc(S.resp) : '') + (S.status !== 'all' ? ' · ' + (S.status === 'abertas' ? 'só abertos' : 'só feitos') : '') + ' · gerado em ' + agora + '</p></div>' +
       '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>Verde: mais de 2 dias para o prazo</span><span><i style="background:#e6b422"></i>Amarelo: faltam 1 ou 2 dias</span><span><i style="background:var(--eng-red)"></i>Vermelho: vence hoje ou estourou</span></div>' +
-      '<div class="eng-panel-head ac-no-print"><h2>Checklist de execução por dia do acordo</h2><span class="eng-panel-note">' + lista.length.toLocaleString('pt-BR') + ' acordo(s) · cada acordo aparece no dia em que foi feito</span></div>' +
+      '<div class="eng-panel-head ac-no-print"><h2>Checklist de execução por dia combinado</h2><span class="eng-panel-note">' + lista.length.toLocaleString('pt-BR') + ' card(s) em acordo · cada acordo aparece no dia combinado (prazo), por responsável; hoje inclui os vencidos ainda em aberto</span></div>' +
       (lista.length ? '<div class="ac-por-dia">' + porDia(lista) + '</div><div class="ac-print-colab"></div>' : '<div class="ge-vazio">Nenhum acordo neste período.</div>') +
       '</section>' +
       '<section class="eng-panel ac-no-print" id="ac-mes"></section>';
@@ -270,11 +277,11 @@
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, 'pt-BR');
     });
     return chaves.map(function (k) {
-      var d = grupos[k].slice().sort(function (a, b) { return a.dia.localeCompare(b.dia) || a.codigo - b.codigo; });
+      var d = grupos[k].slice().sort(function (a, b) { return diaDoAcordo(a).localeCompare(diaDoAcordo(b)) || a.prazo.localeCompare(b.prazo) || a.codigo - b.codigo; });
       var conta = function (f) { return d.filter(f).length; };
       var nome = NOME_COLAB[k] || (colDe(k) || {}).nome || d[0].responsavel;
       var dias = {};
-      d.forEach(function (i) { (dias[i.dia] = dias[i.dia] || []).push(i); });
+      d.forEach(function (i) { var x = diaDoAcordo(i); (dias[x] = dias[x] || []).push(i); });
       return '<section class="ac-colab-pag"><div class="ac-colab-h">' + esc(nome) + '</div>' +
         '<div class="ac-colab-s">' + periodoTexto() + ' · ' + d.length + ' acordo(s) · ' + conta(function (i) { return i.status === 'feita'; }) + ' feito(s) · ' +
         conta(function (i) { return i.status === 'saiu'; }) + ' saiu(ram) da etapa · em aberto: ' + conta(function (i) { return i.cor === 'verde'; }) + ' no prazo, ' +
@@ -283,18 +290,19 @@
         (d.length ? '<div class="ac-dia">' + Object.keys(dias).sort().map(function (dia) {
           var x = dias[dia];
           return '<div class="ac-resp"><span>' + semana(dia) + ', ' + br(dia) + '</span><span>' + x.filter(function (i) { return i.status === 'feita'; }).length + ' de ' + x.length + ' feito(s)</span></div>' + x.map(linha).join('');
-        }).join('') + '</div>' : '<div class="ac-colab-s">Nenhum acordo novo registrado neste período.</div>') + '</section>';
+        }).join('') + '</div>' : '<div class="ac-colab-s">Nenhum acordo combinado para este período.</div>') + '</section>';
     }).join('');
   }
 
-  // A evolução usa o período escolhido; se ele tiver menos de 7 dias, mostra os 7 dias que terminam na data final.
+  // A evolução usa o período escolhido; se ele tiver menos de 7 dias, mostra os 7 dias que terminam na data final (ou hoje).
   function exportarPdf() {
     var botao = document.getElementById('ac-pdf');
-    var seteAntes = new Date(Date.parse(S.ate + 'T12:00:00Z') - 6 * 864e5).toISOString().slice(0, 10);
+    var fim = S.ate < hoje(0) ? S.ate : hoje(0); // a evolução só existe até hoje (período no futuro: os 7 dias até hoje)
+    var seteAntes = new Date(Date.parse(fim + 'T12:00:00Z') - 6 * 864e5).toISOString().slice(0, 10);
     var de = S.de < seteAntes ? S.de : seteAntes;
     var rotulo = botao ? botao.textContent : '';
     if (botao) { botao.disabled = true; botao.textContent = 'Gerando…'; }
-    fetch(BASE + '/colaboradores?de=' + de + '&ate=' + S.ate, { headers: { accept: 'application/json' } })
+    fetch(BASE + '/colaboradores?de=' + de + '&ate=' + fim, { headers: { accept: 'application/json' } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; })
       .then(function (d) {
@@ -383,7 +391,10 @@
     q('ac-de').onchange = function () { if (this.value) periodo(this.value, this.value > S.ate ? this.value : S.ate); };
     q('ac-ate').onchange = function () { if (this.value) periodo(this.value < S.de ? this.value : S.de, this.value); };
     el.querySelectorAll('[data-p]').forEach(function (b) {
-      b.onclick = function () { var n = Number(b.dataset.p); if (n === 7) periodo(hoje(-6), hoje(0)); else periodo(hoje(-n), hoje(-n)); };
+      b.onclick = function () {
+        var p = b.dataset.p;
+        if (p === '+7') periodo(hoje(0), hoje(6)); else if (p === '-7') periodo(hoje(-6), hoje(0)); else periodo(hoje(Number(p)), hoje(Number(p)));
+      };
     });
     q('ac-resp').onchange = function () { S.resp = this.value; desenhar(); };
     q('ac-st').onchange = function () { S.status = this.value; desenhar(); };
@@ -405,7 +416,7 @@
   function carregar() {
     if (S.carregando) return Promise.resolve();
     S.carregando = true;
-    var url = BASE + '/acordos?de=' + encodeURIComponent(S.de) + '&ate=' + encodeURIComponent(S.ate);
+    var url = BASE + '/acordos?por=prazo&de=' + encodeURIComponent(S.de) + '&ate=' + encodeURIComponent(S.ate);
     return fetch(url, { headers: { accept: 'application/json' } }).then(function (r) {
       if (!r.ok) return r.json().catch(function () { return {}; }).then(function (b) { throw new Error(b.error || ('Erro ' + r.status)); });
       return r.json();

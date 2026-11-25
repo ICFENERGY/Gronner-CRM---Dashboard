@@ -275,11 +275,13 @@ export function createIndicadoresRouter({
       if (ate < de) return res.status(400).json({ error: 'Período inválido: a data final é anterior à inicial' })
       if (Date.parse(`${ate}T00:00:00Z`) - Date.parse(`${de}T00:00:00Z`) > 92 * 86400_000) return res.status(400).json({ error: 'Período máximo de 92 dias' })
       const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
-      const itens = montarAcordos(linhas, { de, ate, hoje })
+      // ?por=prazo: cada acordo no dia combinado (prazo) em vez do dia em que foi registrado.
+      const por = req.query.por === 'prazo' ? 'prazo' : 'registro'
+      const itens = montarAcordos(linhas, { de, ate, hoje, por })
       const conta = (s) => itens.filter((i) => i.status === s).length
       res.set('Cache-Control', 'no-store')
       res.json({
-        de, ate, hoje, itens,
+        de, ate, hoje, por, itens,
         resumo: {
           total: itens.length, feitas: conta('feita'), abertas: conta('aberta'), vencidas: itens.filter((i) => i.vencida).length, saiu: conta('saiu'), atualizados: conta('atualizado'),
           verdes: itens.filter((i) => i.cor === 'verde').length, amarelos: itens.filter((i) => i.cor === 'amarelo').length, vermelhos: itens.filter((i) => i.cor === 'vermelho').length,

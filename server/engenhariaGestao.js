@@ -285,15 +285,23 @@ function acordosBrutos(linhas) {
   return { acoes, registros }
 }
 
-export function montarAcordos(linhas, { de, ate, hoje }) {
+/**
+ * Acordos de um período. `por`:
+ *   'registro' (padrão) — pelo dia em que o acordo foi registrado (r.dia);
+ *   'prazo' — pelo dia combinado (r.prazo), sem os substituídos; se o período inclui hoje, os acordos ainda em aberto
+ *             com prazo anterior ao período também vêm (atrasado: true), para aparecerem no dia de hoje.
+ */
+export function montarAcordos(linhas, { de, ate, hoje, por = 'registro' }) {
   const { acoes, registros } = acordosBrutos(linhas)
   const maisNovo = new Map()
   for (const r of registros) {
     const k = `${r.codigo}:${r.funil}`
     if (!maisNovo.has(k) || r.criadoEm > maisNovo.get(k)) maisNovo.set(k, r.criadoEm)
   }
+  const porPrazo = por === 'prazo'
+  const incluiHoje = de <= hoje && hoje <= ate
   return registros
-    .filter((r) => r.dia >= de && r.dia <= ate)
+    .filter((r) => (porPrazo ? (r.prazo >= de && r.prazo <= ate) || (incluiHoje && r.prazo < de) : r.dia >= de && r.dia <= ate))
     .map((r) => {
       const k = `${r.codigo}:${r.funil}`
       const atual = acoes.get(`acao:${k}`)
@@ -302,9 +310,12 @@ export function montarAcordos(linhas, { de, ate, hoje }) {
       else if (atual?.concluida && (atual.concluidaEm ?? '') >= r.criadoEm) status = atual.motivo === 'card mudou de etapa' ? 'saiu' : 'feita'
       const diasParaPrazo = Math.round((Date.parse(`${r.prazo}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86400_000)
       const cor = status !== 'aberta' ? null : diasParaPrazo <= 0 ? 'vermelho' : diasParaPrazo <= 2 ? 'amarelo' : 'verde'
-      return { ...r, colaborador: colaboradorDe(r.responsavel)?.chave ?? null, status, feitaEm: status === 'feita' ? atual.concluidaEm : null, vencida: status === 'aberta' && r.prazo < hoje, diasParaPrazo, cor }
+      return { ...r, colaborador: colaboradorDe(r.responsavel)?.chave ?? null, status, feitaEm: status === 'feita' ? atual.concluidaEm : null, vencida: status === 'aberta' && r.prazo < hoje, diasParaPrazo, cor, ...(porPrazo && r.prazo < de ? { atrasado: true } : {}) }
     })
-    .sort((a, b) => b.dia.localeCompare(a.dia) || a.responsavel.localeCompare(b.responsavel, 'pt-BR') || a.codigo - b.codigo)
+    .filter((i) => !porPrazo || (i.status !== 'atualizado' && (!i.atrasado || i.status === 'aberta')))
+    .sort((a, b) => porPrazo
+      ? a.prazo.localeCompare(b.prazo) || a.responsavel.localeCompare(b.responsavel, 'pt-BR') || a.codigo - b.codigo
+      : b.dia.localeCompare(a.dia) || a.responsavel.localeCompare(b.responsavel, 'pt-BR') || a.codigo - b.codigo)
 }
 
 // ─── Colaboradores (carga e taxa de conclusão por responsável) ───────────────────────────────────────────────

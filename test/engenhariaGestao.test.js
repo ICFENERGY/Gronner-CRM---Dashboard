@@ -307,6 +307,25 @@ test('acordos: um por card e dia, status pelo acordo vigente, ação antiga entr
   assert.deepEqual(montarAcordos(linhas, { de: '2026-11-11', ate: '2026-11-11', hoje: '2026-11-12' }).map((a) => a.codigo), [300, 100])
 })
 
+test('acordos por prazo: cada acordo no dia combinado, sem substituídos; hoje traz os atrasados ainda em aberto', () => {
+  const ac = (dia, codigo, prazo, criadoEm) => ({ chave: `acordo:${dia}:${codigo}:10`, dados: { dia, codigo, funil: '10', etapa: 'X', acao: 'a', responsavel: 'Eliardo', prazo, criadoEm } })
+  const linhas = [
+    ac('2026-11-20', 1, '2026-11-27', '2026-11-20T13:00:00.000Z'), // registrado antes, combinado para o futuro
+    ac('2026-11-18', 2, '2026-11-21', '2026-11-18T13:00:00.000Z'), // vencido e em aberto
+    ac('2026-11-18', 3, '2026-11-22', '2026-11-18T13:00:00.000Z'), // vencido, mas feito
+    { chave: 'acao:3:10', dados: { codigo: 3, funil: '10', prazo: '2026-11-22', concluida: true, concluidaEm: '2026-11-22T12:00:00.000Z', motivo: 'marcada como feita' } },
+    ac('2026-11-19', 4, '2026-11-25', '2026-11-19T13:00:00.000Z'), // substituído pelo de 24/11
+    ac('2026-11-24', 4, '2026-11-26', '2026-11-24T13:00:00.000Z'),
+  ]
+  const op = { hoje: '2026-11-25', por: 'prazo' }
+  assert.deepEqual(montarAcordos(linhas, { ...op, de: '2026-11-27', ate: '2026-11-27' }).map((a) => [a.codigo, a.dia]), [[1, '2026-11-20']])
+  const hoje = montarAcordos(linhas, { ...op, de: '2026-11-25', ate: '2026-11-25' })
+  assert.deepEqual(hoje.map((a) => [a.codigo, a.atrasado ?? false]), [[2, true]])
+  assert.deepEqual(montarAcordos(linhas, { ...op, de: '2026-11-25', ate: '2026-11-27' }).map((a) => a.codigo), [2, 4, 1])
+  // período sem hoje: só o que foi combinado nele
+  assert.deepEqual(montarAcordos(linhas, { ...op, de: '2026-11-22', ate: '2026-11-22' }).map((a) => [a.codigo, a.status]), [[3, 'feita']])
+})
+
 test('acordos: cor pelo prazo — verde com mais de 2 dias, amarelo com 1 a 2, vermelho no dia ou depois', () => {
   const l = (codigo, prazo) => ({ chave: `acao:${codigo}:10`, dados: { codigo, funil: '10', etapa: 'X', acao: 'a', responsavel: 'Maria', prazo, criadaEm: '2026-11-12T15:00:00.000Z' } })
   const r = montarAcordos([l(1, '2026-11-16'), l(2, '2026-11-15'), l(3, '2026-11-14'), l(4, '2026-11-13'), l(5, '2026-11-12')], { de: '2026-11-12', ate: '2026-11-12', hoje: '2026-11-13' })
