@@ -156,6 +156,14 @@
       }).join('') + '</tbody></table></div>';
   }
 
+  // Largura disponível no painel onde o gráfico aparece (aba Colaboradores ou Acordos do dia), para ocupar o espaço todo.
+  function larguraPainel() {
+    var c = document.querySelector('#eng-view-colab:not([hidden]) .eng-panel, #eng-view-acordos:not([hidden]) #ac-evolucao-box');
+    return c ? c.clientWidth - 44 : 0;
+  }
+  var redim = null;
+  window.addEventListener('resize', function () { clearTimeout(redim); redim = setTimeout(function () { if (S.dados) repintar(); }, 250); });
+
   function grafico(cal) {
     var prev = S.dados.previsao && cal === S.dados.calendario ? S.dados.previsao : null;
     var hoje = S.dados.hoje, nPassado = cal.dias.length;
@@ -163,7 +171,7 @@
     if (prev) { vals = vals.concat(prev.dias.map(function (d, i) { return somaDia(prev, i); })); }
     var todosDias = prev ? cal.dias.concat(prev.dias) : cal.dias, n = todosDias.length;
     var max = Math.max(4, Math.max.apply(null, vals.map(function (v) { return v.verde + v.amarelo + v.vermelho; })));
-    var ex = prev ? 13 : 0, W = Math.max(560, n * 46 + 50), H = 230 + ex, L = 34, T = 22, B = 36 + ex, ph = H - T - B, bw = Math.min(30, (W - L - 10) / n * 0.62);
+    var ex = prev ? 13 : 0, W = Math.max(560, n * 46 + 50, larguraPainel()), H = 250 + ex, L = 34, T = 22, B = 36 + ex, ph = H - T - B, bw = Math.min(56, (W - L - 10) / n * 0.6);
     var passo = (W - L - 10) / n;
     var cores = { verde: 'var(--eng-green)', amarelo: '#e6b422', vermelho: 'var(--eng-red)' };
     var g = '';
@@ -204,7 +212,7 @@
     return '<div class="co-cal"><div class="eng-panel-head"><h3>Cards por dia: no prazo, atenção e venceu</h3><span class="eng-panel-note">cards com acordo em aberto no fim de cada dia' + (prev ? ' · próximos 7 dias: previsão' : '') + '</span>' +
       '<select id="co-quem" class="eng-field" aria-label="Colaborador">' + op + '</select><button type="button" class="eng-clear-btn co-pdf">Exportar PDF</button></div>' +
       (resumo ? '<div class="co-sub" style="margin:0 0 6px;font-size:13px">' + resumo + '</div>' : '') +
-      '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Cards em aberto por dia, por cor do prazo" style="max-width:100%;height:auto">' + g + '</svg>' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Cards em aberto por dia, por cor do prazo" style="width:100%;max-width:100%;height:auto;display:block">' + g + '</svg>' +
       '<div class="ac-leg" style="display:flex;gap:14px;font-size:12px;color:var(--color-fg-muted)"><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-green);margin-right:5px"></i>No prazo (mais de 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e6b422;margin-right:5px"></i>Atenção (1 ou 2 dias)</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--eng-red);margin-right:5px"></i>Venceu ou estourou</span></div>' +
       filtroCor() + '</div>';
   }
