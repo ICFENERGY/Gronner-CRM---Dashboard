@@ -118,6 +118,7 @@
     return S.dados.itens.filter(function (i) {
       if (S.status === 'abertas' && i.status !== 'aberta') return false;
       if (S.status === 'feitas' && i.status !== 'feita') return false;
+      if ((S.status === 'verde' || S.status === 'amarelo' || S.status === 'vermelho') && i.cor !== S.status) return false;
       if (S.resp !== 'all' && i.responsavel !== S.resp) return false;
       return true;
     });
@@ -140,7 +141,7 @@
     var opResp = '<option value="all">Todos</option>' + Object.keys(resps).sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); }).map(function (n) {
       return '<option value="' + esc(n) + '"' + (S.resp === n ? ' selected' : '') + '>' + esc(n) + '</option>';
     }).join('');
-    var opSt = [['all', 'Todos'], ['abertas', 'Só abertos'], ['feitas', 'Só feitos']].map(function (s) {
+    var opSt = [['all', 'Todos'], ['abertas', 'Só abertos'], ['verde', 'No prazo'], ['amarelo', 'Atenção'], ['vermelho', 'Vence hoje ou vencido'], ['feitas', 'Só feitos']].map(function (s) {
       return '<option value="' + s[0] + '"' + (S.status === s[0] ? ' selected' : '') + '>' + s[1] + '</option>';
     }).join('');
     return '<section class="eng-kpi-row ac-no-print">' +
@@ -209,7 +210,7 @@
     var agora = new Date().toLocaleString('pt-BR');
     el.innerHTML = cabecalho() +
       '<section class="eng-panel ac-no-print" id="ac-evolucao-box"><div id="ac-evolucao"></div></section>' +
-      '<section class="eng-panel"><div class="ac-print-head"><h1>Acordos da Engenharia · combinados para ' + periodoTexto() + '</h1><p>' + lista.length + ' acordo(s)' + (S.resp !== 'all' ? ' · Responsável: ' + esc(S.resp) : '') + (S.status !== 'all' ? ' · ' + (S.status === 'abertas' ? 'só abertos' : 'só feitos') : '') + ' · gerado em ' + agora + '</p></div>' +
+      '<section class="eng-panel"><div class="ac-print-head"><h1>Acordos da Engenharia · combinados para ' + periodoTexto() + '</h1><p>' + lista.length + ' acordo(s)' + (S.resp !== 'all' ? ' · Responsável: ' + esc(S.resp) : '') + (S.status !== 'all' ? ' · ' + ({ abertas: 'só abertos', feitas: 'só feitos', verde: 'no prazo', amarelo: 'atenção', vermelho: 'vence hoje ou vencido' })[S.status] : '') + ' · gerado em ' + agora + '</p></div>' +
       '<div class="ac-leg"><span><i style="background:var(--eng-green)"></i>Verde: mais de 2 dias para o prazo</span><span><i style="background:#e6b422"></i>Amarelo: faltam 1 ou 2 dias</span><span><i style="background:var(--eng-red)"></i>Vermelho: vence hoje ou estourou</span></div>' +
       '<div class="eng-panel-head ac-no-print"><h2>Checklist de execução por dia combinado</h2><span class="eng-panel-note">' + lista.length.toLocaleString('pt-BR') + ' card(s) em acordo · cada acordo aparece no dia combinado (prazo), por responsável; hoje inclui os vencidos ainda em aberto</span></div>' +
       (lista.length ? '<div class="ac-por-dia">' + porDia(lista) + '</div><div class="ac-print-colab"></div>' : '<div class="ge-vazio">Nenhum acordo neste período.</div>') +
