@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import express from 'express'
-import { diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos, colaboradorDe, metricasColaboradores, calendarioColaboradores, previsaoColaboradores } from '../server/engenhariaGestao.js'
+import { buscarPorCodigo, diagnosticarCard, juntarAcoes, montarGestao, resumoGestao, validarAcao, chaveAcao, montarAcordos, colaboradorDe, metricasColaboradores, calendarioColaboradores, previsaoColaboradores } from '../server/engenhariaGestao.js'
 import { createIndicadoresRouter } from '../server/indicadoresRoutes.js'
 import { registrarNoGroner, textoComentario, tituloDaTarefa } from '../server/gronerAcoes.js'
 
@@ -493,4 +493,19 @@ test('previsão: acordos em aberto agora nos próximos dias, com a cor de cada d
   assert.deepEqual(p.dias, ['2026-11-26', '2026-11-27', '2026-11-28'])
   const e = p.colaboradores.find((c) => c.chave === 'eliardo').porDia
   assert.deepEqual(e.map((x) => [x.abertos, x.amarelo, x.vermelho, x.vencem]), [[1, 1, 0, 0], [1, 0, 1, 1], [1, 0, 1, 0]])
+})
+
+test('busca pelo código acha o card em qualquer funil e aceita ação no card fora da Engenharia', () => {
+  const cards = [
+    { codigo: 67953, funil: '04. FUNIL DE VENDAS SOLAR', etapa: 'PROPOSTA CRIADA', nome: 'X', diasFluxo: 1 },
+    { codigo: 67953, funil: '08. ENGENHARIA PROJETO', etapa: 'PROPOSTA CRIADA APROVADA', nome: 'X', diasFluxo: 0.1 },
+    { codigo: 1, funil: '08. ENGENHARIA PROJETO', etapa: 'Criar Projeto->Proposta', nome: 'Y', diasFluxo: 1 },
+  ]
+  const r = buscarPorCodigo(cards, '67953')
+  assert.deepEqual(r.map((i) => i.funil), ['04', '08'])
+  assert.ok(r.every((i) => i.avulso))
+  const campos = validarAcao({ codigo: '67953', funil: '04' }, { acao: 'Ligar para o cliente', responsavel: 'Ana', prazo: '2026-12-01' }, r[0])
+  assert.equal(campos.acao, 'Ligar para o cliente')
+  assert.throws(() => validarAcao({ codigo: '67953', funil: '04' }, { acao: 'abc', responsavel: 'Ana', prazo: '2026-12-01' }, null), /Card ou funil inválido|não encontrado/)
+  assert.equal(buscarPorCodigo(cards, '1')[0].avulso, undefined)
 })

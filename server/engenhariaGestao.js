@@ -169,6 +169,32 @@ export function diagnosticarCard(card, { prazos = {} } = {}) {
   }
 }
 
+/**
+ * Card fora dos funis/etapas acompanhados pela Engenharia, achado pela busca do código. Entra na Gestão diária
+ * só para combinar ação ou registrar atraso (sem SLA nem diagnóstico).
+ */
+export function cardAvulso(card) {
+  const funil = numeroFunil(card.funil)
+  if (!funil) return null
+  const nomeFunil = String(card.funil ?? '').replace(/^\s*\d{1,2}\s*\.\s*/, '').replace(/[^\p{L}\p{N}\s()\-/]/gu, '').trim()
+  const dias = card.diasFluxo == null ? null : Math.max(0, card.diasFluxo)
+  return {
+    codigo: card.codigo, funil, funilNome: NOMES_FUNIL[funil] ?? (nomeFunil || `Funil ${funil}`), etapa: card.etapa ?? '', ordemEtapa: 99,
+    nome: card.nome ?? null, cidade: card.cidade ?? null, uf: card.uf ?? null, valor: card.valor ?? 0, ano: card.ano ?? null, mes: card.mes ?? null,
+    dias: dias == null ? null : arredonda(dias), prazo: null, natureza: 'acao', status: 'ok', avulso: true,
+    problema: 'Card fora das etapas acompanhadas pela Engenharia (achado pela busca do código).',
+    planoSugerido: 'Combinar a ação, o responsável e o prazo.', papel: null, terceiro: null, dependeDe: null, prioridade: [9, 0, 0],
+  }
+}
+
+/** Todas as posições (funis) de um card na base: diagnóstico da Engenharia quando houver, senão card avulso. */
+export function buscarPorCodigo(cards, codigo, { prazos = {} } = {}) {
+  const alvo = String(codigo)
+  const vistos = new Set()
+  return cards.filter((c) => String(c.codigo) === alvo).map((c) => diagnosticarCard(c, { prazos }) ?? cardAvulso(c))
+    .filter((i) => i && !vistos.has(i.funil) && vistos.add(i.funil))
+}
+
 export function comparaPrioridade(a, b) {
   for (let i = 0; i < a.prioridade.length; i++) if (a.prioridade[i] !== b.prioridade[i]) return a.prioridade[i] - b.prioridade[i]
   return 0
@@ -199,8 +225,8 @@ const ID_FUNIL = /^\d{2}$/
 
 export function validarAcao({ codigo, funil }, corpo, card) {
   const erro = (m) => Object.assign(new Error(m), { status: 400 })
-  if (!ID_CARD.test(String(codigo)) || !ID_FUNIL.test(String(funil)) || !ENG_ETAPAS[funil]) throw erro('Card ou funil inválido')
-  if (!card) throw erro('Card não encontrado nos funis de engenharia')
+  if (!ID_CARD.test(String(codigo)) || !ID_FUNIL.test(String(funil)) || (!ENG_ETAPAS[funil] && !card?.avulso)) throw erro('Card ou funil inválido')
+  if (!card) throw erro('Card não encontrado na base')
   const limpa = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
   // Atraso: o card fica onde está; registra o motivo, quem trata e o novo prazo (vira tarefa ATRASO no Groner).
   const atraso = corpo?.atraso === true

@@ -31,7 +31,7 @@ import { getPgSql, jsonb, TABELA_SQL } from './pgSql.js'
 import { loadSyncedEntity } from './syncStore.js'
 import { ID_META, LACUNAS, montarCards, montarEngResumo, montarSales, validarMeta } from './indicadores.js'
 import { lerPietaParaSla, montarChamadosSla, resumoDaCobertura } from './pietaSla.js'
-import { chaveAcao, diaBrasilia, ENTIDADE_ACOES, calendarioColaboradores, juntarAcoes, metricasColaboradores, montarAcordos, previsaoColaboradores, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
+import { buscarPorCodigo, chaveAcao, diaBrasilia, ENTIDADE_ACOES, calendarioColaboradores, juntarAcoes, metricasColaboradores, montarAcordos, previsaoColaboradores, montarGestao, registroAcordo, resumoGestao, validarAcao } from './engenhariaGestao.js'
 import { registrarNoGroner } from './gronerAcoes.js'
 import prazosArquivo from './data/sla-etapas.json' with { type: 'json' }
 
@@ -197,20 +197,47 @@ export function createIndicadoresRouter({
 
   const gestao = async () => {
     const p = await projetos()
-    return { atualizadoEm: p.atualizadoEm, itens: montarGestao(p.cards, { prazos }) }
+    const itens = montarGestao(p.cards, { prazos })
+    const daEng = new Map(itens.map((i) => [chaveAcao(i.codigo, i.funil), i]))
+    // Card em qualquer funil (busca pelo código): o da Engenharia quando houver, senão o card avulso.
+    const acharCard = (codigo, funil) => daEng.get(chaveAcao(codigo, funil)) ?? buscarPorCodigo(p.cards, codigo, { prazos }).find((i) => i.funil === funil) ?? null
+    return { atualizadoEm: p.atualizadoEm, itens, acharCard, cards: p.cards }
   }
+
+  // Busca pelo código: o card em todos os funis em que está, com a ação aberta de cada posição (se ainda na mesma etapa).
+  router.get('/engenharia/buscar/:codigo', async (req, res) => {
+    try {
+      const codigo = String(req.params.codigo)
+      if (!/^\d{1,9}$/.test(codigo)) return res.status(400).json({ error: 'Código inválido' })
+      const { cards } = await gestao()
+      const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
+      const abertas = new Map(linhas.filter((x) => x.chave.startsWith(`acao:${codigo}:`) && x.dados && !x.dados.concluida).map((x) => [x.chave, x.dados]))
+      const mesma = (a, b) => String(a ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '') === String(b ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+      const itens = buscarPorCodigo(cards, codigo, { prazos }).map(({ prioridade: _p, ...resto }) => {
+        const a = abertas.get(chaveAcao(resto.codigo, resto.funil)) ?? null
+        return { ...resto, acao: a && mesma(a.etapa, resto.etapa) ? a : null }
+      })
+      res.set('Cache-Control', 'no-store')
+      res.json({ codigo, itens })
+    } catch (err) { responderErro(res, err) }
+  })
 
   router.get('/engenharia/gestao', async (_req, res) => {
     try {
-      const { atualizadoEm, itens } = await gestao()
+      const { atualizadoEm, itens: daEng, acharCard } = await gestao()
       const linhas = await clientePg().todas('config', ENTIDADE_ACOES)
         .then((l) => l.filter((x) => x.chave.startsWith('acao:')))
+      // Ação aberta em card fora da Engenharia (combinada pela busca do código): o card entra na lista como avulso.
+      const chavesEng = new Set(daEng.map((i) => chaveAcao(i.codigo, i.funil)))
+      const avulsos = linhas.filter((x) => x.dados && !x.dados.concluida && !chavesEng.has(x.chave))
+        .map((x) => acharCard(x.dados.codigo, x.dados.funil)).filter((i) => i && i.avulso)
+      const itens = daEng.concat(avulsos)
       const { abertas, resolver } = juntarAcoes(itens, linhas, { agora: new Date(agora()) })
       if (resolver.length) await clientePg().upsert(resolver.map((r) => ({ tipo: 'config', entidade: ENTIDADE_ACOES, chave: r.chave, dados: r.dados })))
       res.set('Cache-Control', 'no-store')
       res.json({
         atualizadoEm,
-        resumo: resumoGestao(itens),
+        resumo: resumoGestao(daEng),
         acoes: abertas,
         itens: itens.map(({ prioridade: _p, ...resto }) => ({ ...resto, acao: abertas[chaveAcao(resto.codigo, resto.funil)] ?? null })),
       })
@@ -230,8 +257,8 @@ export function createIndicadoresRouter({
     try {
       if (!escritaLiberada(req)) return res.status(401).json({ error: 'Código de edição inválido' })
       const { codigo, funil } = req.params
-      const { itens } = await gestao()
-      const card = itens.find((i) => String(i.codigo) === codigo && i.funil === funil)
+      const { acharCard } = await gestao()
+      const card = acharCard(codigo, funil)
       const campos = validarAcao({ codigo, funil }, req.body, card)
       const chave = chaveAcao(codigo, funil)
       const antes = (await clientePg().todas('config', ENTIDADE_ACOES)).find((x) => x.chave === chave)?.dados
@@ -329,8 +356,8 @@ export function createIndicadoresRouter({
       await clientePg().upsert([{ tipo: 'config', entidade: ENTIDADE_ACOES, chave, dados }])
       let groner = null
       if (gronerAcoes && atual.tarefaId) {
-        const { itens } = await gestao()
-        const card = itens.find((i) => String(i.codigo) === codigo && i.funil === funil)
+        const { acharCard } = await gestao()
+        const card = acharCard(codigo, funil)
         groner = await registrarNoGroner({
           deps: await gronerAcoes(), item: card ?? { codigo: Number(codigo), funil, etapa: atual.etapa, problema: '' }, acao: atual.acao,
           responsavel: atual.responsavel, prazo: atual.prazo, tarefaId: atual.tarefaId, tipo: 'feito', agora: new Date(agora()),

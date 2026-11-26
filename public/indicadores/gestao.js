@@ -7,7 +7,7 @@
 (function () {
   var BASE = '/api/indicadores/engenharia';
   var CHAVE_CODIGO = 'indicadores-metas-codigo';
-  var S = { usuarios: [], salvando: {}, atrasoAberto: {}, dados: null, carregando: false, erro: null, abertos: {}, grupos: {}, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
+  var S = { usuarios: [], salvando: {}, atrasoAberto: {}, extras: {}, buscando: null, dados: null, carregando: false, erro: null, abertos: {}, grupos: {}, f: { funil: 'all', etapa: 'all', ano: 'all', mes: 'all', situacao: 'discutir', busca: '', semAcao: false } };
   var MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   var BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
   var ROTULO = { late: 'Atrasado', risk: 'Em risco', cobrar: 'Cobrar', ok: 'No prazo', repouso: 'Repouso' };
@@ -80,9 +80,33 @@
     document.head.appendChild(st);
   }
 
+  // Busca pelo código: além dos cards da Engenharia, traz o card de qualquer funil em que ele esteja (servidor).
+  function codigoBuscado() { var b = S.f.busca.trim().replace(/^#/, ''); return /^\d{3,9}$/.test(b) ? b : null; }
+  var esperaBusca = null;
+  function buscarCodigo() {
+    var c = codigoBuscado();
+    clearTimeout(esperaBusca);
+    if (!c || S.extras[c]) return;
+    esperaBusca = setTimeout(function () {
+      S.buscando = c; desenhar();
+      fetch(BASE + '/buscar/' + c, { headers: { accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : { itens: [] }; })
+        .then(function (d) { S.extras[c] = d.itens || []; }, function () { S.extras[c] = []; })
+        .then(function () { if (S.buscando === c) S.buscando = null; desenhar(); });
+    }, 300);
+  }
+
   function filtrados() {
-    var f = S.f, busca = f.busca.trim().toLowerCase();
-    return S.dados.itens.filter(function (i) {
+    var f = S.f, busca = f.busca.trim().toLowerCase().replace(/^#/, ''), c = codigoBuscado();
+    var base = S.dados.itens;
+    if (c && S.extras[c]) {
+      var tem = {};
+      base.forEach(function (i) { tem[chave(i)] = true; });
+      base = base.concat(S.extras[c].filter(function (i) { return !tem[chave(i)]; }));
+    }
+    // Buscando, acha o card em qualquer funil e situação: os outros filtros não valem.
+    if (busca) return base.filter(function (i) { return c ? String(i.codigo) === c || String(i.codigo).indexOf(busca) >= 0 : String(i.codigo).indexOf(busca) >= 0 || String(i.nome || '').toLowerCase().indexOf(busca) >= 0; });
+    return base.filter(function (i) {
       if (f.funil !== 'all' && i.funil !== f.funil) return false;
       if (f.etapa !== 'all' && i.etapa !== f.etapa) return false;
       if (f.ano !== 'all' && String(i.ano) !== f.ano) return false;
@@ -188,7 +212,7 @@
       ? '<div>' + (a.atraso ? '<span class="ge-tag-atraso">⚠ ATRASO</span>' : '') + '<b>' + esc(a.atraso ? a.motivoAtraso || a.acao : a.acao) + '</b></div><div class="ge-sub' + (a.prazo < hoje(0) ? ' ge-venc' : '') + '">' + esc(a.responsavel) + ' · até ' + br(a.prazo) + (a.prazo < hoje(0) ? ' (vencida)' : '') + '</div>'
       : (i.status === 'ok' ? '<div class="ge-sub">—</div>' : '<div class="' + (i.status === 'late' ? 'ge-sem' : 'ge-sub') + '">' + (i.status === 'late' ? 'Sem ação: combinar plano, responsável e prazo' : 'Sem ação combinada') + '</div>');
     var h = '<div class="ge-item"><button class="ge-linha" data-k="' + chave(i) + '" aria-expanded="' + aberto + '">' +
-      '<span class="ge-cod">#' + i.codigo + '</span>' +
+      '<span class="ge-cod">#' + i.codigo + (i.avulso ? '<div class="ge-sub" style="font-weight:600">fora da Eng.</div>' : '') + '</span>' +
       '<span style="min-width:0"><div class="ge-nome" title="' + esc(i.nome) + '">' + esc(i.nome || '—') + '</div><div class="ge-sub">' + i.funil + ' · ' + esc(i.etapa) + (i.uf ? ' · ' + esc(i.cidade || '') + '/' + esc(i.uf) : '') + '</div></span>' +
       '<span><span class="ge-pill ' + i.status + '">' + ROTULO[i.status] + '</span><div class="ge-prob">' + esc(i.problema) + '</div></span>' +
       '<span class="ge-acao">' + acao + '</span><span class="ge-chev" aria-hidden="true">›</span></button>';
@@ -259,7 +283,7 @@
     var foco = document.activeElement && document.activeElement.id;
     el.innerHTML = cabecalho() +
       '<section class="eng-panel"><div class="eng-panel-head"><h2>Cards da Engenharia: problema e plano de ação</h2><span class="eng-panel-note">' + lista.length.toLocaleString('pt-BR') + ' card(s)' + (S.dados.atualizadoEm ? ' · base de ' + new Date(S.dados.atualizadoEm).toLocaleString('pt-BR') : '') + '</span></div>' +
-      (lista.length ? '<div class="ge-lista">' + agrupados(lista) + '</div>' : '<div class="ge-vazio">Nenhum card neste filtro.</div>') +
+      (lista.length ? '<div class="ge-lista">' + agrupados(lista) + '</div>' : '<div class="ge-vazio">' + (S.buscando ? 'Procurando o card ' + esc(S.buscando) + ' em todos os funis…' : codigoBuscado() ? 'Card ' + esc(codigoBuscado()) + ' não encontrado na base.' : 'Nenhum card neste filtro.') + '</div>') +
       '</section>';
     ligar(el);
     if (foco === 'ge-busca') { var b = document.getElementById('ge-busca'); if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }
@@ -283,7 +307,7 @@
 
   function ligar(el) {
     var q = function (id) { return document.getElementById(id); };
-    q('ge-busca').oninput = function () { S.f.busca = this.value; desenhar(); };
+    q('ge-busca').oninput = function () { S.f.busca = this.value; buscarCodigo(); desenhar(); };
     q('ge-funil').onchange = function () { S.f.funil = this.value; S.f.etapa = 'all'; desenhar(); };
     q('ge-etapa').onchange = function () { S.f.etapa = this.value; desenhar(); };
     q('ge-ano').onchange = function () { S.f.ano = this.value; desenhar(); };
@@ -334,7 +358,7 @@
     return fetch(BASE + '/gestao', { headers: { accept: 'application/json' } }).then(function (r) {
       if (!r.ok) return r.json().catch(function () { return {}; }).then(function (b) { throw new Error(b.error || ('Erro ' + r.status)); });
       return r.json();
-    }).then(function (d) { S.dados = d; S.erro = null; }, function (e) { S.erro = e.message; })
+    }).then(function (d) { S.dados = d; S.erro = null; S.extras = {}; buscarCodigo(); }, function (e) { S.erro = e.message; })
       .then(function () { S.carregando = false; desenhar(); });
   }
 
