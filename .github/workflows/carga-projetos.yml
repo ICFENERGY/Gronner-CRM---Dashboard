@@ -31,5 +31,9 @@ jobs:
         run: node scripts/carga-completa.mjs projetos
         env:
           CARGA_SEM_DETALHE: '1'
+          # O Groner limita integrações a 120 leituras por minuto: 1 por vez, com 0,7 s entre páginas (~80/min),
+          # sobra folga para o tick de 5 em 5 minutos que roda junto.
+          CARGA_CONCORRENCIA: '1'
+          CARGA_PAUSA_MS: '700'
       - name: Conferir as contagens no banco
         run: node scripts/conferir-db.mjs
