@@ -87,9 +87,10 @@
       if (f.etapa !== 'all' && i.etapa !== f.etapa) return false;
       if (f.ano !== 'all' && String(i.ano) !== f.ano) return false;
       if (f.mes !== 'all' && String(i.mes) !== f.mes) return false;
-      if (f.situacao === 'discutir' && ['late', 'risk', 'cobrar'].indexOf(i.status) < 0) return false;
-      if (['late', 'risk', 'cobrar', 'repouso', 'ok'].indexOf(f.situacao) >= 0 && i.status !== f.situacao) return false;
-      if (f.semAcao && i.acao) return false;
+      // Buscando por código ou cliente, acha o card em qualquer situação (no prazo, estoque etc.), não só os atrasados.
+      if (!busca && f.situacao === 'discutir' && ['late', 'risk', 'cobrar'].indexOf(i.status) < 0) return false;
+      if (!busca && ['late', 'risk', 'cobrar', 'repouso', 'ok'].indexOf(f.situacao) >= 0 && i.status !== f.situacao) return false;
+      if (!busca && f.semAcao && i.acao) return false;
       if (busca && String(i.codigo).indexOf(busca) < 0 && String(i.nome || '').toLowerCase().indexOf(busca) < 0) return false;
       return true;
     });
